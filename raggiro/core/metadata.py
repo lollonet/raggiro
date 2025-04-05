@@ -27,10 +27,18 @@ class MetadataExtractor:
             r"\b\d{4}[-/]\d{1,2}[-/]\d{1,2}\b",
             r"\bDate:?\s*\d{1,2}[-/\.]\d{1,2}[-/\.]\d{2,4}\b",
             r"\bDate:?\s*[A-Za-z]+\s+\d{1,2},?\s+\d{4}\b",
+            # Copyright year patterns
+            r"(?:Copyright|©|Copyright\s+©)\s+(?:\d{4})",
+            r"(?:Copyright|©|Copyright\s+©)(?:\s+\d{4}[-—]\d{4})",
+            # Publication date patterns
+            r"(?:Published|First published|Publication date):?\s*(?:in)?\s*(\d{4})",
+            r"(?:printed|reprinted|printing)\s+(?:in)?\s*(\d{4})",
+            # YYYY standalone year (for books often after title/author but before publisher)
+            r"^\s*(\d{4})\s*$",
         ]
         
         # Date patterns as compiled regex
-        self.date_regex = [re.compile(pattern, re.IGNORECASE) for pattern in self.date_patterns]
+        self.date_regex = [re.compile(pattern, re.IGNORECASE | re.MULTILINE) for pattern in self.date_patterns]
         
         # Title extraction patterns
         self.title_patterns = [
@@ -376,29 +384,76 @@ class MetadataExtractor:
             if matches:
                 # Try to parse each match
                 for match in matches:
+                    # If match is a tuple (from capture groups), use the last non-empty element
+                    if isinstance(match, tuple):
+                        for m in reversed(match):
+                            if m:
+                                match = m
+                                break
+                                
+                    # Extract just year from copyright notices
+                    if "copyright" in match.lower() or "©" in match:
+                        year_match = re.search(r"\d{4}", match)
+                        if year_match:
+                            match = year_match.group(0)
+                    
                     try:
+                        # For standalone years, format as January 1st of that year
+                        if re.match(r"^\d{4}$", match.strip()):
+                            match = f"January 1, {match.strip()}"
+                            
                         parsed_date = dateparser.parse(match)
                         if parsed_date:
                             # Check if date is reasonable (not future, not too old)
                             now = datetime.now()
                             if parsed_date.year > 1900 and parsed_date <= now:
                                 return parsed_date.isoformat().split("T")[0]  # YYYY-MM-DD
-                    except:
+                    except Exception as e:
                         continue
         
+        # Special case for copyright and publication year search
+        copyright_match = re.search(r"(?:copyright|©)\s+(?:(?:c)\s+)?(\d{4})", text, re.IGNORECASE)
+        if copyright_match:
+            year = copyright_match.group(1)
+            try:
+                parsed_date = dateparser.parse(f"January 1, {year}")
+                if parsed_date and 1900 < parsed_date.year <= datetime.now().year:
+                    return parsed_date.isoformat().split("T")[0]  # YYYY-MM-DD
+            except:
+                pass
+                
         # Look for date lines
         lines = text.split("\n")
-        for line in lines[:20]:  # Check first 20 lines
+        for i, line in enumerate(lines[:50]):  # Check first 50 lines (increased from 20)
             line = line.strip().lower()
-            if "date:" in line:
+            
+            # Check for explicit date mentions
+            if "date:" in line or "published" in line or "publication" in line:
                 try:
-                    # Extract the date part
-                    date_part = line.split("date:", 1)[1].strip()
-                    parsed_date = dateparser.parse(date_part)
-                    if parsed_date:
-                        return parsed_date.isoformat().split("T")[0]  # YYYY-MM-DD
+                    # Extract potential date parts
+                    parts = re.split(r'[:\s]+', line)
+                    for j, part in enumerate(parts):
+                        if re.match(r'\d{4}', part):  # Look for years
+                            year = part[:4]  # Extract first 4 digits as year
+                            try:
+                                parsed_date = dateparser.parse(f"January 1, {year}")
+                                if parsed_date and 1900 < parsed_date.year <= datetime.now().year:
+                                    return parsed_date.isoformat().split("T")[0]
+                            except:
+                                continue
                 except:
                     pass
+                    
+            # Scan for standalone years in these first lines (common in books)
+            year_match = re.match(r'^\s*(\d{4})\s*$', line)
+            if year_match:
+                year = year_match.group(1)
+                if 1900 < int(year) <= datetime.now().year:
+                    return f"{year}-01-01"  # Default to January 1st$', line)
+            if year_match:
+                year = year_match.group(1)
+                if 1900 < int(year) <= datetime.now().year:
+                    return f"{year}-01-01"  # Default to January 1st
         
         # If we have file metadata, use modification date as a fallback
         if "file" in existing_metadata:
