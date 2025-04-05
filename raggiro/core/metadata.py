@@ -227,11 +227,6 @@ class MetadataExtractor:
             # Capitalize properly
             potential_title = " ".join(word.capitalize() for word in potential_title.split())
             if len(potential_title) > 5:
-                return potential_title$', '', filename)
-            potential_title = re.sub(r'[_-]', ' ', potential_title)
-            # Capitalize properly
-            potential_title = " ".join(word.capitalize() for word in potential_title.split())
-            if len(potential_title) > 5:
                 return potential_title
         
         # If no patterns match, try the first non-empty significant line
