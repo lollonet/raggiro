@@ -413,14 +413,174 @@ if "rewritten_query" in result:
 print(f"Chunks used: {result['chunks_used']}")
 ```
 
+## Processing Logs and Statistics
+
+Raggiro generates detailed logs and statistics during document processing, providing valuable insights into the pipeline performance:
+
+### Document Processing Logs
+
+During document processing, Raggiro generates several log files:
+
+```
+output_dir/
+├── logs/
+│   ├── raggiro_20250405_123045.log        # Main processing log
+│   ├── processed_files_20250405_123045.csv # CSV of all processed files
+│   └── processing_summary_20250405_123045.json # Processing statistics
+├── document1.md                          # Processed output files
+├── document1.json
+└── ...
+```
+
+#### Sample Processing Log
+
+```
+2025-04-05 12:30:45 - INFO - Starting processing of /data/documents/
+2025-04-05 12:30:45 - INFO - Found 24 files to process
+2025-04-05 12:30:47 - INFO - Processing /data/documents/report1.pdf
+2025-04-05 12:30:52 - INFO - Exported /data/documents/report1.pdf to: /output/report1.md, /output/report1.json
+2025-04-05 12:31:03 - INFO - Processing /data/documents/presentation.pptx
+2025-04-05 12:31:03 - ERROR - Unsupported file type: .pptx
+2025-04-05 12:31:04 - INFO - Processing /data/documents/contract.pdf
+2025-04-05 12:31:12 - INFO - Exported /data/documents/contract.pdf to: /output/contract.md, /output/contract.json
+...
+2025-04-05 12:35:28 - INFO - Processing summary: 22/24 files processed successfully (91.67%)
+2025-04-05 12:35:28 - INFO - Summary saved to /output/logs/processing_summary_20250405_123528.json
+2025-04-05 12:35:28 - INFO - Processing complete
+```
+
+#### Processing Statistics
+
+Raggiro generates a JSON summary with detailed statistics about the processing run:
+
+```json
+{
+  "start_time": "2025-04-05T12:30:45.123456",
+  "end_time": "2025-04-05T12:35:28.789012",
+  "total_files": 24,
+  "successful_files": 22,
+  "failed_files": 2,
+  "success_rate": 91.67,
+  "file_types": {
+    ".pdf": 15,
+    ".docx": 5,
+    ".txt": 2,
+    ".pptx": 1,
+    ".xlsx": 1
+  },
+  "extraction_methods": {
+    "pdf": 10,
+    "pdf_ocr": 5,
+    "docx": 5,
+    "text": 2
+  },
+  "errors": {
+    "Unsupported file type: .pptx": 1,
+    "Failed to extract text: Document is password protected": 1
+  }
+}
+```
+
+### RAG Pipeline Metrics
+
+When using the RAG pipeline, you can collect metrics on query performance:
+
+```python
+# Query the RAG pipeline and collect metrics
+result = pipeline.query("What are the key benefits?", collect_metrics=True)
+
+# Access metrics
+print(f"Query processing time: {result['metrics']['query_time_ms']}ms")
+print(f"Chunks retrieved: {result['metrics']['chunks_retrieved']}")
+print(f"Top chunk similarity: {result['metrics']['top_similarity']:.2f}")
+```
+
+Example metrics output:
+```
+Query: "What are the key benefits?"
+Rewritten query: "What are the key benefits and advantages described in this document?"
+Query processing time: 325ms
+Chunks retrieved: 3
+Top chunk similarity: 0.87
+Response generation time: 1254ms
+Total processing time: 1579ms
+```
+
 ## Testing and Evaluation
 
-Raggiro includes tools for testing and evaluating your RAG system:
+Raggiro includes tools for testing and evaluating your RAG system using promptfoo:
+
+### Running Evaluation Tests
 
 ```bash
 # Run promptfoo evaluations
-raggiro test-rag --prompt-set evaluation/prompts.yaml --output test_results
+raggiro test-rag --prompt-set config/test_prompts.yaml --output test_results
 ```
+
+### Example Promptfoo Configuration
+
+Raggiro comes with a default test configuration in `config/test_prompts.yaml`:
+
+```yaml
+prompts:
+  - "What is the main topic of this document?"
+  - "Who is the author of this document?"
+  - "Summarize the key points of this document."
+  # More prompts...
+
+tests:
+  - description: "Basic information extraction"
+    assert:
+      - type: "contains-any"
+        value: ["author", "document", "information"]
+      
+  - description: "Response quality"
+    assert:
+      - type: "contains-json"
+        value: |
+          {
+            "min_length": 50
+          }
+      - type: "language-match"
+        value: "en"
+```
+
+### Sample Evaluation Results
+
+```json
+{
+  "summary": {
+    "pass": 18,
+    "fail": 2,
+    "total": 20,
+    "pass_rate": 90.00
+  },
+  "prompts": [
+    {
+      "prompt": "What is the main topic of this document?",
+      "results": [
+        {
+          "pass": true,
+          "score": 0.92,
+          "response": "The main topic of this document is artificial intelligence trends and their impact on business in 2023. The document specifically focuses on large language models, multimodal AI systems, and AI applications in healthcare. [Source: Summary section, paragraph 1]"
+        }
+      ]
+    },
+    {
+      "prompt": "Who is the author of this document?",
+      "results": [
+        {
+          "pass": true,
+          "score": 0.89,
+          "response": "The authors of this document are Dr. Maria Rodriguez, Dr. James Chen, and Alex Nowak from the Advanced Technologies Research Institute. [Source: Metadata section]"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Programmatic Testing
 
 You can also use the testing utilities programmatically:
 
