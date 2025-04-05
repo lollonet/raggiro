@@ -82,38 +82,102 @@ Some features require additional system dependencies:
 
 ## User Guide
 
-### Command Line Interface
+### Command Line Interface Reference
 
-The CLI provides the primary interface for document processing:
+Raggiro provides a comprehensive CLI with several commands for document processing, GUI access, and RAG testing:
+
+#### Main Command
 
 ```bash
+# Show help and available commands
+raggiro --help
+
+# Check version
+raggiro --version
+```
+
+#### Document Processing Command
+
+The `process` command is the core functionality for document processing:
+
+```bash
+# Show help for process command
+raggiro process --help
+
 # Process a single file
 raggiro process document.pdf --output output_dir
 
 # Process a directory of documents
 raggiro process documents/ --output output_dir
 
-# Enable OCR for processing scanned documents
+# Process recursively (default) or non-recursively
+raggiro process documents/ --output output_dir --recursive
+raggiro process documents/ --output output_dir --no-recursive
+
+# Enable OCR for scanned documents (default: enabled)
 raggiro process document.pdf --output output_dir --ocr
+raggiro process document.pdf --output output_dir --no-ocr
 
-# Specify output formats
-raggiro process document.pdf --output output_dir --format markdown json
+# Specify output formats (default: markdown and json)
+raggiro process document.pdf --output output_dir --format markdown --format json
 
-# Set logging level
+# Run in dry-run mode (no files written)
+raggiro process document.pdf --output output_dir --dry-run
+
+# Set logging level (default: info)
 raggiro process documents/ --output output_dir --log-level debug
+
+# Use a custom configuration file
+raggiro process documents/ --output output_dir --config my_config.toml
 ```
 
-### GUI Interface
+#### GUI Interfaces
 
-Raggiro includes both Streamlit and Textual-based GUI interfaces:
+Raggiro includes both web-based (Streamlit) and terminal-based (Textual) GUI interfaces:
 
 ```bash
+# Show help for GUI command
+raggiro gui --help
+
 # Launch Streamlit GUI (web-based)
 raggiro gui
+# Or run directly with Streamlit for better browser integration
+streamlit run $(which raggiro)
 
 # Launch Textual GUI (terminal-based)
 raggiro gui --tui
 ```
+
+#### RAG Testing Commands
+
+The `test-rag` command allows automated testing of your RAG pipeline:
+
+```bash
+# Show help for test-rag command
+raggiro test-rag --help
+
+# Run tests with a promptfoo configuration
+raggiro test-rag --prompt-set tests/prompts.yaml
+
+# Specify output directory for test results
+raggiro test-rag --prompt-set tests/prompts.yaml --output test_results
+```
+
+### GUI Interface
+
+Raggiro's GUI interfaces provide interactive document processing without having to use command-line parameters:
+
+1. **Streamlit Interface (Web-based)**
+   - Upload and process documents through a browser
+   - Configure processing options visually
+   - View processing results in real-time
+   - Interactive file browsing
+
+2. **Textual Interface (Terminal-based)**
+   - Text-based UI for environments without a web browser
+   - Keyboard-driven interface
+   - Useful for remote server environments
+   - Low resource consumption
 
 ### Python API
 
