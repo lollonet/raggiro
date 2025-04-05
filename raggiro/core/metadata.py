@@ -37,6 +37,10 @@ class MetadataExtractor:
             r"^(?:TITLE|Title|SUBJECT|Subject):\s*(.*?)$",
             r"^(?:REPORT|Report)\s+(?:TITLE|Title):\s*(.*?)$",
             r"^(?:DOCUMENT|Document)\s+(?:TITLE|Title):\s*(.*?)$",
+            # Book title patterns
+            r"^\s*([A-Z][A-Za-z0-9\s'\":]+)(?:\n\s*|\s+)(?:by|di|BY|DI)\s+([A-Z][A-Za-z\s.]+)",
+            # Standalone large title at beginning of document (often books)
+            r"^\s*([A-Z][A-Z0-9\s'\":]{10,50})\s*$",
         ]
         
         # Title patterns as compiled regex
@@ -47,6 +51,9 @@ class MetadataExtractor:
             r"^(?:AUTHOR|Author|BY|By|PREPARED BY|Prepared by):\s*(.*?)$",
             r"^(?:AUTHORS|Authors):\s*(.*?)$",
             r"^(?:WRITTEN BY|Written by):\s*(.*?)$",
+            # Common book author formats
+            r"(?:by|di|BY|DI)\s+([A-Z][A-Za-z\s.]+)",
+            r"(?:^|\n)\s*([A-Z][A-Za-z\s.-]+)(?=\n)",
         ]
         
         # Author patterns as compiled regex
@@ -61,7 +68,19 @@ class MetadataExtractor:
             "business": ["business", "marketing", "sales", "customer", "product", "service", "strategy", "management", "operation"],
             "report": ["report", "summary", "overview", "analysis", "review", "assessment", "evaluation"],
             "presentation": ["presentation", "slide", "deck", "overview", "briefing"],
+            "book": ["book", "novel", "chapter", "author", "publisher", "publication", "copyright", "edition", "preface", "foreword"],
+            "music": ["music", "musician", "jazz", "piano", "improvisation", "performance", "mastery", "practice", "technique", "composition"],
         }
+        
+        # Publisher extraction patterns
+        self.publisher_patterns = [
+            r"(?:Published by|Publisher|PUBLISHER):\s*(.*?)(?:\n|$)",
+            r"(?:Copyright|©)\s+[\d]{4}[^\n]*?by\s+(.*?)(?:\n|$)",
+            r"((?:\w+\s+)(?:Press|Publications|Publishing|Books|Media))",
+        ]
+        
+        # Publisher patterns as compiled regex
+        self.publisher_regex = [re.compile(pattern, re.IGNORECASE | re.MULTILINE) for pattern in self.publisher_patterns]
     
     def extract(self, document: Dict, file_metadata: Dict) -> Dict:
         """Extract and enrich metadata from a document.
@@ -83,7 +102,7 @@ class MetadataExtractor:
         
         # Extract text content to work with
         text = document["text"]
-        first_chunk = text[:5000]  # First 5000 chars for metadata extraction
+        first_chunk = text[:10000]  # First 10000 chars for metadata extraction (increased from 5000)
         
         # Add file-based metadata
         result["filename"] = file_metadata.get("filename", "")
@@ -106,6 +125,11 @@ class MetadataExtractor:
         detected_language = self._detect_language(text)
         if detected_language:
             result["language"] = detected_language
+            
+        # Extract publisher (new)
+        extracted_publisher = self._extract_publisher(first_chunk)
+        if extracted_publisher:
+            result["publisher"] = extracted_publisher
             
         detected_topics = self._detect_topic(text, result)
         if detected_topics:
@@ -138,6 +162,21 @@ class MetadataExtractor:
         if existing_metadata.get("title"):
             return existing_metadata["title"]
         
+        # Check for ALL CAPS title at the beginning (common in books)
+        first_lines = text.split("\n")[:10]  # First 10 lines
+        for line in first_lines:
+            line = line.strip()
+            # Look for all caps title of reasonable length
+            if line.isupper() and 10 <= len(line) <= 100 and not any(word in line.lower() for word in ["page", "copyright", "confidential"]):
+                return line
+                
+        # Look for book title with author format: "TITLE by AUTHOR"
+        title_author_match = re.search(r"^\s*([A-Z][A-Za-z0-9\s'\":]+)(?:\n\s*|\s+)(?:by|di|BY|DI)\s+([A-Z][A-Za-z\s.]+)", text, re.MULTILINE)
+        if title_author_match:
+            title = title_author_match.group(1).strip()
+            if len(title) > 5 and len(title) < 200:
+                return title
+        
         # Then try pattern extraction
         for pattern in self.title_regex:
             matches = pattern.findall(text)
@@ -146,9 +185,25 @@ class MetadataExtractor:
                 if len(title) > 5 and len(title) < 200:  # Reasonable title length
                     return title
         
-        # If no patterns match, try the first non-empty line
+        # If no patterns match, try filename-based title for books
+        filename = document.get("metadata", {}).get("file", {}).get("filename", "")
+        if filename and "." in filename:
+            # Remove file extension and replace underscores/hyphens with spaces
+            potential_title = re.sub(r'\.[^.]+$', '', filename)
+            potential_title = re.sub(r'[_-]', ' ', potential_title)
+            # Capitalize properly
+            potential_title = " ".join(word.capitalize() for word in potential_title.split())
+            if len(potential_title) > 5:
+                return potential_title$', '', filename)
+            potential_title = re.sub(r'[_-]', ' ', potential_title)
+            # Capitalize properly
+            potential_title = " ".join(word.capitalize() for word in potential_title.split())
+            if len(potential_title) > 5:
+                return potential_title
+        
+        # If no patterns match, try the first non-empty significant line
         lines = text.split("\n")
-        for line in lines:
+        for line in lines[:15]:  # Check only first 15 lines
             line = line.strip()
             if line and len(line) > 5 and len(line) < 200:
                 if not any(re.search(r"page|copyright|confidential|draft|author|date", line, re.IGNORECASE)):
@@ -195,9 +250,16 @@ class MetadataExtractor:
                 if len(author) > 2 and len(author) < 100:  # Reasonable author name length
                     return author
         
+        # Special case for common book format "TITLE by AUTHOR"
+        title_author_match = re.search(r"^\s*([A-Z][A-Za-z0-9\s'\":]+)(?:\n\s*|\s+)(?:by|di|BY|DI)\s+([A-Z][A-Za-z\s.]+)", text, re.MULTILINE)
+        if title_author_match:
+            author = title_author_match.group(2).strip()
+            if len(author) > 2 and len(author) < 100:
+                return author
+        
         # Try to find an author line
         lines = text.split("\n")
-        for line in lines[:20]:  # Check first 20 lines
+        for line in lines[:30]:  # Check first 30 lines (increased from 20)
             line = line.strip().lower()
             if line.startswith("author:") or line.startswith("by:") or line.startswith("prepared by:"):
                 parts = line.split(":", 1)
@@ -205,6 +267,53 @@ class MetadataExtractor:
                     author = parts[1].strip()
                     if len(author) > 2:
                         return author.title()  # Convert to title case
+            
+            # Check for standalone author name after title
+            if line.startswith("by ") and len(line) > 3:
+                author = line[3:].strip()
+                if len(author) > 2:
+                    return author.title()
+        
+        return None
+        
+    def _extract_publisher(self, text: str) -> Optional[str]:
+        """Extract publisher information from text.
+        
+        Args:
+            text: Text to extract from
+            
+        Returns:
+            Extracted publisher or None
+        """
+        # Try pattern extraction
+        for pattern in self.publisher_regex:
+            matches = pattern.findall(text)
+            if matches:
+                publisher = matches[0].strip()
+                if len(publisher) > 2 and len(publisher) < 100:  # Reasonable publisher length
+                    return publisher
+        
+        # Look for copyright lines which often contain publisher info
+        copyright_match = re.search(r"(?:©|Copyright)\s+(?:\d{4})?[^\n]*?((?:\w+\s+){1,4}(?:Press|Publications|Publishing|Books|Media|Group))", text, re.IGNORECASE)
+        if copyright_match:
+            publisher = copyright_match.group(1).strip()
+            if len(publisher) > 2:
+                return publisher
+                
+        # Try to find publisher in first few lines
+        lines = text.split("\n")
+        for line in lines[:50]:  # Check first 50 lines
+            line = line.strip()
+            # Look for publishing house patterns
+            if re.search(r"(?:Press|Publications|Publishing|Books|Media|Group)$", line, re.IGNORECASE):
+                if 2 < len(line) < 100:
+                    return line
+                    
+            # Check explicit publisher declarations
+            if re.match(r"(?:Published by|Publisher)[:\s]", line, re.IGNORECASE):
+                publisher = re.sub(r"(?:Published by|Publisher)[:\s]", "", line, flags=re.IGNORECASE).strip()
+                if len(publisher) > 2:
+                    return publisher
         
         return None
     
