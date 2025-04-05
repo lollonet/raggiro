@@ -6,12 +6,29 @@ Test semplificato della pipeline RAG (Retrieval-Augmented Generation)
 import json
 import os
 import sys
+import argparse
 from pathlib import Path
 import re
 
+def parse_arguments():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(description='Test della pipeline RAG con documenti elaborati')
+    parser.add_argument('--input', '-i', type=str, 
+                      default=str(Path.cwd() / 'test_output' / 'sample_report.json'),
+                      help='Path al file JSON del documento elaborato')
+    parser.add_argument('--output', '-o', type=str, 
+                      default=str(Path.cwd() / 'test_output'),
+                      help='Directory di output per i risultati')
+    parser.add_argument('--queries', '-q', type=str, nargs='+',
+                      help='Query da testare (opzionale)')
+    return parser.parse_args()
+
+# Parsing degli argomenti
+args = parse_arguments()
+
 # Configurazioni
-TEST_DIR = Path('/home/ubuntu/raggiro/test_output')
-INPUT_JSON = Path('/home/ubuntu/raggiro/test_output/sample_report.json')
+TEST_DIR = Path(args.output)
+INPUT_JSON = Path(args.input)
 
 print("=== Test della pipeline RAG ===")
 print(f"File di input: {INPUT_JSON}")
@@ -100,14 +117,24 @@ except Exception as e:
     sys.exit(1)
 
 # Test con alcune query diverse
-queries = [
+default_queries = [
     "Quali sono i principali trend in AI nel 2023?",
     "Come viene utilizzata l'AI in ambito sanitario?",
     "Quali sfide devono affrontare le organizzazioni nell'implementazione dell'AI?",
     "Cosa sono i Large Language Models e quali sono i loro sviluppi recenti?"
 ]
 
+# Usa le query fornite dall'utente o quelle predefinite
+queries = args.queries if args.queries else default_queries
+
 print("\n=== Simulazione di query RAG ===")
+
+# Assicurati che la directory di output esista
+TEST_DIR.mkdir(parents=True, exist_ok=True)
+
+# File per salvare i risultati
+results_file = TEST_DIR / "rag_results.json"
+results = []
 
 for query in queries:
     print("\n" + "=" * 80)
@@ -121,7 +148,25 @@ for query in queries:
         response = simulate_response_generation(query, retrieved_chunks)
         print("\nRISPOSTA:")
         print(response)
+        
+        # Salva il risultato
+        results.append({
+            "query": query,
+            "chunks": [{"id": c["id"], "score": c["score"]} for c in retrieved_chunks],
+            "response": response
+        })
     else:
         print("\nNessun risultato rilevante trovato per questa query.")
+        results.append({
+            "query": query,
+            "chunks": [],
+            "response": "Nessun risultato rilevante trovato."
+        })
+
+# Salva i risultati in formato JSON
+with open(results_file, 'w', encoding='utf-8') as f:
+    json.dump(results, f, ensure_ascii=False, indent=2)
+
+print(f"\nRisultati salvati in: {results_file}")
 
 print("\n=== Test RAG completato ===")

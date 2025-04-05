@@ -111,41 +111,56 @@ module.exports = {
 };
 """)
             
-            # Create a Python script to evaluate prompts
+            # Create a Python script to evaluate prompts if it doesn't exist
             script_file = Path(__file__).parent / "eval_prompt.py"
             
-            with open(script_file, "w", encoding="utf-8") as f:
-                f.write("""
+            if not script_file.exists():
+                with open(script_file, "w", encoding="utf-8") as f:
+                    f.write("""
 import json
 import sys
+import argparse
 from pathlib import Path
 
 from raggiro.rag.pipeline import RagPipeline
 from raggiro.utils.config import load_config
 
-def evaluate_prompt(prompt):
+def evaluate_prompt(prompt, index_path=None):
     # Load configuration
     config = load_config()
     
     # Initialize RAG pipeline
     pipeline = RagPipeline(config)
     
+    # Load index if specified
+    if index_path:
+        load_result = pipeline.retriever.load_index(index_path)
+        if not load_result["success"]:
+            return {
+                "response": f"Error loading index: {load_result.get('error', 'Unknown error')}",
+                "success": False,
+            }
+    
     # Query the pipeline
     result = pipeline.query(prompt)
     
+    # Return a more comprehensive result
     return {
         "response": result["response"],
         "success": result["success"],
+        "chunks_used": result.get("chunks_used", 0),
+        "rewritten_query": result.get("rewritten_query", None),
+        "original_query": result.get("original_query", prompt)
     }
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print(json.dumps({"response": "Error: No prompt provided", "success": False}))
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description="Evaluate a prompt using the RAG pipeline")
+    parser.add_argument("prompt", type=str, help="The prompt to evaluate")
+    parser.add_argument("--index", "-i", type=str, help="Path to the index directory")
+    args = parser.parse_args()
     
-    prompt = sys.argv[1]
-    result = evaluate_prompt(prompt)
-    print(json.dumps(result))
+    result = evaluate_prompt(args.prompt, args.index)
+    print(json.dumps(result, ensure_ascii=False))
 """)
             
             # Create a promptfoo configuration file
@@ -210,12 +225,17 @@ if __name__ == "__main__":
                 "error": str(e),
             }
 
-def run_tests(prompt_file: Union[str, Path], output_dir: Union[str, Path]) -> Dict:
+def run_tests(
+    prompt_file: Union[str, Path], 
+    output_dir: Union[str, Path], 
+    index_dir: Optional[Union[str, Path]] = None
+) -> Dict:
     """Run tests using promptfoo.
     
     Args:
         prompt_file: Path to promptfoo prompt set YAML file
         output_dir: Output directory
+        index_dir: Optional path to the index directory
         
     Returns:
         Test results
@@ -226,6 +246,32 @@ def run_tests(prompt_file: Union[str, Path], output_dir: Union[str, Path]) -> Di
     
     # Initialize runner
     runner = PromptfooRunner(config)
+    
+    # Update script to use index_dir if provided
+    if index_dir:
+        script_file = Path(__file__).parent / "eval_prompt.py"
+        with open(script_file, "r+") as f:
+            content = f.read()
+            # Modify provider_file to pass index_dir
+            provider_content = """
+const { execSync } = require('child_process');
+
+module.exports = {
+  id: 'rag-pipeline',
+  async callApi(prompt, options) {
+    // Call Python script to evaluate prompt with RAG pipeline
+    const output = execSync(`python -m raggiro.testing.eval_prompt "${prompt}" --index "%s"`, {
+      encoding: 'utf-8',
+    });
+    return JSON.parse(output).response;
+  },
+};
+""" % index_dir
+            
+            # Update provider_file with new content
+            provider_file = Path(output_dir) / "rag_provider.js"
+            with open(provider_file, "w", encoding="utf-8") as pf:
+                pf.write(provider_content)
     
     # Run tests
     return runner.run_tests(prompt_file, output_dir)
