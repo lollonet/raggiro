@@ -18,6 +18,7 @@ from raggiro.processor import DocumentProcessor
 from raggiro.rag.indexer import VectorIndexer
 from raggiro.rag.pipeline import RagPipeline
 from raggiro.utils.config import load_config
+import toml
 
 def parse_arguments():
     """Parse command line arguments."""
@@ -47,8 +48,21 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
     index_dir.mkdir(parents=True, exist_ok=True)
     
-    # Load configuration
-    config = load_config()
+    # Load configuration with proper path
+    config_path = root_dir / "config" / "config.toml"
+    print(f"Loading config from: {config_path}")
+    
+    # Try direct TOML loading first for debugging
+    try:
+        with open(config_path, 'r') as f:
+            direct_config = toml.load(f)
+            print(f"Direct TOML load - Ollama URL: {direct_config.get('llm', {}).get('ollama_base_url', 'Not set in direct load')}")
+    except Exception as e:
+        print(f"Error loading config directly: {str(e)}")
+    
+    # Load through the utility function
+    config = load_config(str(config_path))
+    print(f"Config load via utility - Ollama URL: {config.get('llm', {}).get('ollama_base_url', 'Not set in utility load')}")
     print(f"Strategia di chunking attuale: {config.get('segmentation', {}).get('chunking_strategy', 'size')}")
     
     # Process the document
@@ -119,8 +133,20 @@ def main():
     print("\n=== Test di query RAG ===")
     
     # Initialize RAG pipeline
-    # Print the Ollama URL for debugging
-    print(f"Debug - Ollama URL: {config.get('llm', {}).get('ollama_base_url', 'Not set')}")
+    # Check exact config being passed to the pipeline
+    print("=== Config diagnostics ===")
+    print(f"Config type: {type(config)}")
+    llm_config = config.get('llm', {})
+    print(f"LLM config: {llm_config}")
+    ollama_url = llm_config.get('ollama_base_url', 'Not set')
+    print(f"Ollama URL: {ollama_url}")
+    
+    # Force the URL into the configuration
+    config['llm'] = config.get('llm', {})
+    config['llm']['ollama_base_url'] = "http://192.168.63.204:11434"
+    print(f"Forced Ollama URL: {config['llm']['ollama_base_url']}")
+    
+    # Initialize the pipeline with the forced config
     pipeline = RagPipeline(config)
     load_result = pipeline.retriever.load_index(index_dir)
     
