@@ -27,7 +27,14 @@ for pdf_file in "$TMP_DIR"/*.pdf; do
         output_dir="${TEST_OUTPUT_DIR}/${clean_name}"
         
         # Elabora il documento
-        python -m raggiro.examples.scripts.test_semantic_chunking --input "$pdf_file" --output "$output_dir"
+        # Controlla se esiste lo script nella struttura dei moduli Python
+        if python -c "import importlib.util; print(importlib.util.find_spec('raggiro.examples.scripts') is not None)" | grep -q "True"; then
+            # Se esiste come modulo Python
+            python -m raggiro.examples.scripts.test_semantic_chunking --input "$pdf_file" --output "$output_dir"
+        else
+            # Se esiste come script diretto
+            python "$BASE_DIR/examples/scripts/test_semantic_chunking.py" --input "$pdf_file" --output "$output_dir"
+        fi
         
         # Trova la configurazione di test appropriata
         yaml_file=""
@@ -57,7 +64,13 @@ for pdf_file in "$TMP_DIR"/*.pdf; do
         # Esegui i test promptfoo se abbiamo trovato la configurazione
         if [ -n "$yaml_file" ]; then
             echo "Esecuzione test con configurazione: $yaml_file"
-            python -m raggiro.testing.promptfoo_runner "$SCRIPT_DIR/$yaml_file" "$output_dir"
+            if python -c "import importlib.util; print(importlib.util.find_spec('raggiro.testing.promptfoo_runner') is not None)" | grep -q "True"; then
+                # Se esiste come modulo Python
+                python -m raggiro.testing.promptfoo_runner "$SCRIPT_DIR/$yaml_file" "$output_dir"
+            else
+                # Se esiste come script diretto
+                python "$BASE_DIR/raggiro/testing/promptfoo_runner.py" "$SCRIPT_DIR/$yaml_file" "$output_dir"
+            fi
         fi
         
         echo "===== Completato: $filename ====="
