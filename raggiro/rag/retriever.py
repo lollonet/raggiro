@@ -1,0 +1,234 @@
+"""Retrieval module for RAG integration."""
+
+import json
+import os
+from pathlib import Path
+from typing import Dict, List, Optional, Set, Tuple, Union
+
+import numpy as np
+
+# For embeddings
+from sentence_transformers import SentenceTransformer
+
+# For vector search
+try:
+    import faiss
+    FAISS_AVAILABLE = True
+except ImportError:
+    FAISS_AVAILABLE = False
+
+try:
+    from qdrant_client import QdrantClient
+    from qdrant_client.http import models
+    QDRANT_AVAILABLE = True
+except ImportError:
+    QDRANT_AVAILABLE = False
+
+class VectorRetriever:
+    """Retrieves relevant chunks from vector stores for RAG."""
+    
+    def __init__(self, config: Optional[Dict] = None):
+        """Initialize the vector retriever.
+        
+        Args:
+            config: Configuration dictionary
+        """
+        self.config = config or {}
+        
+        # Configure retrieval settings
+        retrieval_config = self.config.get("retrieval", {})
+        self.embedding_model = retrieval_config.get("embedding_model", "all-MiniLM-L6-v2")
+        self.vector_db = retrieval_config.get("vector_db", "faiss")  # "faiss", "qdrant"
+        self.qdrant_url = retrieval_config.get("qdrant_url", "http://localhost:6333")
+        self.qdrant_collection = retrieval_config.get("qdrant_collection", "raggiro")
+        self.top_k = retrieval_config.get("top_k", 5)
+        
+        # Initialize embedding model
+        self.model = SentenceTransformer(self.embedding_model)
+        
+        # Initialize vector database
+        self.index = None
+        self.document_lookup = {}
+        
+        if self.vector_db == "qdrant" and QDRANT_AVAILABLE:
+            self.client = QdrantClient(url=self.qdrant_url)
+    
+    def load_index(self, input_path: Union[str, Path]) -> Dict:
+        """Load a FAISS index and document lookup from disk.
+        
+        Args:
+            input_path: Path to the saved index and lookup
+            
+        Returns:
+            Load result
+        """
+        input_path = Path(input_path)
+        
+        # Only FAISS indices can be loaded
+        if self.vector_db != "faiss" or not FAISS_AVAILABLE:
+            return {
+                "input_path": str(input_path),
+                "success": False,
+                "error": "Only FAISS indices can be loaded",
+            }
+        
+        try:
+            # Check if the files exist
+            index_path = input_path / "index.faiss"
+            lookup_path = input_path / "lookup.json"
+            
+            if not index_path.exists():
+                return {
+                    "input_path": str(input_path),
+                    "success": False,
+                    "error": f"Index file not found: {index_path}",
+                }
+            
+            if not lookup_path.exists():
+                return {
+                    "input_path": str(input_path),
+                    "success": False,
+                    "error": f"Lookup file not found: {lookup_path}",
+                }
+            
+            # Load FAISS index
+            self.index = faiss.read_index(str(index_path))
+            
+            # Load document lookup
+            with open(lookup_path, "r", encoding="utf-8") as f:
+                # Convert string keys back to integers
+                lookup_data = json.load(f)
+                self.document_lookup = {int(k): v for k, v in lookup_data.items()}
+            
+            return {
+                "input_path": str(input_path),
+                "total_vectors": self.index.ntotal,
+                "success": True,
+            }
+        except Exception as e:
+            return {
+                "input_path": str(input_path),
+                "success": False,
+                "error": f"Failed to load index: {str(e)}",
+            }
+    
+    def retrieve(self, query: str, top_k: Optional[int] = None) -> Dict:
+        """Retrieve relevant chunks for a query.
+        
+        Args:
+            query: Query string
+            top_k: Number of chunks to retrieve (overrides config)
+            
+        Returns:
+            Retrieval results
+        """
+        if not query:
+            return {
+                "query": query,
+                "success": False,
+                "error": "Query is empty",
+            }
+        
+        # Use provided top_k if given, otherwise use the one from config
+        k = top_k if top_k is not None else self.top_k
+        
+        try:
+            # Compute query embedding
+            query_embedding = self.model.encode(query)
+            
+            # Retrieve from the appropriate vector database
+            if self.vector_db == "faiss" and FAISS_AVAILABLE:
+                result = self._retrieve_from_faiss(query_embedding, k)
+            elif self.vector_db == "qdrant" and QDRANT_AVAILABLE:
+                result = self._retrieve_from_qdrant(query_embedding, k)
+            else:
+                return {
+                    "query": query,
+                    "success": False,
+                    "error": f"Vector database {self.vector_db} is not available",
+                }
+            
+            # Add query to the result
+            result["query"] = query
+            result["success"] = True
+            
+            return result
+        except Exception as e:
+            return {
+                "query": query,
+                "success": False,
+                "error": f"Failed to retrieve results: {str(e)}",
+            }
+    
+    def _retrieve_from_faiss(self, query_embedding: np.ndarray, k: int) -> Dict:
+        """Retrieve from FAISS index.
+        
+        Args:
+            query_embedding: Query embedding
+            k: Number of results to retrieve
+            
+        Returns:
+            Retrieval results
+        """
+        if self.index is None:
+            return {
+                "success": False,
+                "error": "No index loaded",
+            }
+        
+        # Reshape embedding for FAISS
+        query_embedding = query_embedding.reshape(1, -1).astype(np.float32)
+        
+        # Search the index
+        distances, indices = self.index.search(query_embedding, k)
+        
+        # Get the chunks for the indices
+        chunks = []
+        
+        for i, (distance, idx) in enumerate(zip(distances[0], indices[0])):
+            if idx in self.document_lookup:
+                chunk_data = self.document_lookup[idx]
+                chunks.append({
+                    "rank": i + 1,
+                    "score": float(1.0 - distance / 2.0),  # Convert L2 distance to a similarity score
+                    "text": chunk_data["text"],
+                    "metadata": chunk_data["metadata"],
+                })
+        
+        return {
+            "chunks": chunks,
+            "total_chunks": len(chunks),
+        }
+    
+    def _retrieve_from_qdrant(self, query_embedding: np.ndarray, k: int) -> Dict:
+        """Retrieve from Qdrant.
+        
+        Args:
+            query_embedding: Query embedding
+            k: Number of results to retrieve
+            
+        Returns:
+            Retrieval results
+        """
+        # Search the collection
+        search_result = self.client.search(
+            collection_name=self.qdrant_collection,
+            query_vector=query_embedding.tolist(),
+            limit=k,
+        )
+        
+        # Get the chunks for the results
+        chunks = []
+        
+        for i, result in enumerate(search_result):
+            chunks.append({
+                "rank": i + 1,
+                "score": float(result.score),
+                "text": result.payload.get("text", ""),
+                "metadata": {k: v for k, v in result.payload.items() if k != "text"},
+            })
+        
+        return {
+            "chunks": chunks,
+            "total_chunks": len(chunks),
+        }

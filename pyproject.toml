@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "raggiro"
+version = "0.1.0"
+description = "Advanced document processing pipeline for RAG applications"
+requires-python = ">=3.8"
+dependencies = [
+    "pymupdf",
+    "pdfminer.six",
+    "python-docx",
+    "pytesseract",
+    "openpyxl",
+    "pandas",
+    "beautifulsoup4",
+    "langdetect",
+    "spacy",
+    "dateparser",
+    "click",
+    "streamlit", 
+    "textual",
+    "chardet",
+    "faiss-cpu",  # For vector search
+    "sentence-transformers", # For embeddings
+    "qdrant-client", # Vector database
+    "promptfoo", # For testing
+    "tqdm"  # Progress bars
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "black",
+    "isort",
+    "mypy",
+    "ruff"
+]
+
+[project.scripts]
+raggiro = "raggiro.cli.main:main"

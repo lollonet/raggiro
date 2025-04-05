@@ -1,0 +1,62 @@
+# Promptfoo test configuration for Raggiro
+
+prompts:
+  - "What is the main topic of this document?"
+  - "Who is the author of this document?"
+  - "When was this document created?"
+  - "Summarize the key points of this document."
+  - "What are the recommendations provided in this document?"
+  - "How does section 2 relate to section 3?"
+  - "What evidence is provided to support the main argument?"
+  - "Compare the first and last sections of the document."
+  - "What methodologies were used in this research?"
+  - "Extract all dates mentioned in the document."
+
+tests:
+  - description: "Basic information extraction"
+    assert:
+      - type: "contains-any"
+        value: ["author", "document", "information"]
+      - type: "not-contains-any"
+        value: ["I don't know", "cannot answer", "no relevant information"]
+  
+  - description: "Response quality"
+    assert:
+      - type: "contains-json"
+        value: |
+          {
+            "min_length": 50
+          }
+      - type: "language-match"
+        value: "en"
+      - type: "not-contains-any"
+        value: ["As an AI", "I don't have access", "my knowledge", "I'm an AI"]
+  
+  - description: "Source citation"
+    assert:
+      - type: "contains-any"
+        value: ["document", "section", "source", "according to"]
+  
+evaluations:
+  - promptName: "What is the main topic of this document?"
+    expected: |
+      The response should identify the main topic or subject of the document.
+    criteria:
+      - "The response should be clear and concise."
+      - "The response should be directly supported by information in the document."
+      - "The response should include a citation to the relevant section."
+  
+  - promptName: "Who is the author of this document?"
+    expected: |
+      The response should identify the author(s) of the document if that information is available.
+    criteria:
+      - "The response should be factual and based on metadata or explicit content."
+      - "If author information is not available, the response should clearly state this."
+  
+  - promptName: "Summarize the key points of this document."
+    expected: |
+      The response should provide a concise summary of the main points in the document.
+    criteria:
+      - "The summary should cover the most important information from the document."
+      - "The summary should be well-organized and coherent."
+      - "The summary should include citations to relevant sections."
