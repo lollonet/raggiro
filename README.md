@@ -28,10 +28,16 @@ Raggiro is a comprehensive document processing framework designed for building l
 # From PyPI (not yet available)
 pip install raggiro
 
-# From the repository
+# From the repository with pip
 git clone https://github.com/lollonet/raggiro.git
 cd raggiro
 pip install -e .
+
+# From the repository with requirements.txt
+git clone https://github.com/lollonet/raggiro.git
+cd raggiro
+pip install -r requirements.txt
+python -m spacy download en_core_web_sm  # Download language model
 ```
 
 ### Install with Optional Dependencies
@@ -39,6 +45,8 @@ pip install -e .
 ```bash
 # For development tools
 pip install -e ".[dev]"
+# or
+pip install -r requirements-dev.txt
 
 # For vector database support
 pip install -e ".[qdrant]"
