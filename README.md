@@ -412,6 +412,7 @@ raggiro/
 ├── utils/        # Utility functions
 ├── testing/      # Testing utilities
 └── examples/     # Example code and documents
+    └── scripts/  # Testing and evaluation scripts
 ```
 
 ## RAG Integration
@@ -463,6 +464,11 @@ if "rewritten_query" in result:
 
 print(f"Chunks used: {result['chunks_used']}")
 ```
+
+See the `raggiro/examples/` directory for more comprehensive examples, including:
+- Basic usage examples in `examples/basic_usage.py`
+- OpenAI integration in `examples/openai_integration.py`
+- Testing scripts in `examples/scripts/`
 
 ## Processing Logs and Statistics
 
@@ -606,10 +612,10 @@ Raggiro includes comprehensive tools for testing and evaluating your RAG system:
 raggiro test-rag --prompt-set config/test_prompts.yaml --output test_results
 
 # Test semantic chunking with a specific document
-python examples/scripts/test_semantic_chunking.py --input /path/to/your/document.pdf --output test_output
+python -m raggiro.examples.scripts.test_semantic_chunking --input /path/to/your/document.pdf --output test_output
 
 # Compare different chunking strategies
-python examples/scripts/test_rag_comparison.py --input /path/to/your/document.pdf --strategies size semantic hybrid
+python -m raggiro.examples.scripts.test_rag_comparison --input /path/to/your/document.pdf --strategies size semantic hybrid
 ```
 
 ### Testing Semantic Chunking
@@ -618,13 +624,13 @@ The semantic chunking feature can be tested and analyzed using the included test
 
 ```bash
 # Basic test with detailed chunk analysis
-python examples/scripts/test_semantic_chunking.py --input document.pdf --output test_output
+python -m raggiro.examples.scripts.test_semantic_chunking --input document.pdf --output test_output
 
 # Test with custom queries
-python examples/scripts/test_semantic_chunking.py --input document.pdf --queries "What is the main topic?" "Summarize key points"
+python -m raggiro.examples.scripts.test_semantic_chunking --input document.pdf --queries "What is the main topic?" "Summarize key points"
 
 # Specify number of chunks to retrieve for each query
-python examples/scripts/test_semantic_chunking.py --input document.pdf --top-k 5
+python -m raggiro.examples.scripts.test_semantic_chunking --input document.pdf --top-k 5
 ```
 
 ### Comparing Chunking Strategies
@@ -633,13 +639,13 @@ You can compare different chunking strategies to find the most effective approac
 
 ```bash
 # Compare all available strategies
-python examples/scripts/test_rag_comparison.py --input document.pdf 
+python -m raggiro.examples.scripts.test_rag_comparison --input document.pdf 
 
 # Compare only specific strategies
-python examples/scripts/test_rag_comparison.py --input document.pdf --strategies size hybrid
+python -m raggiro.examples.scripts.test_rag_comparison --input document.pdf --strategies size hybrid
 
 # Test with specific queries and output directory
-python examples/scripts/test_rag_comparison.py --input document.pdf --queries "What is the main topic?" --output my_test_results
+python -m raggiro.examples.scripts.test_rag_comparison --input document.pdf --queries "What is the main topic?" --output my_test_results
 ```
 
 ### Example Promptfoo Configurations
@@ -712,7 +718,7 @@ You can create custom test configurations for your specific documents:
 python -m raggiro.testing.promptfoo_runner path/to/custom_prompts.yaml test_output
 
 # Compare chunking strategies with domain-specific queries
-python examples/scripts/test_rag_comparison.py --input document.pdf --queries "Domain specific question 1" "Domain specific question 2"
+python -m raggiro.examples.scripts.test_rag_comparison --input document.pdf --queries "Domain specific question 1" "Domain specific question 2"
 ```
 
 ### Sample Evaluation Results

@@ -121,13 +121,27 @@ class VectorIndexer:
                     })
         else:
             # Fallback to the full text
+            # Handle both dictionary and list formats
+            if isinstance(document, dict) and "text" in document:
+                text = document["text"]
+                metadata = document["metadata"]
+            elif isinstance(document, list):
+                # If document is a list, join all text content
+                text = "\n".join([item.get("text", "") for item in document if isinstance(item, dict)])
+                # Use metadata from the first item if available
+                metadata = next((item.get("metadata", {}) for item in document if isinstance(item, dict) and "metadata" in item), {})
+            else:
+                # Default values if neither format matches
+                text = ""
+                metadata = {}
+                
             chunks.append({
                 "id": "full_text",
-                "text": document["text"],
+                "text": text,
                 "metadata": {
-                    "document_id": document["metadata"]["file"]["hash"],
-                    "document_title": document["metadata"].get("title", ""),
-                    "document_path": document["metadata"]["file"]["path"],
+                    "document_id": metadata.get("file", {}).get("hash", "unknown"),
+                    "document_title": metadata.get("title", ""),
+                    "document_path": metadata.get("file", {}).get("path", "unknown"),
                 }
             })
         

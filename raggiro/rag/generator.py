@@ -17,12 +17,31 @@ class ResponseGenerator:
         
         # Configure generation settings
         generation_config = self.config.get("generation", {})
-        self.llm_type = generation_config.get("llm_type", "ollama")  # "ollama", "llamacpp"
-        self.model_name = generation_config.get("model_name", "mistral")
+        self.llm_type = generation_config.get("llm_type", "ollama")  # "ollama", "llamacpp", "openai"
+        
+        # Provider-specific model names
+        self.ollama_model = generation_config.get("ollama_model", "mistral")
+        self.llamacpp_model = generation_config.get("llamacpp_model", "mistral")
+        self.openai_model = generation_config.get("openai_model", "gpt-3.5-turbo")
+        
+        # Set model name based on provider type
+        if self.llm_type == "ollama":
+            self.model_name = self.ollama_model
+        elif self.llm_type == "llamacpp":
+            self.model_name = self.llamacpp_model
+        elif self.llm_type == "openai":
+            self.model_name = self.openai_model
+        else:
+            self.model_name = "mistral"  # Default fallback
+            
         self.temperature = generation_config.get("temperature", 0.7)
         self.max_tokens = generation_config.get("max_tokens", 1000)
-        self.ollama_base_url = generation_config.get("ollama_base_url", "http://localhost:11434")
+        self.ollama_base_url = generation_config.get("ollama_base_url", self.config.get("llm", {}).get("ollama_base_url", "http://localhost:11434"))
         self.llamacpp_path = generation_config.get("llamacpp_path", "")
+        
+        # API settings (for OpenAI, etc.)
+        self.api_key = generation_config.get("api_key", "") or self.config.get("llm", {}).get("api_key", "")
+        self.api_url = generation_config.get("api_url", "") or self.config.get("llm", {}).get("api_url", "")
         
         # Response generation prompt
         self.prompt_template = generation_config.get("prompt_template", """
@@ -70,6 +89,8 @@ Your Answer (include citations to specific documents):
                 result = self._generate_with_ollama(query, formatted_chunks)
             elif self.llm_type == "llamacpp":
                 result = self._generate_with_llamacpp(query, formatted_chunks)
+            elif self.llm_type == "openai":
+                result = self._generate_with_openai(query, formatted_chunks)
             else:
                 return {
                     "query": query,
@@ -228,3 +249,62 @@ Your Answer (include citations to specific documents):
             return {"error": f"llama.cpp error: {e.stderr}"}
         except Exception as e:
             return {"error": str(e)}
+            
+    def _generate_with_openai(self, query: str, formatted_chunks: str) -> Dict:
+        """Generate a response using OpenAI API.
+        
+        Args:
+            query: User query
+            formatted_chunks: Formatted context chunks
+            
+        Returns:
+            Generation result
+        """
+        try:
+            import openai
+            
+            # Check if API key is set
+            if not self.api_key:
+                return {"error": "OpenAI API key not set"}
+            
+            # Configure OpenAI client
+            client = openai.OpenAI(api_key=self.api_key)
+            
+            # Set custom API URL if provided
+            if self.api_url:
+                client.base_url = self.api_url
+            
+            # Format the prompt
+            prompt = self.prompt_template.format(
+                query=query,
+                chunks=formatted_chunks,
+            )
+            
+            # Call OpenAI API
+            response = client.chat.completions.create(
+                model=self.openai_model,  # Use openai_model for API calls
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant that answers questions based on provided context."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
+            )
+            
+            # Extract the generated text
+            generated_text = response.choices[0].message.content.strip()
+            
+            # If the response is empty, return error
+            if not generated_text:
+                return {"error": "Empty response from OpenAI API"}
+            
+            # Check if the response contains the expected format marker and clean if needed
+            if "Your Answer" in generated_text:
+                parts = generated_text.split("Your Answer", 1)
+                generated_text = parts[1].strip().lstrip(":")
+            
+            return {"response": generated_text}
+        except ImportError:
+            return {"error": "OpenAI package not installed. Install with: pip install openai"}
+        except Exception as e:
+            return {"error": f"OpenAI API error: {str(e)}"}
