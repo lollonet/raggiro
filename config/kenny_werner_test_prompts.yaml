@@ -11,6 +11,11 @@ prompts:
   - "Quali sono le tecniche per liberarsi dalle autolimitazioni secondo Werner?"
   - "Come viene descritto nel libro il concetto di 'spazio' in relazione all'improvvisazione jazz?"
   - "Quali storie o aneddoti personali condivide Kenny Werner per illustrare i suoi concetti?"
+  - "In che modo il concetto di 'Effortless Mastery' può essere applicato ad altre discipline oltre alla musica?"
+  - "Come affronta Werner la relazione tra tecnica e libertà espressiva?"
+  - "Qual è l'importanza del silenzio e dello spazio nell'improvvisazione secondo Werner?"
+  - "Quali benefici psicologici derivano dall'approccio di Werner alla pratica musicale?"
+  - "Come suggerisce Werner di affrontare le sessioni di pratica quotidiana?"
 
 tests:
   - description: "Estrazione dei concetti chiave"
@@ -61,3 +66,42 @@ evaluations:
       - "La risposta deve identificare correttamente tutti e quattro gli stadi"
       - "La risposta deve spiegare le caratteristiche di ciascuno stadio"
       - "La risposta deve descrivere come questi stadi si collegano al concetto di padronanza senza sforzo"
+      
+  - promptName: "In che modo il concetto di 'Effortless Mastery' può essere applicato ad altre discipline oltre alla musica?"
+    expected: |
+      La risposta dovrebbe esplorare come i principi di Werner possono essere utilizzati in altre arti o discipline come la pittura,
+      la scrittura, lo sport o anche nella vita quotidiana.
+    criteria:
+      - "La risposta deve identificare le dimensioni universali dell'approccio di Werner"
+      - "La risposta deve dare esempi concreti di applicazione in altri ambiti"
+      - "La risposta deve mantenere la coerenza con i principi fondamentali del libro"
+      
+  - promptName: "Come affronta Werner la relazione tra tecnica e libertà espressiva?"
+    expected: |
+      La risposta dovrebbe analizzare come Werner affronta il paradosso tra la necessità di padronanza tecnica 
+      e la libertà espressiva necessaria per l'arte autentica.
+    criteria:
+      - "La risposta deve descrivere l'approccio di Werner all'equilibrio tra tecnica e espressione"
+      - "La risposta deve spiegare come la tecnica può diventare sia un ostacolo che un veicolo per l'espressione"
+      - "La risposta deve citare la visione di Werner su come trascendere la tecnica"
+
+outputs:
+  - type: "json_file"
+    path: "test_output/kenny_werner_test_results.json"
+  - type: "markdown_file"
+    path: "test_output/kenny_werner_test_results.md"
+
+variants:
+  - name: "semantic_chunking"
+    description: "Test con chunking semantico"
+    config:
+      model: "ollama"
+      temperature: 0.7
+      endpoint: "http://192.168.63.204:11434"
+      
+  - name: "size_chunking"
+    description: "Test con chunking basato su dimensione"
+    config:
+      model: "ollama"
+      temperature: 0.7
+      endpoint: "http://192.168.63.204:11434"
