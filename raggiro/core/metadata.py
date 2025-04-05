@@ -226,17 +226,6 @@ class MetadataExtractor:
                 if len(title) > 5 and len(title) < 200:  # Reasonable title length
                     return title
         
-        # If no patterns match, try filename-based title for books
-        filename = document.get("metadata", {}).get("file", {}).get("filename", "")
-        if filename and "." in filename:
-            # Remove file extension and replace underscores/hyphens with spaces
-            potential_title = re.sub(r'\.[^.]+$', '', filename)
-            potential_title = re.sub(r'[_-]', ' ', potential_title)
-            # Capitalize properly
-            potential_title = " ".join(word.capitalize() for word in potential_title.split())
-            if len(potential_title) > 5:
-                return potential_title
-        
         # If no patterns match, try the first non-empty significant line
         lines = text.split("\n")
         for line in lines[:15]:  # Check only first 15 lines
@@ -260,6 +249,62 @@ class MetadataExtractor:
                         return h_tags[0].get_text().strip()
             except:
                 pass
+        
+        # Enhanced filename fallback approach
+        file_path = document.get("metadata", {}).get("file", {}).get("path", "")
+        filename = document.get("metadata", {}).get("file", {}).get("filename", "")
+        
+        # Try to extract a meaningful title from the filename if available
+        if filename:
+            # Remove file extension
+            base_name = re.sub(r'\.[^.]+$', '', filename)
+            
+            # Clean up the filename
+            # Replace underscores, hyphens, dots with spaces
+            clean_name = re.sub(r'[_\-.]+', ' ', base_name)
+            
+            # Remove common prefixes and dates
+            clean_name = re.sub(r'^(?:doc|document|report|draft|final|rev\d+|v\d+(\.\d+)*|copy\s+of)\s+', '', clean_name, flags=re.IGNORECASE)
+            clean_name = re.sub(r'\d{4}[-_]\d{2}[-_]\d{2}', '', clean_name)  # Remove dates in format YYYY-MM-DD
+            
+            # Capitalize properly (title case)
+            # Don't capitalize articles, conjunctions, and prepositions
+            lower_words = {'a', 'an', 'the', 'and', 'but', 'or', 'for', 'nor', 'on', 'at', 
+                          'to', 'from', 'by', 'in', 'of', 'with', 'about'}
+            
+            words = clean_name.split()
+            if words:
+                # Capitalize first and last word always, and all other words except those in lower_words
+                title_words = []
+                for i, word in enumerate(words):
+                    if i == 0 or i == len(words) - 1 or word.lower() not in lower_words:
+                        title_words.append(word.capitalize())
+                    else:
+                        title_words.append(word.lower())
+                
+                clean_name = " ".join(title_words)
+            
+            # Check if the result is a reasonable title
+            if clean_name and len(clean_name) > 3 and len(clean_name) < 200:
+                return clean_name
+                
+        # If no good title found and we have a short basename from the path, use that
+        if file_path:
+            # Extract the parent directory name as a potential title
+            path_parts = Path(file_path).parts
+            if len(path_parts) > 1:
+                parent_dir = path_parts[-2]
+                if parent_dir and parent_dir not in ['docs', 'documents', 'files', 'pdfs', 'downloads', 'tmp']:
+                    # Clean up directory name (similar to filename cleaning)
+                    clean_dir = re.sub(r'[_\-.]+', ' ', parent_dir)
+                    clean_dir = clean_dir.title()  # Simple title case
+                    
+                    if len(clean_dir) > 3 and len(clean_dir) < 100:
+                        return f"{clean_dir} - {Path(file_path).stem.title()}"
+        
+        # As a last resort, just use the cleaned filename
+        if filename:
+            return Path(filename).stem.title()
         
         return None
     
