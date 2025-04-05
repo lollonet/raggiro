@@ -119,6 +119,8 @@ def main():
     print("\n=== Test di query RAG ===")
     
     # Initialize RAG pipeline
+    # Print the Ollama URL for debugging
+    print(f"Debug - Ollama URL: {config.get('llm', {}).get('ollama_base_url', 'Not set')}")
     pipeline = RagPipeline(config)
     load_result = pipeline.retriever.load_index(index_dir)
     

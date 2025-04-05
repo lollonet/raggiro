@@ -37,7 +37,10 @@ class QueryRewriter:
             
         self.temperature = rewriting_config.get("temperature", 0.1)
         self.max_tokens = rewriting_config.get("max_tokens", 200)
-        self.ollama_base_url = rewriting_config.get("ollama_base_url", self.config.get("llm", {}).get("ollama_base_url", "http://localhost:11434"))
+        # Get ollama URL from config with explicit print for debugging
+        llm_config = self.config.get("llm", {})
+        self.ollama_base_url = rewriting_config.get("ollama_base_url") or llm_config.get("ollama_base_url", "http://localhost:11434")
+        print(f"Rewriter using Ollama URL: {self.ollama_base_url}")
         self.llamacpp_path = rewriting_config.get("llamacpp_path", "")
         
         # API settings (for OpenAI, etc.)

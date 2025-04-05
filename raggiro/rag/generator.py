@@ -36,7 +36,10 @@ class ResponseGenerator:
             
         self.temperature = generation_config.get("temperature", 0.7)
         self.max_tokens = generation_config.get("max_tokens", 1000)
-        self.ollama_base_url = generation_config.get("ollama_base_url", self.config.get("llm", {}).get("ollama_base_url", "http://localhost:11434"))
+        # Get ollama URL from config with explicit print for debugging
+        llm_config = self.config.get("llm", {})
+        self.ollama_base_url = generation_config.get("ollama_base_url") or llm_config.get("ollama_base_url", "http://localhost:11434")
+        print(f"Generator using Ollama URL: {self.ollama_base_url}")
         self.llamacpp_path = generation_config.get("llamacpp_path", "")
         
         # API settings (for OpenAI, etc.)
