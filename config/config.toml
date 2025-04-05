@@ -54,7 +54,7 @@ milvus_collection = "raggiro"
 # LLM settings (shared among components)
 [llm]
 provider = "ollama"  # "ollama", "llamacpp", "openai"
-ollama_base_url = "http://localhost:11434"  # Ollama API URL
+ollama_base_url = "http://192.168.63.204:11434"  # Ollama API URL
 ollama_timeout = 30  # Timeout in seconds
 llamacpp_path = ""  # Path to llama.cpp executable
 
