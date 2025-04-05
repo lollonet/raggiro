@@ -642,9 +642,13 @@ python examples/scripts/test_rag_comparison.py --input document.pdf --strategies
 python examples/scripts/test_rag_comparison.py --input document.pdf --queries "What is the main topic?" --output my_test_results
 ```
 
-### Example Promptfoo Configuration
+### Example Promptfoo Configurations
 
-Raggiro comes with a default test configuration in `config/test_prompts.yaml`:
+Raggiro includes several test prompt configurations for different use cases:
+
+#### Default English Configuration
+
+The default test configuration in `config/test_prompts.yaml` targets general document analysis:
 
 ```yaml
 prompts:
@@ -668,6 +672,47 @@ tests:
           }
       - type: "language-match"
         value: "en"
+```
+
+#### Italian Document Configuration
+
+For Italian documents, use `config/custom_test_prompts.yaml`:
+
+```yaml
+prompts:
+  - "Qual è l'argomento principale di questo documento?"
+  - "Chi è l'autore del documento?"
+  - "Riassumi i punti chiave di questo documento."
+  # More prompts...
+
+tests:
+  - description: "Estrazione informazioni di base"
+    assert:
+      - type: "language-match"
+        value: "it"
+```
+
+#### Domain-Specific Configuration
+
+For specialized content, Raggiro includes domain-specific test files like `config/kenny_werner_test_prompts.yaml` for music theory documents:
+
+```yaml
+prompts:
+  - "Qual è il concetto principale di 'Effortless Mastery' secondo Kenny Werner?"
+  - "Come descrive Kenny Werner il rapporto tra musicisti e la loro arte?"
+  # More specialized prompts...
+```
+
+### Creating Custom Test Configurations
+
+You can create custom test configurations for your specific documents:
+
+```bash
+# Test with custom configuration
+python -m raggiro.testing.promptfoo_runner path/to/custom_prompts.yaml test_output
+
+# Compare chunking strategies with domain-specific queries
+python examples/scripts/test_rag_comparison.py --input document.pdf --queries "Domain specific question 1" "Domain specific question 2"
 ```
 
 ### Sample Evaluation Results
