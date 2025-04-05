@@ -70,6 +70,19 @@ class MetadataExtractor:
             "presentation": ["presentation", "slide", "deck", "overview", "briefing"],
             "book": ["book", "novel", "chapter", "author", "publisher", "publication", "copyright", "edition", "preface", "foreword"],
             "music": ["music", "musician", "jazz", "piano", "improvisation", "performance", "mastery", "practice", "technique", "composition"],
+            "educational": ["course", "lesson", "learning", "education", "teaching", "curriculum", "student", "instruction", "training", "workshop"],
+            "medical": ["patient", "clinical", "medical", "health", "treatment", "diagnosis", "therapy", "healthcare", "doctor", "hospital"],
+            "scientific": ["experiment", "laboratory", "science", "hypothesis", "data", "methodology", "finding", "observation", "result", "measurement"],
+            "magazine": ["magazine", "article", "issue", "editorial", "column", "feature", "publication", "periodical", "monthly", "quarterly"],
+            "newspaper": ["newspaper", "news", "daily", "journalist", "reporter", "headline", "press", "media", "coverage", "article"],
+            "biography": ["biography", "memoir", "autobiography", "life", "journey", "personal", "experience", "story", "narrative", "historical"],
+            "fiction": ["fiction", "novel", "story", "character", "plot", "narrative", "chapter", "scene", "dialogue", "protagonist"],
+            "poetry": ["poetry", "poem", "verse", "stanza", "rhyme", "lyric", "sonnet", "meter", "poet", "poetic"],
+            "cookbook": ["recipe", "cooking", "ingredient", "dish", "meal", "cuisine", "chef", "food", "preparation", "kitchen"],
+            "travel": ["travel", "destination", "journey", "guide", "tourism", "location", "itinerary", "adventure", "exploration", "trip"],
+            "self_help": ["self-help", "development", "improvement", "motivation", "success", "growth", "inspiration", "advice", "guide", "technique"],
+            "religious": ["religious", "spiritual", "faith", "belief", "prayer", "worship", "sacred", "divine", "scripture", "theology"],
+            "comic": ["comic", "graphic novel", "illustration", "panel", "cartoon", "superhero", "manga", "anime", "sequential art", "strip"],
         }
         
         # Publisher extraction patterns
@@ -126,10 +139,30 @@ class MetadataExtractor:
         if detected_language:
             result["language"] = detected_language
             
-        # Extract publisher (new)
+        # Extract publisher
         extracted_publisher = self._extract_publisher(first_chunk)
         if extracted_publisher:
             result["publisher"] = extracted_publisher
+        
+        # Extract ISBN
+        extracted_isbn = self._extract_isbn(first_chunk)
+        if extracted_isbn:
+            result["isbn"] = extracted_isbn
+            
+        # Extract edition/version
+        extracted_edition = self._extract_edition(first_chunk)
+        if extracted_edition:
+            result["edition"] = extracted_edition
+        
+        # Extract series
+        extracted_series = self._extract_series(first_chunk)
+        if extracted_series:
+            result["series"] = extracted_series
+            
+        # Detect if document contains multimedia content
+        multimedia_content = self._detect_multimedia_content(document)
+        if multimedia_content:
+            result["multimedia_content"] = multimedia_content
             
         detected_topics = self._detect_topic(text, result)
         if detected_topics:
@@ -404,6 +437,157 @@ class MetadataExtractor:
         except:
             return None
     
+    def _extract_isbn(self, text: str) -> Optional[str]:
+        """Extract ISBN from text.
+        
+        Args:
+            text: Text to extract from
+            
+        Returns:
+            Extracted ISBN or None
+        """
+        # ISBN-10 pattern (with or without hyphens)
+        isbn10_pattern = r'(?:ISBN(?:-10)?:?\s*)?(?:[\d-]{10,17})'
+        # ISBN-13 pattern (with or without hyphens)
+        isbn13_pattern = r'(?:ISBN(?:-13)?:?\s*)?(?:97[89][\d-]{10,14})'
+        
+        # Combined pattern
+        isbn_pattern = f'({isbn10_pattern}|{isbn13_pattern})'
+        
+        # Find all matches
+        isbn_matches = re.findall(isbn_pattern, text, re.IGNORECASE)
+        
+        if isbn_matches:
+            # Clean up the found ISBN
+            isbn = isbn_matches[0].strip()
+            # Remove "ISBN" prefix and colons
+            isbn = re.sub(r'ISBN[-:\s]*', '', isbn, flags=re.IGNORECASE)
+            # Remove hyphens and spaces
+            isbn = re.sub(r'[-\s]', '', isbn)
+            return isbn
+        
+        return None
+    
+    def _extract_edition(self, text: str) -> Optional[str]:
+        """Extract edition or version information from text.
+        
+        Args:
+            text: Text to extract from
+            
+        Returns:
+            Extracted edition or None
+        """
+        # Common edition patterns
+        edition_patterns = [
+            r'(\d+(?:st|nd|rd|th)?\s+edition)',
+            r'(edition:?\s*\d+(?:st|nd|rd|th)?)',
+            r'(version\s*\d+\.\d+)',
+            r'(v\.\s*\d+\.\d+)',
+            r'(revised\s+edition)',
+            r'(updated\s+edition)',
+            r'(first\s+edition)',
+            r'(second\s+edition)',
+            r'(third\s+edition)',
+            r'(fourth\s+edition)',
+            r'(fifth\s+edition)',
+        ]
+        
+        for pattern in edition_patterns:
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            if matches:
+                return matches[0].strip()
+        
+        return None
+    
+    def _extract_series(self, text: str) -> Optional[str]:
+        """Extract series information from text.
+        
+        Args:
+            text: Text to extract from
+            
+        Returns:
+            Extracted series or None
+        """
+        # Series patterns
+        series_patterns = [
+            r'(?:series|collection):\s*([^.,\n]+)',
+            r'part\s+of\s+the\s+([^.,\n]+)\s+series',
+            r'([^.,\n]+)\s+series,?\s+(?:volume|book|part|vol\.)\s+\d+',
+            r'vol\.\s+\d+\s+of\s+([^.,\n]+)',
+        ]
+        
+        for pattern in series_patterns:
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            if matches:
+                series = matches[0].strip()
+                # Remove "the" at the beginning if present
+                series = re.sub(r'^the\s+', '', series, flags=re.IGNORECASE)
+                return series
+        
+        return None
+    
+    def _detect_multimedia_content(self, document: Dict) -> Dict:
+        """Detect multimedia content in the document.
+        
+        Args:
+            document: Document dictionary
+            
+        Returns:
+            Dictionary with multimedia content information
+        """
+        multimedia = {}
+        
+        # Check if the document has images
+        if "images" in document and document["images"]:
+            multimedia["images"] = len(document["images"])
+            
+            # Classify image types if available
+            image_types = {}
+            for img in document.get("images", []):
+                img_type = img.get("type", "unknown")
+                image_types[img_type] = image_types.get(img_type, 0) + 1
+            
+            if image_types:
+                multimedia["image_types"] = image_types
+        
+        # Check for tables
+        if "tables" in document and document["tables"]:
+            multimedia["tables"] = len(document["tables"])
+        
+        # Look for indicators of multimedia content in the text
+        text = document.get("text", "")
+        
+        # Check for figures/illustrations
+        figure_matches = re.findall(r'(?:figure|fig\.)\s+\d+', text, re.IGNORECASE)
+        if figure_matches:
+            multimedia["figures"] = len(figure_matches)
+            
+        # Check for charts/graphs
+        chart_matches = re.findall(r'(?:chart|graph|plot|diagram)\s+\d+', text, re.IGNORECASE)
+        if chart_matches:
+            multimedia["charts"] = len(chart_matches)
+            
+        # Check for audio/video references
+        media_terms = ["audio", "video", "recording", "playback", "listen", "watch", 
+                      "soundtrack", "clip", "footage", "mp3", "mp4", "wav", "avi", "mov"]
+        
+        for term in media_terms:
+            if re.search(rf'\b{term}\b', text, re.IGNORECASE):
+                multimedia["has_av_references"] = True
+                break
+                
+        # Check for QR codes/URLs
+        has_urls = re.search(r'https?://\S+', text) is not None
+        has_qr = re.search(r'qr\s+code', text, re.IGNORECASE) is not None
+        
+        if has_urls:
+            multimedia["has_urls"] = True
+        
+        if has_qr:
+            multimedia["has_qr_codes"] = True
+        
+        return multimedia if multimedia else None
+    
     def _detect_topic(self, text: str, metadata: Dict) -> List[str]:
         """Detect topics/categories of the document.
         
@@ -430,9 +614,15 @@ class MetadataExtractor:
         
         for topic, keywords in self.topic_keywords.items():
             if topic not in topics:  # Only check topics we haven't already identified
-                for keyword in keywords:
-                    if keyword in sample and sample.count(keyword) > 2:
-                        topics.append(topic)
-                        break
+                keyword_count = sum(1 for keyword in keywords if keyword in sample)
+                if keyword_count >= 2:  # Require at least 2 keyword matches
+                    topics.append(topic)
+        
+        # Look for special patterns that indicate certain topics
+        if "isbn" in metadata and not any(t in topics for t in ["book", "academic", "technical"]):
+            topics.append("book")  # If we have an ISBN, it's probably a book
+            
+        if "publisher" in metadata and not any(t in topics for t in ["book", "magazine", "newspaper"]):
+            topics.append("publication")  # If we have a publisher, it's some kind of publication
         
         return topics
