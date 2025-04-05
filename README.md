@@ -361,13 +361,25 @@ Raggiro supports multiple LLM providers for query rewriting and response generat
    llamacpp_path = "/path/to/llama"  # Path to llama.cpp executable
    ```
 
-3. **Future Support**: Configuration for external API-based providers
+3. **OpenAI**: Cloud-based model access
    ```toml
    [llm]
-   provider = "openai"  # or "replicate", etc.
-   api_key = "your-api-key"
-   api_url = "https://api.endpoint.com"  # Optional custom endpoint
+   provider = "openai"
+   api_key = "your-openai-api-key"
+   openai_model = "gpt-3.5-turbo"  # Model name, e.g., "gpt-3.5-turbo" or "gpt-4"
+   api_url = "https://api.openai.com/v1"  # Optional custom endpoint (for Azure OpenAI, etc.)
+   
+   # Configure specific components
+   [rewriting]
+   llm_type = "openai"  # Use OpenAI for query rewriting
+   openai_model = "gpt-3.5-turbo"  # Model for rewriting
+   
+   [generation]
+   llm_type = "openai"  # Use OpenAI for response generation
+   openai_model = "gpt-4"  # Model for generation
    ```
+
+You can mix and match different providers for query rewriting and response generation, for example, using a lighter model for query rewriting and a more powerful model for response generation.
 
 ## Architecture
 
@@ -465,26 +477,46 @@ output_dir/
 └── ...
 ```
 
+The log directory is automatically created as a subdirectory of your specified output directory. By default, Raggiro sets logging configuration in `config.toml`:
+
+```toml
+# Logging settings
+[logging]
+log_level = "info"  # Options: debug, info, warning, error
+log_to_file = true  # Whether to create log files
+log_format = "%(asctime)s - %(levelname)s - %(message)s"
+log_date_format = "%Y-%m-%d %H:%M:%S"
+```
+
 #### Sample Processing Log
 
 ```
 2025-04-05 12:30:45 - INFO - Starting processing of /data/documents/
 2025-04-05 12:30:45 - INFO - Found 24 files to process
-2025-04-05 12:30:47 - INFO - Processing /data/documents/report1.pdf
-2025-04-05 12:30:52 - INFO - Exported /data/documents/report1.pdf to: /output/report1.md, /output/report1.json
+2025-04-05 12:30:47 - INFO - FILE_HANDLER [Phase 1/5]: File validation - Processed /data/documents/report1.pdf successfully (45ms)
+2025-04-05 12:30:48 - INFO - EXTRACTOR [Phase 2/5]: Text extraction - Processed /data/documents/report1.pdf successfully (1243ms)
+2025-04-05 12:30:49 - INFO - CLEANER [Phase 3/5]: Text cleaning - Processed /data/documents/report1.pdf successfully (327ms)
+2025-04-05 12:30:50 - INFO - SEGMENTER [Phase 4/5]: Text segmentation (23 segments, 8 chunks) - Processed /data/documents/report1.pdf successfully (412ms)
+2025-04-05 12:30:51 - INFO - EXPORTER [Phase 5/5]: Export (markdown, json) - Processed /data/documents/report1.pdf successfully (198ms)
+2025-04-05 12:30:51 - INFO - PROCESSOR: Complete (1520 words) - Processed /data/documents/report1.pdf successfully (2225ms)
+2025-04-05 12:30:51 - INFO - Document Metadata:
+2025-04-05 12:30:51 - INFO -   Title: Quarterly Financial Report - Q1 2025
+2025-04-05 12:30:51 - INFO -   Author: Financial Analysis Team
+2025-04-05 12:30:51 - INFO -   Date: 2025-03-15
+2025-04-05 12:30:51 - INFO -   Language: en
+2025-04-05 12:30:51 - INFO -   Topics: financial, report
+2025-04-05 12:30:51 - INFO -   Segment Types: {'paragraph': 15, 'header': 6, 'section': 2}
 2025-04-05 12:31:03 - INFO - Processing /data/documents/presentation.pptx
-2025-04-05 12:31:03 - ERROR - Unsupported file type: .pptx
-2025-04-05 12:31:04 - INFO - Processing /data/documents/contract.pdf
-2025-04-05 12:31:12 - INFO - Exported /data/documents/contract.pdf to: /output/contract.md, /output/contract.json
+2025-04-05 12:31:03 - ERROR - EXTRACTOR: Text extraction - Failed to process /data/documents/presentation.pptx: Unsupported file type: .pptx
 ...
 2025-04-05 12:35:28 - INFO - Processing summary: 22/24 files processed successfully (91.67%)
 2025-04-05 12:35:28 - INFO - Summary saved to /output/logs/processing_summary_20250405_123528.json
 2025-04-05 12:35:28 - INFO - Processing complete
 ```
 
-#### Processing Statistics
+#### Processing Statistics with Metadata Analysis
 
-Raggiro generates a JSON summary with detailed statistics about the processing run:
+Raggiro generates a JSON summary with detailed statistics about the processing run, including metadata extraction quality:
 
 ```json
 {
@@ -506,6 +538,24 @@ Raggiro generates a JSON summary with detailed statistics about the processing r
     "pdf_ocr": 5,
     "docx": 5,
     "text": 2
+  },
+  "languages": {
+    "en": 18,
+    "es": 2,
+    "fr": 2
+  },
+  "topics": {
+    "financial": 8,
+    "technical": 6,
+    "legal": 4,
+    "report": 4
+  },
+  "metadata_completeness": {
+    "title": 95.45,
+    "author": 81.82,
+    "date": 86.36,
+    "language": 100.00,
+    "topics": 77.27
   },
   "errors": {
     "Unsupported file type: .pptx": 1,
