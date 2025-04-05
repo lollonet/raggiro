@@ -21,6 +21,10 @@ textual>=0.50.0
 faiss-cpu>=1.7.0
 sentence-transformers>=2.5.0
 qdrant-client>=1.11.0
+openai>=1.0.0
+scikit-learn>=1.0.0
+transformers>=4.20.0
+numpy>=1.20.0
 
 # Testing
 promptfoo>=0.1.0

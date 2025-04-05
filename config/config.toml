@@ -31,6 +31,9 @@ spacy_model = "en_core_web_sm"
 min_section_length = 100
 max_chunk_size = 500  # Reduced from 1000 for more granular chunking
 chunk_overlap = 100   # Adjusted for the new chunk size
+semantic_chunking = true  # Enable semantic-based chunking
+chunking_strategy = "hybrid"  # Options: "size", "semantic", "hybrid"
+semantic_similarity_threshold = 0.65  # Threshold for semantic similarity when creating chunks
 
 # Export settings
 [export]
