@@ -14,11 +14,13 @@ Raggiro is a comprehensive document processing framework designed for building l
 
 - **Comprehensive document support**: PDF (native and scanned), DOCX, TXT, HTML, RTF, XLSX, images with text
 - **Advanced preprocessing**: Extraction, cleaning, normalization and logical segmentation
+- **Semantic chunking**: Intelligent content division based on meaning rather than just size
 - **Metadata extraction**: Title, author, date, language, document type, category detection
 - **Structured output**: Markdown and JSON formats with all metadata
 - **Modular architecture**: CLI, Python API, and GUI interfaces (Streamlit/Textual)
 - **Fully offline operation**: Works without external API dependencies
 - **Complete RAG pipeline**: Integrated vector indexing, retrieval, and response generation
+- **Testing utilities**: Tools for benchmarking and comparing chunking strategies
 
 ## Installation
 
@@ -299,8 +301,11 @@ ocr_language = "eng"
 [segmentation]
 use_spacy = true
 spacy_model = "en_core_web_sm"
-max_chunk_size = 1000
-chunk_overlap = 200
+max_chunk_size = 500  # Size in characters for each chunk
+chunk_overlap = 100   # Overlap between chunks
+semantic_chunking = true  # Enable semantic-based chunking
+chunking_strategy = "hybrid"  # Options: "size", "semantic", "hybrid"
+semantic_similarity_threshold = 0.65  # Threshold for semantic similarity
 
 # Export settings
 [export]
@@ -414,10 +419,11 @@ raggiro/
 Raggiro provides a complete RAG (Retrieval-Augmented Generation) pipeline:
 
 1. **Document Processing**: Extracts, cleans, and segments documents into logical chunks
-2. **Vector Indexing**: Indexes chunks using FAISS or Qdrant for vector search
-3. **Query Processing**: Supports query rewriting for improved retrieval
-4. **Local LLM Integration**: Works with Ollama, LLaMA, and other local models
-5. **Response Generation**: Creates high-quality responses with proper source citations
+2. **Semantic Chunking**: Intelligently divides text based on semantic meaning and context
+3. **Vector Indexing**: Indexes chunks using FAISS or Qdrant for vector search
+4. **Query Processing**: Supports query rewriting for improved retrieval
+5. **Local LLM Integration**: Works with Ollama, LLaMA, and other local models
+6. **Response Generation**: Creates high-quality responses with proper source citations
 
 ### RAG Pipeline Components
 
@@ -591,13 +597,49 @@ Total processing time: 1579ms
 
 ## Testing and Evaluation
 
-Raggiro includes tools for testing and evaluating your RAG system using promptfoo:
+Raggiro includes comprehensive tools for testing and evaluating your RAG system:
 
 ### Running Evaluation Tests
 
 ```bash
 # Run promptfoo evaluations
 raggiro test-rag --prompt-set config/test_prompts.yaml --output test_results
+
+# Test semantic chunking with a specific document
+python examples/scripts/test_semantic_chunking.py --input /path/to/your/document.pdf --output test_output
+
+# Compare different chunking strategies
+python examples/scripts/test_rag_comparison.py --input /path/to/your/document.pdf --strategies size semantic hybrid
+```
+
+### Testing Semantic Chunking
+
+The semantic chunking feature can be tested and analyzed using the included test scripts:
+
+```bash
+# Basic test with detailed chunk analysis
+python examples/scripts/test_semantic_chunking.py --input document.pdf --output test_output
+
+# Test with custom queries
+python examples/scripts/test_semantic_chunking.py --input document.pdf --queries "What is the main topic?" "Summarize key points"
+
+# Specify number of chunks to retrieve for each query
+python examples/scripts/test_semantic_chunking.py --input document.pdf --top-k 5
+```
+
+### Comparing Chunking Strategies
+
+You can compare different chunking strategies to find the most effective approach for your documents:
+
+```bash
+# Compare all available strategies
+python examples/scripts/test_rag_comparison.py --input document.pdf 
+
+# Compare only specific strategies
+python examples/scripts/test_rag_comparison.py --input document.pdf --strategies size hybrid
+
+# Test with specific queries and output directory
+python examples/scripts/test_rag_comparison.py --input document.pdf --queries "What is the main topic?" --output my_test_results
 ```
 
 ### Example Promptfoo Configuration
