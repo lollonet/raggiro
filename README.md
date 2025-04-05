@@ -290,21 +290,10 @@ Raggiro uses TOML configuration files for customization. You can create a config
 dry_run = false
 recursive = true
 
-# Logging settings
-[logging]
-log_level = "info"
-log_to_file = true
-
 # Extraction settings
 [extraction]
 ocr_enabled = true
 ocr_language = "eng"
-
-# Cleaning settings
-[cleaning]
-remove_headers_footers = true
-normalize_whitespace = true
-remove_special_chars = true
 
 # Segmentation settings
 [segmentation]
@@ -318,23 +307,67 @@ chunk_overlap = 200
 formats = ["markdown", "json"]
 include_metadata = true
 
-# Indexing settings
-[indexing]
-embedding_model = "all-MiniLM-L6-v2"
-vector_db = "faiss"
+# LLM settings (shared across components)
+[llm]
+provider = "ollama"  # "ollama", "llamacpp", "openai", "replicate"
+ollama_base_url = "http://localhost:11434"  # Ollama API URL
+ollama_timeout = 30  # Timeout in seconds
+llamacpp_path = ""  # Path to llama.cpp executable
+api_key = ""  # For OpenAI or other external providers
+
+# Vector database settings
+[vector_db]
+type = "faiss"  # "faiss", "qdrant", "milvus"
+qdrant_url = "http://localhost:6333"
+qdrant_collection = "raggiro"
+
+# Embedding settings
+[embedding]
+model = "all-MiniLM-L6-v2"  # Model name for embeddings
+dimensions = 384  # Embedding dimensions
+device = "cpu"  # "cpu" or "cuda" for GPU acceleration
 
 # Query rewriting settings
 [rewriting]
 enabled = true
-llm_type = "ollama"
+llm_type = ${llm.provider}  # Inherit from llm section
 model_name = "llama3"
+ollama_base_url = ${llm.ollama_base_url}  # Inherit from llm section
 
 # Response generation settings
 [generation]
-llm_type = "ollama"
+llm_type = ${llm.provider}  # Inherit from llm section
 model_name = "mistral"
 temperature = 0.7
+ollama_base_url = ${llm.ollama_base_url}  # Inherit from llm section
 ```
+
+### LLM Configuration
+
+Raggiro supports multiple LLM providers for query rewriting and response generation:
+
+1. **Ollama** (default): Local LLM server
+   ```toml
+   [llm]
+   provider = "ollama"
+   ollama_base_url = "http://localhost:11434"  # Change to your Ollama server URL
+   ollama_timeout = 30  # Timeout in seconds
+   ```
+
+2. **llama.cpp**: Direct integration with llama.cpp binary
+   ```toml
+   [llm]
+   provider = "llamacpp"
+   llamacpp_path = "/path/to/llama"  # Path to llama.cpp executable
+   ```
+
+3. **Future Support**: Configuration for external API-based providers
+   ```toml
+   [llm]
+   provider = "openai"  # or "replicate", etc.
+   api_key = "your-api-key"
+   api_url = "https://api.endpoint.com"  # Optional custom endpoint
+   ```
 
 ## Architecture
 
