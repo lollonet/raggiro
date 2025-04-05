@@ -187,12 +187,21 @@ def process(
     logger.log_info("Processing complete")
 
 @main.command()
-def gui():
+@click.option(
+    "--tui", 
+    is_flag=True,
+    help="Use text-based UI instead of web-based Streamlit UI."
+)
+def gui(tui: bool = False):
     """Launch the GUI interface."""
     # Import here to avoid dependencies if only using CLI
     try:
-        from raggiro.gui.streamlit_app import run_app
-        run_app()
+        if tui:
+            from raggiro.gui.textual_app import run_app
+            run_app()
+        else:
+            from raggiro.gui.streamlit_app import run_app
+            run_app()
     except ImportError:
         click.echo("Error: GUI dependencies not installed. Install with: pip install raggiro[gui]")
         sys.exit(1)
