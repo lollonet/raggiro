@@ -91,11 +91,10 @@ class RaggiroApp(App):
                         yield Checkbox(value=True, id="ocr")
                     
                     with Horizontal(classes="form-row"):
-                        yield Label("Output Formats:")
+                        yield Label("Output Format:")
                         yield Select(
                             [(format, format) for format in ["markdown", "json", "txt"]],
                             value="markdown",
-                            allow_multiple=True,
                             id="formats",
                         )
                     
