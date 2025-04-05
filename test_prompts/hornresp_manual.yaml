@@ -1,0 +1,56 @@
+# Test prompts per "Hornresp manual"
+prompts:
+  - "Cos'è Hornresp e a cosa serve secondo il manuale?"
+  - "Quali tipi di altoparlanti possono essere progettati con Hornresp?"
+  - "Come funziona la simulazione acustica in Hornresp?"
+  - "Quali sono i principali parametri di input necessari per utilizzare Hornresp?"
+  - "Come si interpreta il grafico di risposta in frequenza in Hornresp?"
+  - "Quali sono le limitazioni di Hornresp secondo il manuale?"
+  - "Come si progetta un diffusore bass reflex usando Hornresp?"
+  - "Quali modelli matematici utilizza Hornresp per la simulazione?"
+  - "Come si ottimizzano i parametri di un woofer in Hornresp?"
+  - "Quali sono le differenze tra le varie tipologie di horn (trombe acustiche) supportate dal software?"
+  - "Come si effettua il dimensionamento di una tromba acustica in Hornresp?"
+  - "Quali sono i formati di file supportati da Hornresp?"
+  - "Come si confrontano diverse configurazioni acustiche in Hornresp?"
+  - "Quali sono i consigli pratici per la costruzione fisica dei progetti simulati con Hornresp?"
+  - "Come si calcolano i volumi delle camere acustiche utilizzando Hornresp?"
+
+tests:
+  - description: "Verificare la pertinenza delle risposte al manuale Hornresp"
+    assert:
+      - type: "language-match"
+        value: "it"
+      - type: "contains-any"
+        value: ["Hornresp", "altoparlante", "acustica", "diffusore", "tromba", "woofer", "simulazione"]
+      
+  - description: "Verificare la qualità tecnica delle risposte"
+    assert:
+      - type: "contains-json"
+        value: |
+          {
+            "min_length": 150
+          }
+      - type: "not-contains-any"
+        value: ["Non lo so", "non posso rispondere", "non ho accesso", "le mie conoscenze sono limitate"]
+
+outputs:
+  - type: "json_file"
+    path: "test_output/hornresp_manual_results.json"
+  - type: "markdown_file"
+    path: "test_output/hornresp_manual_results.md"
+
+variants:
+  - name: "semantic_chunking"
+    description: "Test con chunking semantico"
+    config:
+      model: "ollama"
+      temperature: 0.7
+      endpoint: "http://192.168.63.204:11434"
+      
+  - name: "size_chunking"
+    description: "Test con chunking basato su dimensione"
+    config:
+      model: "ollama"
+      temperature: 0.7
+      endpoint: "http://192.168.63.204:11434"

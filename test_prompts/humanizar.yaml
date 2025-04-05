@@ -1,0 +1,56 @@
+# Test prompts per "Humanizar_it"
+prompts:
+  - "Quali sono i principali temi trattati nel documento Humanizar?"
+  - "Come viene definito il concetto di 'umanizzazione' nel documento?"
+  - "Quali sono le sfide principali nell'umanizzazione dei servizi sanitari secondo il documento?"
+  - "Quali approcci metodologici vengono proposti per l'umanizzazione?"
+  - "Come si relaziona il concetto di umanizzazione con la digitalizzazione dei servizi?"
+  - "Quali sono i benefici dell'umanizzazione secondo il documento?"
+  - "Come viene affrontato il tema della comunicazione nel processo di umanizzazione?"
+  - "Quali esempi pratici di umanizzazione vengono descritti nel documento?"
+  - "Quali sono le barriere all'implementazione di approcci più umani nei servizi?"
+  - "Come viene trattato il tema dell'empatia nel documento?"
+  - "Quali sono le competenze necessarie per facilitare l'umanizzazione dei servizi?"
+  - "Come si misura l'efficacia degli interventi di umanizzazione secondo il documento?"
+  - "Quali riferimenti teorici vengono utilizzati nel documento per supportare il concetto di umanizzazione?"
+  - "Come si integra l'umanizzazione nei processi organizzativi esistenti?"
+  - "Quali raccomandazioni vengono fatte per implementare pratiche di umanizzazione?"
+
+tests:
+  - description: "Verificare la pertinenza delle risposte al documento Humanizar"
+    assert:
+      - type: "language-match"
+        value: "it"
+      - type: "contains-any"
+        value: ["umanizzazione", "empatia", "servizi", "persona", "paziente", "relazione", "assistenza"]
+      
+  - description: "Verificare la qualità e profondità delle risposte"
+    assert:
+      - type: "contains-json"
+        value: |
+          {
+            "min_length": 150
+          }
+      - type: "not-contains-any"
+        value: ["Non lo so", "non posso rispondere", "non ho accesso", "le mie conoscenze sono limitate"]
+
+outputs:
+  - type: "json_file"
+    path: "test_output/humanizar_test_results.json"
+  - type: "markdown_file"
+    path: "test_output/humanizar_test_results.md"
+
+variants:
+  - name: "semantic_chunking"
+    description: "Test con chunking semantico"
+    config:
+      model: "ollama"
+      temperature: 0.7
+      endpoint: "http://192.168.63.204:11434"
+      
+  - name: "size_chunking"
+    description: "Test con chunking basato su dimensione"
+    config:
+      model: "ollama"
+      temperature: 0.7
+      endpoint: "http://192.168.63.204:11434"

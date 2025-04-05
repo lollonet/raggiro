@@ -1,0 +1,56 @@
+# Test prompts per "PSN Allegato Tecnico v2.0"
+prompts:
+  - "Quali sono gli obiettivi principali del Piano Strategico Nazionale (PSN) secondo l'allegato tecnico?"
+  - "Come viene strutturata l'architettura del PSN secondo il documento?"
+  - "Quali sono i servizi offerti dal PSN descritti nell'allegato tecnico?"
+  - "Quali requisiti di sicurezza sono previsti per il PSN?"
+  - "Come viene gestita la migrazione dei servizi verso il PSN secondo l'allegato?"
+  - "Quali sono i livelli di servizio (SLA) previsti per il PSN?"
+  - "Come viene affrontato il tema dell'interoperabilità nel PSN?"
+  - "Quali standard tecnologici vengono adottati secondo l'allegato tecnico?"
+  - "Quali misure di continuità operativa vengono descritte nel documento?"
+  - "Come viene gestita la protezione dei dati personali nel contesto del PSN?"
+  - "Quali sono i modelli di cloud deployment previsti dal PSN?"
+  - "Come vengono definiti i ruoli e le responsabilità nella governance del PSN?"
+  - "Quali metriche di performance vengono utilizzate per valutare i servizi del PSN?"
+  - "Come viene affrontato il tema della sostenibilità nel PSN?"
+  - "Quali sono le fasi di implementazione del PSN descritte nell'allegato tecnico?"
+
+tests:
+  - description: "Verificare la pertinenza delle risposte all'allegato tecnico PSN"
+    assert:
+      - type: "language-match"
+        value: "it"
+      - type: "contains-any"
+        value: ["PSN", "cloud", "infrastruttura", "migrazione", "servizi", "sicurezza", "dati"]
+      
+  - description: "Verificare la qualità tecnica delle risposte"
+    assert:
+      - type: "contains-json"
+        value: |
+          {
+            "min_length": 150
+          }
+      - type: "not-contains-any"
+        value: ["Non lo so", "non posso rispondere", "non ho accesso", "le mie conoscenze sono limitate"]
+
+outputs:
+  - type: "json_file"
+    path: "test_output/psn_allegato_tecnico_results.json"
+  - type: "markdown_file"
+    path: "test_output/psn_allegato_tecnico_results.md"
+
+variants:
+  - name: "semantic_chunking"
+    description: "Test con chunking semantico"
+    config:
+      model: "ollama"
+      temperature: 0.7
+      endpoint: "http://192.168.63.204:11434"
+      
+  - name: "size_chunking"
+    description: "Test con chunking basato su dimensione"
+    config:
+      model: "ollama"
+      temperature: 0.7
+      endpoint: "http://192.168.63.204:11434"

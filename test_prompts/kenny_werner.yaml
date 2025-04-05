@@ -1,0 +1,61 @@
+# Test prompts per "Effortless Mastery" di Kenny Werner
+prompts:
+  - "Qual è il concetto principale di 'Effortless Mastery' secondo Kenny Werner?"
+  - "Come descrive Kenny Werner il rapporto tra musicisti e la loro arte?"
+  - "Quali sono i principali ostacoli mentali che Kenny Werner identifica per i musicisti?"
+  - "Quali esercizi o pratiche suggerisce Kenny Werner per sviluppare la padronanza senza sforzo?"
+  - "Come tratta il libro il tema della paura durante l'esecuzione musicale?"
+  - "Quali sono i quattro stadi di padronanza descritti nel libro?"
+  - "Come viene definita la meditazione nel contesto dell'esecuzione musicale?"
+  - "Quali sono le tecniche per liberarsi dalle autolimitazioni secondo Werner?"
+  - "Come viene descritto nel libro il concetto di 'spazio' in relazione all'improvvisazione jazz?"
+  - "Quali storie o aneddoti personali condivide Kenny Werner per illustrare i suoi concetti?"
+  - "In che modo il concetto di 'Effortless Mastery' può essere applicato ad altre discipline oltre alla musica?"
+  - "Come affronta Werner la relazione tra tecnica e libertà espressiva?"
+  - "Qual è l'importanza del silenzio e dello spazio nell'improvvisazione secondo Werner?"
+  - "Quali benefici psicologici derivano dall'approccio di Werner alla pratica musicale?"
+  - "Come suggerisce Werner di affrontare le sessioni di pratica quotidiana?"
+
+tests:
+  - description: "Verificare la pertinenza delle risposte al libro di Kenny Werner"
+    assert:
+      - type: "language-match"
+        value: "it"
+      - type: "contains-any"
+        value: ["Werner", "Effortless", "mastery", "padronanza", "jazz", "musica", "improvvisazione", "meditazione"]
+      
+  - description: "Verificare la qualità e profondità delle risposte"
+    assert:
+      - type: "contains-json"
+        value: |
+          {
+            "min_length": 150
+          }
+      - type: "not-contains-any"
+        value: ["Non lo so", "non posso rispondere", "non ho accesso", "le mie conoscenze sono limitate"]
+        
+  - description: "Verificare la citazione delle fonti"
+    assert:
+      - type: "contains-any"
+        value: ["libro", "testo", "capitolo", "Werner afferma", "secondo Werner", "nel libro"]
+
+outputs:
+  - type: "json_file"
+    path: "test_output/kenny_werner_results.json"
+  - type: "markdown_file"
+    path: "test_output/kenny_werner_results.md"
+
+variants:
+  - name: "semantic_chunking"
+    description: "Test con chunking semantico"
+    config:
+      model: "ollama"
+      temperature: 0.7
+      endpoint: "http://192.168.63.204:11434"
+      
+  - name: "size_chunking"
+    description: "Test con chunking basato su dimensione"
+    config:
+      model: "ollama"
+      temperature: 0.7
+      endpoint: "http://192.168.63.204:11434"

@@ -1,0 +1,56 @@
+# Test prompts per "Capitolato Tecnico e Allegati"
+prompts:
+  - "Quali sono i principali obiettivi del progetto descritti nel Capitolato Tecnico?"
+  - "Quali sono i requisiti tecnici specificati nel Capitolato?"
+  - "Come viene strutturata la suddivisione in lotti nel Capitolato Tecnico?"
+  - "Quali sono le responsabilità dell'appaltatore secondo il documento?"
+  - "Quali sono le tempistiche di esecuzione previste nel Capitolato?"
+  - "Quali sono i criteri di valutazione delle offerte descritti nel documento?"
+  - "Quali competenze professionali sono richieste per l'esecuzione del progetto?"
+  - "Quali sono le modalità di collaudo e accettazione descritte nel Capitolato?"
+  - "Come vengono gestiti i livelli di servizio (SLA) nel documento?"
+  - "Quali sono le penali previste in caso di inadempienza?"
+  - "Quali sono i requisiti di sicurezza descritti nel Capitolato Tecnico?"
+  - "Come viene affrontato il tema della riservatezza dei dati?"
+  - "Quali sono le modalità di fatturazione e pagamento previste nel Capitolato?"
+  - "Quali normative vengono richiamate nel documento?"
+  - "Quali sono gli allegati tecnici al Capitolato e cosa contengono?"
+
+tests:
+  - description: "Verificare la pertinenza delle risposte al Capitolato Tecnico"
+    assert:
+      - type: "language-match"
+        value: "it"
+      - type: "contains-any"
+        value: ["capitolato", "requisiti", "appalto", "allegati", "tecnico", "offerta", "servizi"]
+      
+  - description: "Verificare la qualità e accuratezza delle risposte"
+    assert:
+      - type: "contains-json"
+        value: |
+          {
+            "min_length": 150
+          }
+      - type: "not-contains-any"
+        value: ["Non lo so", "non posso rispondere", "non ho accesso", "le mie conoscenze sono limitate"]
+
+outputs:
+  - type: "json_file"
+    path: "test_output/capitolato_tecnico_results.json"
+  - type: "markdown_file"
+    path: "test_output/capitolato_tecnico_results.md"
+
+variants:
+  - name: "semantic_chunking"
+    description: "Test con chunking semantico"
+    config:
+      model: "ollama"
+      temperature: 0.7
+      endpoint: "http://192.168.63.204:11434"
+      
+  - name: "size_chunking"
+    description: "Test con chunking basato su dimensione"
+    config:
+      model: "ollama"
+      temperature: 0.7
+      endpoint: "http://192.168.63.204:11434"
