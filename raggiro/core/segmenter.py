@@ -83,8 +83,30 @@ class Segmenter:
         
         segments = []
         
-        # Split by paragraphs first
+        # Split by paragraphs with multiple approaches to catch different formatting styles
+        # First try standard double newline approach
         paragraphs = re.split(r"\n\s*\n", text)
+        
+        # If we only got a few large paragraphs, try additional splitting approaches
+        if len(paragraphs) < 10 and len(text) > 5000:
+            # Try splitting by single newlines followed by indentation or bullet points
+            paragraphs = re.split(r"\n(?=\s{2,}|\t|•|\*|\-|[0-9]+\.|\([0-9]+\))", text)
+            
+            # If still insufficient, try splitting by sentences for very large paragraphs
+            if len(paragraphs) < 15 and any(len(p) > 1000 for p in paragraphs):
+                new_paragraphs = []
+                for p in paragraphs:
+                    if len(p) > 1000:
+                        # Split large paragraphs into sentence groups
+                        sentences = re.split(r'(?<=[.!?])\s+(?=[A-Z])', p)
+                        # Group sentences into smaller paragraph units (3-5 sentences per unit)
+                        for i in range(0, len(sentences), 3):
+                            group = " ".join(sentences[i:i+3])
+                            if group.strip():
+                                new_paragraphs.append(group)
+                    else:
+                        new_paragraphs.append(p)
+                paragraphs = new_paragraphs
         
         current_section = None
         current_section_content = []
@@ -221,8 +243,8 @@ class Segmenter:
         current_chunk_segments = []
         
         for segment in segments:
-            # Skip very short segments
-            if segment["length"] < 10:
+            # Skip extremely short segments (like single words)
+            if segment["length"] < 5:
                 continue
                 
             # Always keep headers with the following content

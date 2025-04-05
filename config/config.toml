@@ -29,8 +29,8 @@ min_line_length = 3
 use_spacy = true
 spacy_model = "en_core_web_sm"
 min_section_length = 100
-max_chunk_size = 1000
-chunk_overlap = 200
+max_chunk_size = 500  # Reduced from 1000 for more granular chunking
+chunk_overlap = 100   # Adjusted for the new chunk size
 
 # Export settings
 [export]
@@ -50,13 +50,15 @@ milvus_collection = "raggiro"
 
 # LLM settings (shared among components)
 [llm]
-provider = "ollama"  # "ollama", "llamacpp", "openai", "replicate"
+provider = "ollama"  # "ollama", "llamacpp", "openai"
 ollama_base_url = "http://localhost:11434"  # Ollama API URL
 ollama_timeout = 30  # Timeout in seconds
 llamacpp_path = ""  # Path to llama.cpp executable
-# OpenAI or Replicate settings (for future compatibility)
-api_key = ""
-api_url = ""
+
+# OpenAI settings
+api_key = ""  # API key for OpenAI
+api_url = ""  # Optional API URL override (for Azure OpenAI, etc.)
+openai_model = "gpt-3.5-turbo"  # Default model for OpenAI
 
 # Embedding settings
 [embedding]
@@ -87,11 +89,19 @@ similarity_threshold = 0.6  # Minimum similarity score to include a chunk
 [rewriting]
 enabled = true
 llm_type = ${llm.provider}  # Inherit from llm section
-model_name = "llama3"
 temperature = 0.1
 max_tokens = 200
-ollama_base_url = ${llm.ollama_base_url}  # Inherit from llm section
-llamacpp_path = ${llm.llamacpp_path}  # Inherit from llm section
+
+# Model names by provider type
+ollama_model = "llama3"  # Model name for Ollama
+llamacpp_model = "llama3"  # Model name for LLaMA.cpp
+openai_model = ${llm.openai_model}  # Inherit from llm section
+
+# Provider-specific settings (inherited from llm section)
+ollama_base_url = ${llm.ollama_base_url}
+llamacpp_path = ${llm.llamacpp_path}
+api_key = ${llm.api_key}  # For OpenAI
+api_url = ${llm.api_url}  # For OpenAI
 prompt_template = """
 You are a helpful assistant that improves user queries for a retrieval system. Your task is to:
 
@@ -109,11 +119,19 @@ Rewritten Query:
 # Response generation settings
 [generation]
 llm_type = ${llm.provider}  # Inherit from llm section
-model_name = "mistral"
 temperature = 0.7
 max_tokens = 1000
-ollama_base_url = ${llm.ollama_base_url}  # Inherit from llm section
-llamacpp_path = ${llm.llamacpp_path}  # Inherit from llm section
+
+# Model names by provider type
+ollama_model = "mistral"  # Model name for Ollama
+llamacpp_model = "mistral"  # Model name for LLaMA.cpp
+openai_model = ${llm.openai_model}  # Inherit from llm section
+
+# Provider-specific settings (inherited from llm section)
+ollama_base_url = ${llm.ollama_base_url}
+llamacpp_path = ${llm.llamacpp_path}
+api_key = ${llm.api_key}  # For OpenAI
+api_url = ${llm.api_url}  # For OpenAI
 prompt_template = """
 You are a helpful assistant that answers questions based on the provided context. Your task is to:
 
