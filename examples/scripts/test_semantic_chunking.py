@@ -52,17 +52,37 @@ def main():
     config_path = root_dir / "config" / "config.toml"
     print(f"Loading config from: {config_path}")
     
-    # Try direct TOML loading first for debugging
-    try:
-        with open(config_path, 'r') as f:
-            direct_config = toml.load(f)
-            print(f"Direct TOML load - Ollama URL: {direct_config.get('llm', {}).get('ollama_base_url', 'Not set in direct load')}")
-    except Exception as e:
-        print(f"Error loading config directly: {str(e)}")
+    # Skip TOML direct loading due to variable interpolation issues
+    print("TOML direct loading skipped - TOML file uses variable interpolation")
     
-    # Load through the utility function
-    config = load_config(str(config_path))
-    print(f"Config load via utility - Ollama URL: {config.get('llm', {}).get('ollama_base_url', 'Not set in utility load')}")
+    # Create a hardcoded configuration instead
+    config = {
+        "llm": {
+            "provider": "ollama",
+            "ollama_base_url": "http://192.168.63.204:11434",
+            "ollama_timeout": 30
+        },
+        "rewriting": {
+            "enabled": True,
+            "llm_type": "ollama",
+            "ollama_model": "llama3",
+            "temperature": 0.1,
+            "max_tokens": 200,
+            "ollama_base_url": "http://192.168.63.204:11434"
+        },
+        "generation": {
+            "llm_type": "ollama",
+            "ollama_model": "mistral",
+            "temperature": 0.7,
+            "max_tokens": 1000,
+            "ollama_base_url": "http://192.168.63.204:11434"
+        },
+        "segmentation": {
+            "semantic_chunking": True,
+            "chunking_strategy": "hybrid"
+        }
+    }
+    print(f"Using hardcoded config with Ollama URL: {config['llm']['ollama_base_url']}")
     print(f"Strategia di chunking attuale: {config.get('segmentation', {}).get('chunking_strategy', 'size')}")
     
     # Process the document
@@ -133,18 +153,15 @@ def main():
     print("\n=== Test di query RAG ===")
     
     # Initialize RAG pipeline
-    # Check exact config being passed to the pipeline
+    # Check config being passed to the pipeline
     print("=== Config diagnostics ===")
     print(f"Config type: {type(config)}")
     llm_config = config.get('llm', {})
     print(f"LLM config: {llm_config}")
-    ollama_url = llm_config.get('ollama_base_url', 'Not set')
-    print(f"Ollama URL: {ollama_url}")
-    
-    # Force the URL into the configuration
-    config['llm'] = config.get('llm', {})
-    config['llm']['ollama_base_url'] = "http://192.168.63.204:11434"
-    print(f"Forced Ollama URL: {config['llm']['ollama_base_url']}")
+    rewriting_config = config.get('rewriting', {})
+    print(f"Rewriting config: {rewriting_config}")
+    generation_config = config.get('generation', {})
+    print(f"Generation config: {generation_config}")
     
     # Initialize the pipeline with the forced config
     pipeline = RagPipeline(config)
