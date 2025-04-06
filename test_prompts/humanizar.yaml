@@ -1,21 +1,18 @@
 # Test prompts per "Humanizar_it"
 prompts:
   - "Quali sono i principali temi trattati nel documento Humanizar?"
-  - "Come viene definito il concetto di 'umanizzazione' nel documento?"
-  - "Quali sono le sfide principali nell'umanizzazione dei servizi sanitari secondo il documento?"
+  - "Come viene definito il concetto di 'umanizzazione della terra' nel documento?"
+  - "Quali sono i principi di azione valida nel documento Humanizar?"
   - "Quali approcci metodologici vengono proposti per l'umanizzazione?"
-  - "Come si relaziona il concetto di umanizzazione con la digitalizzazione dei servizi?"
-  - "Quali sono i benefici dell'umanizzazione secondo il documento?"
-  - "Come viene affrontato il tema della comunicazione nel processo di umanizzazione?"
-  - "Quali esempi pratici di umanizzazione vengono descritti nel documento?"
-  - "Quali sono le barriere all'implementazione di approcci più umani nei servizi?"
-  - "Come viene trattato il tema dell'empatia nel documento?"
-  - "Quali sono le competenze necessarie per facilitare l'umanizzazione dei servizi?"
-  - "Come si misura l'efficacia degli interventi di umanizzazione secondo il documento?"
-  - "Quali riferimenti teorici vengono utilizzati nel documento per supportare il concetto di umanizzazione?"
-  - "Come si integra l'umanizzazione nei processi organizzativi esistenti?"
-  - "Quali raccomandazioni vengono fatte per implementare pratiche di umanizzazione?"
-
+  - "Come si relaziona il concetto di umanizzazione con la sofferenza umana nel documento?"
+  - "Quanti sono i principi di azione valide secondo il documento?"
+  - "Cosa si intende per controllo dell Forza?
+  - "Quali sono i benefici dell'umanizzazione secondo il documento?"  
+  - "Come viene affrontato il tema della coerenza nel processo di umanizzazione?"
+  - "Cosa è lo sguardo interno?"
+  - "Cosa si intende per felicità?"
+  - "Qual è il senso della vita?"
+  - "Quali sono i principi di azione valida?"
 tests:
   - description: "Verificare la pertinenza delle risposte al documento Humanizar"
     assert:
@@ -45,12 +42,12 @@ variants:
     description: "Test con chunking semantico"
     config:
       model: "ollama"
-      temperature: 0.7
+      temperature: 0.1
       endpoint: "http://192.168.63.204:11434"
       
   - name: "size_chunking"
     description: "Test con chunking basato su dimensione"
     config:
       model: "ollama"
-      temperature: 0.7
+      temperature: 0.1
       endpoint: "http://192.168.63.204:11434"
