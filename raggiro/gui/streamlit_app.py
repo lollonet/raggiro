@@ -167,6 +167,14 @@ def test_rag_ui():
     """UI for testing RAG capabilities."""
     st.header("Test RAG System")
     
+    # Check if promptfoo is installed and show a warning if not
+    if not is_package_installed("promptfoo"):
+        st.warning("PromptFoo is not installed. Some test features will be unavailable.")
+        st.markdown("### Install PromptFoo")
+        st.info("PromptFoo is used for advanced RAG testing. Install it with:")
+        st.code("pip install promptfoo", language="bash")
+        st.markdown("---")
+    
     # Input directory (processed documents)
     st.subheader("Input")
     
@@ -704,6 +712,27 @@ def view_results_ui():
             
         # Complete the progress
         progress.progress(100)
+
+def is_package_installed(package_name):
+    """Check if a package is installed.
+    
+    Args:
+        package_name: Name of the package to check
+        
+    Returns:
+        True if the package is installed, False otherwise
+    """
+    try:
+        # Try importing the package
+        __import__(package_name)
+        return True
+    except ImportError:
+        # Check if it's a command-line tool
+        try:
+            subprocess.run([package_name, "--version"], check=True, capture_output=True)
+            return True
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            return False
 
 def get_ollama_models(base_url="http://ollama:11434"):
     """Get list of available models from Ollama server.
@@ -1525,6 +1554,18 @@ if __name__ == "__main__":
         if promptfoo_script:
             append_log("\n=== Running promptfoo tests ===")
             
+            # Check if promptfoo is installed
+            try:
+                subprocess.run(["promptfoo", "--version"], check=True, capture_output=True)
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                append_log("⚠️ PromptFoo is not installed. Install with: pip install promptfoo", error=True)
+                append_log("⚠️ Test results will be limited without PromptFoo.", error=True)
+                st.warning("PromptFoo is not installed. Some test features will be unavailable.")
+                st.code("pip install promptfoo", language="bash")
+                # Continue with the test but skip the promptfoo part
+                test_progress.progress(100)
+                return
+                
             # Use the directory with the test index for better retrieval
             index_dir = os.path.join(output_dir, "index")
             if os.path.exists(index_dir):
@@ -1619,7 +1660,14 @@ if __name__ == "__main__":
                         st.subheader(f"Test Results: {file_name}")
                         display_promptfoo_results(data)
                 else:
-                    st.info("No PromptFoo result files found")
+                    # Check if promptfoo is installed
+                    try:
+                        subprocess.run(["promptfoo", "--version"], check=True, capture_output=True)
+                        st.info("No PromptFoo result files found.")
+                    except (subprocess.CalledProcessError, FileNotFoundError):
+                        st.error("PromptFoo is not installed. Please install it with: pip install promptfoo")
+                        st.code("pip install promptfoo", language="bash")
+                        st.info("After installation, restart the application and try again.")
             
             with result_tabs[1]:  # RAG Query Results
                 if result_categories["RAG Query Results"]:
