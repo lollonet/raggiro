@@ -13,6 +13,7 @@ click>=8.1.0
 chardet>=5.0.0
 tqdm>=4.64.0
 requests>=2.31.0
+python-magic>=0.4.27
 
 # Spelling correction
 symspellpy>=6.7.6
