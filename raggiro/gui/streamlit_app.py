@@ -706,6 +706,27 @@ def view_results_ui():
         # Complete the progress
         progress.progress(100)
 
+def get_ollama_models(base_url="http://ollama:11434"):
+    """Get list of available models from Ollama server.
+    
+    Args:
+        base_url: Ollama server base URL
+        
+    Returns:
+        List of model names or empty list if unavailable
+    """
+    import requests
+    try:
+        response = requests.get(f"{base_url}/api/tags", timeout=2)
+        if response.status_code == 200:
+            data = response.json()
+            if "models" in data:
+                return [model["name"] for model in data["models"]]
+        return []
+    except Exception as e:
+        st.warning(f"Could not connect to Ollama server at {base_url}: {str(e)}")
+        return []
+
 def configuration_ui():
     """UI for configuration."""
     st.header("Configuration")
@@ -713,12 +734,230 @@ def configuration_ui():
     # Load default configuration
     default_config = load_config()
     
-    # Choose configuration format
-    config_format = st.radio(
-        "Configuration Format",
-        options=["TOML", "JSON"],
+    # Choose configuration section
+    config_section = st.radio(
+        "Configuration Section",
+        options=["LLM Settings", "Full Configuration"],
         index=0,
     )
+    
+    if config_section == "LLM Settings":
+        st.subheader("Ollama Settings")
+        
+        # Get current Ollama settings
+        llm_config = default_config.get("llm", {})
+        rewriting_config = default_config.get("rewriting", {})
+        generation_config = default_config.get("generation", {})
+        
+        # Ollama base URL
+        ollama_base_url = st.text_input(
+            "Ollama Base URL",
+            value=llm_config.get("ollama_base_url", "http://ollama:11434"),
+            help="Base URL for Ollama API server",
+        )
+        
+        # Query available models
+        ollama_models = get_ollama_models(ollama_base_url)
+        if ollama_models:
+            st.success(f"Found {len(ollama_models)} models on Ollama server")
+        else:
+            st.warning("Could not retrieve models from Ollama server. Using default options.")
+            ollama_models = ["llama3", "llama3.2-vision", "mistral", "dolphin-phi3", "phi3"]
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Rewriting model
+            rewriting_model = st.selectbox(
+                "Rewriting Model",
+                options=ollama_models,
+                index=ollama_models.index(rewriting_config.get("ollama_model", "llama3")) if rewriting_config.get("ollama_model", "llama3") in ollama_models else 0,
+                help="Model used for query rewriting"
+            )
+            
+            # Rewriting temperature
+            rewriting_temp = st.slider(
+                "Rewriting Temperature",
+                min_value=0.0,
+                max_value=1.0,
+                value=float(rewriting_config.get("temperature", 0.1)),
+                step=0.1,
+                help="Temperature for query rewriting (lower = more focused)"
+            )
+        
+        with col2:
+            # Generation model
+            generation_model = st.selectbox(
+                "Generation Model",
+                options=ollama_models,
+                index=ollama_models.index(generation_config.get("ollama_model", "mistral")) if generation_config.get("ollama_model", "mistral") in ollama_models else 0,
+                help="Model used for response generation"
+            )
+            
+            # Generation temperature
+            generation_temp = st.slider(
+                "Generation Temperature",
+                min_value=0.0,
+                max_value=1.0,
+                value=float(generation_config.get("temperature", 0.7)),
+                step=0.1,
+                help="Temperature for response generation (higher = more creative)"
+            )
+        
+        # Max tokens
+        max_tokens = st.slider(
+            "Max Response Tokens",
+            min_value=100,
+            max_value=2000,
+            value=int(generation_config.get("max_tokens", 1000)),
+            step=100,
+            help="Maximum number of tokens in the generated response"
+        )
+        
+        # Create updated config
+        updated_config = default_config.copy()
+        
+        # Update LLM settings
+        if "llm" not in updated_config:
+            updated_config["llm"] = {}
+        updated_config["llm"]["provider"] = "ollama"
+        updated_config["llm"]["ollama_base_url"] = ollama_base_url
+        
+        # Update rewriting settings
+        if "rewriting" not in updated_config:
+            updated_config["rewriting"] = {}
+        updated_config["rewriting"]["llm_type"] = "ollama"
+        updated_config["rewriting"]["ollama_model"] = rewriting_model
+        updated_config["rewriting"]["temperature"] = rewriting_temp
+        updated_config["rewriting"]["ollama_base_url"] = ollama_base_url
+        
+        # Update generation settings
+        if "generation" not in updated_config:
+            updated_config["generation"] = {}
+        updated_config["generation"]["llm_type"] = "ollama"
+        updated_config["generation"]["ollama_model"] = generation_model
+        updated_config["generation"]["temperature"] = generation_temp
+        updated_config["generation"]["max_tokens"] = max_tokens
+        updated_config["generation"]["ollama_base_url"] = ollama_base_url
+        
+        # Save button
+        if st.button("Apply Settings", type="primary"):
+            try:
+                # Find config path
+                config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "config", "config.toml")
+                
+                # Read existing config to preserve structure and comments
+                if os.path.exists(config_path):
+                    with open(config_path, "r") as f:
+                        existing_config = f.read()
+                    
+                    # Update only the relevant sections
+                    import re
+                    import toml
+                    
+                    # Convert to string for writing back to file
+                    # We'll need to update specific sections
+                    new_llm_section = f"""[llm]
+                    provider = "ollama"  # "ollama", "llamacpp", "openai"
+                    # Make sure this URL is directly accessible from your execution environment
+                    ollama_base_url = "{ollama_base_url}"  # Ollama API URL 
+                    ollama_timeout = 30  # Timeout in seconds
+                    llamacpp_path = ""  # Path to llama.cpp executable
+                    """
+                    
+                    new_rewriting_section = f"""[rewriting]
+                    enabled = true
+                    llm_type = "{{{{llm.provider}}}}"  # Inherit from llm section
+                    temperature = {rewriting_temp}
+                    max_tokens = 200
+                    
+                    # Model names by provider type
+                    ollama_model = "{rewriting_model}"  # Model name for Ollama
+                    llamacpp_model = "llama3"  # Model name for LLaMA.cpp
+                    openai_model = "{{{{llm.openai_model}}}}"  # Inherit from llm section
+                    
+                    # Provider-specific settings (inherited from llm section)
+                    ollama_base_url = "{{{{llm.ollama_base_url}}}}"
+                    """
+                    
+                    new_generation_section = f"""[generation]
+                    llm_type = "{{{{llm.provider}}}}"  # Inherit from llm section
+                    temperature = {generation_temp}
+                    max_tokens = {max_tokens}
+                    
+                    # Model names by provider type
+                    ollama_model = "{generation_model}"  # Model name for Ollama
+                    llamacpp_model = "mistral"  # Model name for LLaMA.cpp
+                    openai_model = "{{{{llm.openai_model}}}}"  # Inherit from llm section
+                    
+                    # Provider-specific settings (inherited from llm section)
+                    ollama_base_url = "{{{{llm.ollama_base_url}}}}"
+                    """
+                    
+                    # Now generate a new TOML config that merges existing sections with our updated ones
+                    import tempfile
+                    with tempfile.NamedTemporaryFile('w', delete=False, suffix='.toml') as tf:
+                        temp_path = tf.name
+                        # Write updated TOML
+                        with open(config_path, 'w') as f:
+                            # Replace sections with our updated versions
+                            # This is a simple approach - a more robust solution would be to parse and modify the TOML
+                            sections = re.split(r'\[([^\]]+)\]', existing_config)
+                            for i in range(1, len(sections), 2):
+                                section_name = sections[i].strip()
+                                if section_name == "llm":
+                                    sections[i+1] = "\n" + new_llm_section + "\n"
+                                elif section_name == "rewriting":
+                                    sections[i+1] = "\n" + new_rewriting_section + "\n"
+                                elif section_name == "generation":
+                                    sections[i+1] = "\n" + new_generation_section + "\n"
+                            
+                            # Reconstruct the file
+                            new_content = ""
+                            for i in range(0, len(sections)):
+                                if i > 0 and i % 2 == 1:
+                                    new_content += f"[{sections[i]}]"
+                                else:
+                                    new_content += sections[i]
+                            
+                            f.write(new_content)
+                        
+                    st.success("Settings applied successfully!")
+                else:
+                    st.error("Config file not found! Please check your installation.")
+            except Exception as e:
+                st.error(f"Error saving settings: {str(e)}")
+        
+        # Display equivalent TOML
+        with st.expander("Preview Settings as TOML"):
+            st.code(f"""[llm]
+            provider = "ollama"
+            ollama_base_url = "{ollama_base_url}"
+            ollama_timeout = 30
+            
+            [rewriting]
+            enabled = true
+            llm_type = "ollama"
+            ollama_model = "{rewriting_model}"
+            temperature = {rewriting_temp}
+            max_tokens = 200
+            ollama_base_url = "{ollama_base_url}"
+            
+            [generation]
+            llm_type = "ollama"
+            ollama_model = "{generation_model}"
+            temperature = {generation_temp}
+            max_tokens = {max_tokens}
+            ollama_base_url = "{ollama_base_url}"
+            """, language="toml")
+    
+    else:  # Full configuration
+        # Choose configuration format
+        config_format = st.radio(
+            "Configuration Format",
+            options=["TOML", "JSON"],
+            index=0,
+        )
     
     if config_format == "TOML":
         # Display TOML configuration
