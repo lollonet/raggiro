@@ -384,7 +384,7 @@ api_url = ${llm.api_url}  # For OpenAI
 # Response generation settings
 [generation]
 llm_type = ${llm.provider}  # Inherit from llm section
-temperature = 0.7
+temperature = 0.1  # Lower temperature for more deterministic outputs
 max_tokens = 1000
 
 # Model names by provider type

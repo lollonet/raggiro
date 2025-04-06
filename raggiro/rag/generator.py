@@ -34,7 +34,7 @@ class ResponseGenerator:
         else:
             self.model_name = "mistral"  # Default fallback
             
-        self.temperature = generation_config.get("temperature", 0.7)
+        self.temperature = generation_config.get("temperature", 0.1)
         self.max_tokens = generation_config.get("max_tokens", 1000)
         # Get ollama URL from config with explicit print for debugging
         llm_config = self.config.get("llm", {})
