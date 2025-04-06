@@ -21,39 +21,35 @@ def run_app():
     """Run the Streamlit app."""
     import streamlit as st
 
-    # Define main function to be executed
-    def main():
-        # Set page configuration
+    # Set page configuration
+    try:
         st.set_page_config(
             page_title="Raggiro - Document Processing for RAG",
             page_icon="📄",
             layout="wide",
         )
-        
-        st.title("Raggiro - Document Processing for RAG")
-        st.write("Process documents for Retrieval-Augmented Generation (RAG) systems")
-        
-        # Create tabs for different functionality
-        tab1, tab2, tab3, tab4 = st.tabs(["Process Documents", "Test RAG", "View Results", "Configuration"])
-        
-        with tab1:
-            process_documents_ui()
-        
-        with tab2:
-            test_rag_ui()
-        
-        with tab3:
-            view_results_ui()
-        
-        with tab4:
-            configuration_ui()
+    except Exception as e:
+        # This might be called twice in some Streamlit versions
+        # Just ignore the error if it fails
+        pass
     
-    # Call main function when running directly
-    if st._is_running_with_streamlit:
-        main()
-    else:
-        # For module import cases or command line usage via raggiro CLI
-        st.cli.main_run(main)
+    st.title("Raggiro - Document Processing for RAG")
+    st.write("Process documents for Retrieval-Augmented Generation (RAG) systems")
+    
+    # Create tabs for different functionality
+    tab1, tab2, tab3, tab4 = st.tabs(["Process Documents", "Test RAG", "View Results", "Configuration"])
+    
+    with tab1:
+        process_documents_ui()
+    
+    with tab2:
+        test_rag_ui()
+    
+    with tab3:
+        view_results_ui()
+    
+    with tab4:
+        configuration_ui()
 
 def process_documents_ui():
     """UI for processing documents."""
@@ -1774,12 +1770,15 @@ def display_single_rag_result(item, index, is_error=False):
                 st.json(item["metadata"])
 
 if __name__ == "__main__":
-    import streamlit.web.bootstrap as bootstrap
-    
-    # Use Streamlit's bootstrap mechanism to properly initialize the script
-    bootstrap.run(
-        __file__,  # The full path to this script
-        command_line="",  # No command line arguments
-        args=[],  # No arguments
-        flag_options={},  # No flag options
-    )
+    try:
+        # Try the newer API first (Streamlit 1.8.0+)
+        import streamlit.web.cli as cli
+        cli.main()
+    except (ImportError, AttributeError):
+        try:
+            # Fall back to older bootstrap API (pre-1.8.0)
+            import streamlit.web.bootstrap as bootstrap
+            bootstrap.run(__file__, [], {})
+        except (ImportError, TypeError):
+            # Last resort - run app directly
+            run_app()

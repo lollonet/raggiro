@@ -8,8 +8,9 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 # Set Python path to include the project directory
 export PYTHONPATH="$SCRIPT_DIR:$PYTHONPATH"
 
-# Set Streamlit variables to avoid warnings
+# Ensure we're using the correct configuration
 export STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+export STREAMLIT_THEME_BASE="light"
 
 # Check if the streamlit command is available
 if ! command -v streamlit &> /dev/null; then
@@ -17,5 +18,16 @@ if ! command -v streamlit &> /dev/null; then
     pip install streamlit
 fi
 
-# Launch the streamlit app with proper arguments
-streamlit run "$SCRIPT_DIR/raggiro/gui/streamlit_app.py" "$@" --browser.gatherUsageStats=false
+# Version-aware streamlit launcher
+echo "Launching Raggiro Streamlit interface..."
+
+# Check for module mode vs script mode
+if python -c "import importlib.util; print(importlib.util.find_spec('raggiro') is not None)" | grep -q "True"; then
+    # Module mode - use the raggiro package
+    echo "Using module mode"
+    streamlit run -m raggiro.gui.streamlit_app
+else
+    # Script mode - use direct file path
+    echo "Using script mode"
+    streamlit run "$SCRIPT_DIR/raggiro/gui/streamlit_app.py"
+fi
