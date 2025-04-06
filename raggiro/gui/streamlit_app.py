@@ -482,7 +482,7 @@ def view_results_ui():
         st.session_state["last_test_dir"] = results_path
         
         # Create a progress indicator
-        progress = st.progress(0)
+        progress = st.progress(0, "Processing results")
         
         # Look for JSON and Markdown result files
         json_files = glob.glob(os.path.join(results_path, "*.json"))
@@ -1126,7 +1126,7 @@ def process_documents(
         
         # Process each file
         results = []
-        progress_bar = st.progress(0)
+        progress_bar = st.progress(0, "Processing documents")
         
         for i, file_path in enumerate(file_paths):
             result = processor.process_file(file_path, output_dir)
@@ -1274,7 +1274,7 @@ def run_rag_tests(
         repo_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         
         # Create progress bar for test setup
-        setup_progress = st.progress(0)
+        setup_progress = st.progress(0, "Setting up test environment")
         st.info("Setting up test environment...")
         setup_progress.progress(10)
         
@@ -1429,7 +1429,7 @@ if __name__ == "__main__":
         setup_progress.progress(100)
         
         # Create test progress bar
-        test_progress = st.progress(0)
+        test_progress = st.progress(0, "Running tests")
         
         # Run the test semantic chunking script
         append_log("=== Running semantic chunking test ===")
