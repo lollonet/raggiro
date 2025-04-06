@@ -264,6 +264,28 @@ class Exporter:
             "text": document.get("text", ""),
         }
         
+        # Add original text data for comparison views
+        if "original_text" in document:
+            export_data["original_text"] = document["original_text"]
+        elif "raw_text" in document:
+            export_data["original_text"] = document["raw_text"]
+            
+        # Add page-level original and raw text if available
+        if "pages" in document:
+            export_data["pages"] = []
+            for page in document["pages"]:
+                page_data = {"page_num": page.get("page_num"), "text": page.get("text", "")}
+                
+                # Preserve raw/original text at page level
+                if "raw_text" in page:
+                    page_data["original_text"] = page["raw_text"]
+                
+                export_data["pages"].append(page_data)
+                
+        # Add original pages if they exist
+        if "original_pages" in document:
+            export_data["original_pages"] = document["original_pages"]
+        
         # Add segments and chunks if available
         if "segments" in document:
             export_data["segments"] = document["segments"]

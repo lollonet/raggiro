@@ -428,13 +428,18 @@ class Extractor:
                         # Record the text and character count
                         char_count = len(text)
                         full_text.append(text)
-                        pages.append({
+                        
+                        # Save both original raw OCR text and processed text
+                        # This will be used for comparison views
+                        page_data = {
                             "page_num": page_idx + 1,
-                            "text": text,
+                            "text": text,  # This will be potentially corrected later in the pipeline
+                            "raw_text": text,  # Keep the original OCR text for comparison
                             "has_text": bool(text.strip()),
                             "char_count": char_count,
                             "processing_time": time.time() - page_start_time
-                        })
+                        }
+                        pages.append(page_data)
                         
                         print(f"Page {page_idx+1} OCR extracted {char_count} characters")
                         
@@ -443,10 +448,12 @@ class Extractor:
                     except Exception as page_error:
                         print(f"Error processing page {page_idx+1}: {str(page_error)}")
                         # Add placeholder for failed page
-                        full_text.append(f"[ERROR: Failed to process page {page_idx+1}]")
+                        error_text = f"[ERROR: Failed to process page {page_idx+1} - {str(page_error)}]"
+                        full_text.append(error_text)
                         pages.append({
                             "page_num": page_idx + 1,
-                            "text": f"[ERROR: Failed to process page {page_idx+1} - {str(page_error)}]",
+                            "text": error_text,
+                            "raw_text": error_text,  # Same for raw text in case of error
                             "has_text": False,
                         })
                 
@@ -457,6 +464,7 @@ class Extractor:
             # Save the combined result
             combined_text = "\n\n".join(full_text)
             result["text"] = combined_text
+            result["raw_text"] = combined_text  # Store the raw OCR text for comparison
             result["pages"] = pages
             result["success"] = True
             
@@ -842,9 +850,11 @@ class Extractor:
             text = pytesseract.image_to_string(image, lang=self.actual_ocr_language)
             
             result["text"] = text
+            result["raw_text"] = text  # Store raw OCR text for comparison
             result["pages"] = [{
                 "page_num": 1,
                 "text": text,
+                "raw_text": text,  # Store raw OCR text for comparison
                 "has_text": bool(text.strip()),
             }]
             result["success"] = True

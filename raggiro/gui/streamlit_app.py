@@ -1647,6 +1647,78 @@ def display_document_comparison(files: Dict[str, str], output_dir: str):
             st.markdown("### Original vs Corrected Text Comparison")
             
             try:
+                # First try to show the text comparison directly from JSON
+                if files.get("json"):
+                    try:
+                        with open(files["json"], "r", encoding="utf-8") as f:
+                            json_data = json.load(f)
+                        
+                        # Determine if we're dealing with page-based or full-text based document
+                        if "pages" in json_data and json_data["pages"]:
+                            # Page-based document
+                            pages = json_data["pages"]
+                            
+                            # Create a page selector if multiple pages
+                            if len(pages) > 1:
+                                page_idx = st.slider("Select Page", 1, len(pages), 1, key="json_comp_page") - 1
+                            else:
+                                page_idx = 0
+                            
+                            if page_idx < len(pages):
+                                page_data = pages[page_idx]
+                                
+                                # Get corrected text from page
+                                corrected_text = page_data.get("text", "")
+                                
+                                # Try to get original text from different possible fields
+                                original_text = page_data.get("original_text", "")
+                                if not original_text:
+                                    original_text = page_data.get("raw_text", "")
+                                
+                                # Display the texts side by side if we have both
+                                if original_text and corrected_text:
+                                    col1, col2 = st.columns(2)
+                                    with col1:
+                                        st.markdown("**Original Text**")
+                                        char_count = len(original_text)
+                                        st.text_area("Original", original_text, height=500, 
+                                                    key=f"orig_text_{page_idx}", label_visibility="collapsed")
+                                        st.caption(f"{char_count} characters")
+                                    
+                                    with col2:
+                                        st.markdown("**Corrected Text**")
+                                        char_count = len(corrected_text)
+                                        st.text_area("Corrected", corrected_text, height=500,
+                                                    key=f"corr_text_{page_idx}", label_visibility="collapsed")
+                                        st.caption(f"{char_count} characters")
+                        else:
+                            # Full document
+                            corrected_text = json_data.get("text", "")
+                            
+                            # Try to get original text from different possible fields
+                            original_text = json_data.get("original_text", "")
+                            if not original_text:
+                                original_text = json_data.get("raw_text", "")
+                            
+                            # Display the texts side by side if we have both
+                            if original_text and corrected_text:
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    st.markdown("**Original Text**")
+                                    char_count = len(original_text)
+                                    st.text_area("Original", original_text, height=500, 
+                                                key="orig_text_full", label_visibility="collapsed")
+                                    st.caption(f"{char_count} characters")
+                                
+                                with col2:
+                                    st.markdown("**Corrected Text**")
+                                    char_count = len(corrected_text)
+                                    st.text_area("Corrected", corrected_text, height=500,
+                                                key="corr_text_full", label_visibility="collapsed")
+                                    st.caption(f"{char_count} characters")
+                    except Exception as json_err:
+                        st.warning(f"Could not load text comparison from JSON: {str(json_err)}")
+                
                 # Provide a download button for the comparison PDF
                 with open(files["comparison_pdf"], "rb") as f:
                     pdf_bytes = f.read()
