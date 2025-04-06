@@ -152,7 +152,7 @@ raggiro gui --tui
 
 #### RAG Testing Commands
 
-The `test-rag` command allows automated testing of your RAG pipeline:
+The `test-rag` command allows automated testing of your RAG pipeline, using settings from your TOML configuration file:
 
 ```bash
 # Show help for test-rag command
@@ -163,6 +163,12 @@ raggiro test-rag --prompt-set tests/prompts.yaml
 
 # Specify output directory for test results
 raggiro test-rag --prompt-set tests/prompts.yaml --output test_results
+
+# Override Ollama URL from the command line (overrides TOML config)
+raggiro test-rag --prompt-set tests/prompts.yaml --ollama-url http://localhost:11434
+
+# Specify different models for rewriting and generation (overrides TOML config)
+raggiro test-rag --prompt-set tests/prompts.yaml --rewriting-model llama3 --generation-model mistral
 ```
 
 ### GUI Interface
@@ -174,12 +180,13 @@ Raggiro's GUI interfaces provide interactive document processing without having 
    - **RAG Testing**: Run and evaluate tests on your processed documents
    - **Result Visualization**: View test results with metrics and charts
    - **Configuration Management**: Edit and manage configuration options visually
+   - **Ollama Integration**: Dynamically fetches available models from Ollama server
    
    The Streamlit interface includes four main tabs:
    - **Process Documents**: Upload and process documents with customizable options
-   - **Test RAG**: Run tests on processed documents with predefined or custom prompts
+   - **Test RAG**: Run tests on processed documents with predefined or custom prompts and dynamic Ollama model selection
    - **View Results**: Analyze test results with visualizations and metrics
-   - **Configuration**: Edit configuration settings for the entire pipeline
+   - **Configuration**: Edit configuration settings for the entire pipeline, including LLM settings with real-time validation
 
 2. **Textual Interface (Terminal-based)**
    - Text-based UI for environments without a web browser
@@ -290,6 +297,23 @@ else:
 
 Raggiro uses TOML configuration files for customization. You can create a config file at `~/.raggiro/config.toml` or specify a custom path with `--config`.
 
+### Configuration Structure
+
+Raggiro follows a clean separation of concerns in its configuration:
+
+1. **TOML Configuration File** (`config/config.toml`): Contains all LLM settings, including:
+   - Ollama server URLs
+   - Model names for different components (rewriting, generation)
+   - Provider-specific settings
+   - Performance parameters (temperature, max_tokens)
+   
+2. **Test Prompt Files** (`test_prompts/*.yaml`): Contain only test-specific settings:
+   - Test prompts for different documents
+   - Assertions and evaluation criteria
+   - Chunking strategy configuration
+   
+This separation allows you to maintain centralized LLM configuration while having document-specific test prompts.
+
 ### Example Configuration
 
 ```toml
@@ -321,15 +345,16 @@ include_metadata = true
 # LLM settings (shared across components)
 [llm]
 provider = "ollama"  # "ollama", "llamacpp", "openai", "replicate"
-ollama_base_url = "http://localhost:11434"  # Ollama API URL
+ollama_base_url = "http://ollama:11434"  # Ollama API URL
 ollama_timeout = 30  # Timeout in seconds
 llamacpp_path = ""  # Path to llama.cpp executable
 api_key = ""  # For OpenAI or other external providers
+openai_model = "gpt-3.5-turbo"  # Default model for OpenAI
 
 # Vector database settings
 [vector_db]
 type = "faiss"  # "faiss", "qdrant", "milvus"
-qdrant_url = "http://localhost:6333"
+qdrant_url = "http://qdrant:6333"
 qdrant_collection = "raggiro"
 
 # Embedding settings
@@ -342,55 +367,102 @@ device = "cpu"  # "cpu" or "cuda" for GPU acceleration
 [rewriting]
 enabled = true
 llm_type = ${llm.provider}  # Inherit from llm section
-model_name = "llama3"
-ollama_base_url = ${llm.ollama_base_url}  # Inherit from llm section
+temperature = 0.1
+max_tokens = 200
+
+# Model names by provider type
+ollama_model = "llama3"  # Model name for Ollama
+llamacpp_model = "llama3"  # Model name for LLaMA.cpp
+openai_model = ${llm.openai_model}  # Inherit from llm section
+
+# Provider-specific settings (inherited from llm section)
+ollama_base_url = ${llm.ollama_base_url}
+llamacpp_path = ${llm.llamacpp_path}
+api_key = ${llm.api_key}  # For OpenAI
+api_url = ${llm.api_url}  # For OpenAI
 
 # Response generation settings
 [generation]
 llm_type = ${llm.provider}  # Inherit from llm section
-model_name = "mistral"
 temperature = 0.7
-ollama_base_url = ${llm.ollama_base_url}  # Inherit from llm section
+max_tokens = 1000
+
+# Model names by provider type
+ollama_model = "mistral"  # Model name for Ollama
+llamacpp_model = "mistral"  # Model name for LLaMA.cpp
+openai_model = ${llm.openai_model}  # Inherit from llm section
+
+# Provider-specific settings (inherited from llm section)
+ollama_base_url = ${llm.ollama_base_url}
+llamacpp_path = ${llm.llamacpp_path}
+api_key = ${llm.api_key}  # For OpenAI
+api_url = ${llm.api_url}  # For OpenAI
 ```
 
 ### LLM Configuration
 
-Raggiro supports multiple LLM providers for query rewriting and response generation:
+Raggiro supports multiple LLM providers for query rewriting and response generation. All LLM configuration has been centralized in the TOML config file:
 
 1. **Ollama** (default): Local LLM server
    ```toml
+   # Shared LLM settings
    [llm]
    provider = "ollama"
    ollama_base_url = "http://localhost:11434"  # Change to your Ollama server URL
    ollama_timeout = 30  # Timeout in seconds
+   
+   # Query rewriting settings
+   [rewriting]
+   llm_type = ${llm.provider}  # Inherit from llm section
+   ollama_model = "llama3"  # Model for query rewriting
+   ollama_base_url = ${llm.ollama_base_url}  # Inherit from llm section
+   
+   # Response generation settings
+   [generation]
+   llm_type = ${llm.provider}  # Inherit from llm section
+   ollama_model = "mistral"  # Model for response generation
+   ollama_base_url = ${llm.ollama_base_url}  # Inherit from llm section
    ```
 
 2. **llama.cpp**: Direct integration with llama.cpp binary
    ```toml
+   # Shared LLM settings
    [llm]
    provider = "llamacpp"
    llamacpp_path = "/path/to/llama"  # Path to llama.cpp executable
+   
+   # Query rewriting settings
+   [rewriting]
+   llm_type = ${llm.provider}  # Inherit from llm section
+   llamacpp_model = "llama3"  # Model for query rewriting
+   
+   # Response generation settings
+   [generation]
+   llm_type = ${llm.provider}  # Inherit from llm section
+   llamacpp_model = "mistral"  # Model for response generation
    ```
 
 3. **OpenAI**: Cloud-based model access
    ```toml
+   # Shared LLM settings
    [llm]
    provider = "openai"
    api_key = "your-openai-api-key"
-   openai_model = "gpt-3.5-turbo"  # Model name, e.g., "gpt-3.5-turbo" or "gpt-4"
+   openai_model = "gpt-3.5-turbo"  # Default model
    api_url = "https://api.openai.com/v1"  # Optional custom endpoint (for Azure OpenAI, etc.)
    
-   # Configure specific components
+   # Query rewriting settings
    [rewriting]
-   llm_type = "openai"  # Use OpenAI for query rewriting
-   openai_model = "gpt-3.5-turbo"  # Model for rewriting
+   llm_type = ${llm.provider}  # Inherit from llm section
+   openai_model = ${llm.openai_model}  # Inherit from llm section, or override with a specific model
    
+   # Response generation settings
    [generation]
-   llm_type = "openai"  # Use OpenAI for response generation
-   openai_model = "gpt-4"  # Model for generation
+   llm_type = ${llm.provider}  # Inherit from llm section
+   openai_model = "gpt-4"  # Override with a more powerful model for generation
    ```
 
-You can mix and match different providers for query rewriting and response generation, for example, using a lighter model for query rewriting and a more powerful model for response generation.
+You can mix and match different providers for query rewriting and response generation, for example, using a lighter model for query rewriting and a more powerful model for response generation. The TOML configuration uses variable interpolation to inherit values from the shared `[llm]` section, simplifying maintenance.
 
 ## Architecture
 
@@ -653,14 +725,14 @@ The GUI makes it easy to conduct and interpret tests without writing a single li
 
 ### Testing Semantic Chunking
 
-The semantic chunking feature can be tested and analyzed using the included test scripts:
+The semantic chunking feature can be tested and analyzed using the included test scripts. All scripts now use the central TOML configuration but also accept command-line overrides:
 
 ```bash
 # Basic test with detailed chunk analysis
 python -m raggiro.examples.scripts.test_semantic_chunking --input document.pdf --output test_output
 
-# Test with custom queries
-python -m raggiro.examples.scripts.test_semantic_chunking --input document.pdf --queries "What is the main topic?" "Summarize key points"
+# Test with custom queries and Ollama settings
+python -m raggiro.examples.scripts.test_semantic_chunking --input document.pdf --queries "What is the main topic?" "Summarize key points" --ollama-url http://localhost:11434 --rewriting-model llama3 --generation-model mistral
 
 # Specify number of chunks to retrieve for each query
 python -m raggiro.examples.scripts.test_semantic_chunking --input document.pdf --top-k 5
@@ -671,11 +743,11 @@ python -m raggiro.examples.scripts.test_semantic_chunking --input document.pdf -
 You can compare different chunking strategies to find the most effective approach for your documents:
 
 ```bash
-# Compare all available strategies
+# Compare all available strategies (using TOML config for LLM settings)
 python -m raggiro.examples.scripts.test_rag_comparison --input document.pdf 
 
-# Compare only specific strategies
-python -m raggiro.examples.scripts.test_rag_comparison --input document.pdf --strategies size hybrid
+# Compare only specific strategies with custom Ollama settings
+python -m raggiro.examples.scripts.test_rag_comparison --input document.pdf --strategies size hybrid --ollama-url http://localhost:11434 --rewriting-model llama3 --generation-model mistral
 
 # Test with specific queries and output directory
 python -m raggiro.examples.scripts.test_rag_comparison --input document.pdf --queries "What is the main topic?" --output my_test_results
@@ -683,11 +755,11 @@ python -m raggiro.examples.scripts.test_rag_comparison --input document.pdf --qu
 
 ### Example Promptfoo Configurations
 
-Raggiro includes several test prompt configurations for different use cases:
+Raggiro includes several test prompt configurations for different use cases. All LLM configuration (Ollama URLs, model names, etc.) has been moved to the central TOML file. Test YAML files now only specify chunking strategies and test-specific settings.
 
 #### Default English Configuration
 
-The default test configuration in `config/test_prompts.yaml` targets general document analysis:
+The default test configuration in `test_prompts/` directory targets general document analysis:
 
 ```yaml
 prompts:
@@ -695,6 +767,17 @@ prompts:
   - "Who is the author of this document?"
   - "Summarize the key points of this document."
   # More prompts...
+
+variants:
+  - name: "semantic_chunking"
+    description: "Test with semantic chunking"
+    config:
+      chunking_strategy: "semantic"
+      
+  - name: "size_chunking"
+    description: "Test with size-based chunking"
+    config:
+      chunking_strategy: "size"
 
 tests:
   - description: "Basic information extraction"
@@ -715,7 +798,7 @@ tests:
 
 #### Italian Document Configuration
 
-For Italian documents, use `config/custom_test_prompts.yaml`:
+For Italian documents, use files in the `test_prompts/` directory:
 
 ```yaml
 prompts:
@@ -723,6 +806,12 @@ prompts:
   - "Chi è l'autore del documento?"
   - "Riassumi i punti chiave di questo documento."
   # More prompts...
+
+variants:
+  - name: "semantic_chunking"
+    description: "Test con chunking semantico"
+    config:
+      chunking_strategy: "semantic"
 
 tests:
   - description: "Estrazione informazioni di base"
@@ -733,13 +822,19 @@ tests:
 
 #### Domain-Specific Configuration
 
-For specialized content, Raggiro includes domain-specific test files like `config/kenny_werner_test_prompts.yaml` for music theory documents:
+For specialized content, Raggiro includes domain-specific test files like `test_prompts/kenny_werner.yaml` for music theory documents:
 
 ```yaml
 prompts:
   - "Qual è il concetto principale di 'Effortless Mastery' secondo Kenny Werner?"
   - "Come descrive Kenny Werner il rapporto tra musicisti e la loro arte?"
   # More specialized prompts...
+
+variants:
+  - name: "semantic_chunking"
+    description: "Test con chunking semantico"
+    config:
+      chunking_strategy: "semantic"
 ```
 
 ### Creating Custom Test Configurations

@@ -203,34 +203,28 @@ def test_rag_ui():
     )
     
     if test_type == "Use Predefined Test Prompts":
-        # Search for test prompt files in multiple possible locations
+        # Search for test prompt files in the test_prompts directory
         repo_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        test_prompt_locations = [
-            os.path.join(repo_dir, "test_prompts"),
-            os.path.join(repo_dir, "config", "test_prompts"),
-            os.path.join(repo_dir, "config")
-        ]
+        test_prompt_location = os.path.join(repo_dir, "test_prompts")
         
         prompt_files = []
         found_dir = None
         
-        # Search in each location
-        for test_dir in test_prompt_locations:
-            if os.path.exists(test_dir):
-                # Look for YAML files in this directory
-                yaml_files = [
-                    f for f in glob.glob(os.path.join(test_dir, "*.yaml")) 
-                    if os.path.isfile(f)
-                ]
-                yaml_files.extend([
-                    f for f in glob.glob(os.path.join(test_dir, "*.yml")) 
-                    if os.path.isfile(f)
-                ])
-                
-                if yaml_files:
-                    prompt_files = [os.path.basename(f) for f in yaml_files]
-                    found_dir = test_dir
-                    break
+        # Search in the test_prompts directory
+        if os.path.exists(test_prompt_location):
+            # Look for YAML files in this directory
+            yaml_files = [
+                f for f in glob.glob(os.path.join(test_prompt_location, "*.yaml")) 
+                if os.path.isfile(f)
+            ]
+            yaml_files.extend([
+                f for f in glob.glob(os.path.join(test_prompt_location, "*.yml")) 
+                if os.path.isfile(f)
+            ])
+            
+            if yaml_files:
+                prompt_files = [os.path.basename(f) for f in yaml_files]
+                found_dir = test_prompt_location
         
         if prompt_files:
             st.success(f"Found {len(prompt_files)} test prompt files in {found_dir}")
@@ -302,9 +296,14 @@ def test_rag_ui():
                         "name": "semantic_chunking",
                         "description": "Test with semantic chunking",
                         "config": {
-                            "model": "ollama",
-                            "temperature": 0.7,
-                            "endpoint": "http://192.168.63.204:11434"
+                            "chunking_strategy": "semantic"
+                        }
+                    },
+                    {
+                        "name": "size_chunking",
+                        "description": "Test with size-based chunking",
+                        "config": {
+                            "chunking_strategy": "size"
                         }
                     }
                 ]

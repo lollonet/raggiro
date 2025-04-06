@@ -49,13 +49,9 @@ variants:
   - name: "semantic_chunking"
     description: "Test con chunking semantico"
     config:
-      model: "ollama"
-      temperature: 0.7
-      endpoint: "http://192.168.63.204:11434"
+      chunking_strategy: "semantic"
       
   - name: "size_chunking"
     description: "Test con chunking basato su dimensione"
     config:
-      model: "ollama"
-      temperature: 0.7
-      endpoint: "http://192.168.63.204:11434"
+      chunking_strategy: "size"

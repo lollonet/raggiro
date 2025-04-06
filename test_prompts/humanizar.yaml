@@ -6,7 +6,7 @@ prompts:
   - "Quali approcci metodologici vengono proposti per l'umanizzazione?"
   - "Come si relaziona il concetto di umanizzazione con la sofferenza umana nel documento?"
   - "Quanti sono i principi di azione valide secondo il documento?"
-  - "Cosa si intende per controllo dell Forza?
+  - "Cosa si intende per controllo dell Forza?"
   - "Quali sono i benefici dell'umanizzazione secondo il documento?"  
   - "Come viene affrontato il tema della coerenza nel processo di umanizzazione?"
   - "Cosa è lo sguardo interno?"
@@ -41,13 +41,9 @@ variants:
   - name: "semantic_chunking"
     description: "Test con chunking semantico"
     config:
-      model: "ollama"
-      temperature: 0.1
-      endpoint: "http://192.168.63.204:11434"
+      chunking_strategy: "semantic"
       
   - name: "size_chunking"
     description: "Test con chunking basato su dimensione"
     config:
-      model: "ollama"
-      temperature: 0.1
-      endpoint: "http://192.168.63.204:11434"
+      chunking_strategy: "size"
