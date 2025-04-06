@@ -44,8 +44,33 @@ class VectorIndexer:
         self.qdrant_url = indexing_config.get("qdrant_url", "http://localhost:6333")
         self.qdrant_collection = indexing_config.get("qdrant_collection", "raggiro")
         
-        # Initialize embedding model
-        self.model = SentenceTransformer(self.embedding_model)
+        # Initialize embedding model with error handling
+        try:
+            self.model = SentenceTransformer(self.embedding_model)
+            print(f"Successfully loaded sentence transformer model: {self.embedding_model}")
+        except Exception as e:
+            error_msg = str(e)
+            if "init_empty_weights" in error_msg:
+                print(f"WARNING: Error loading model due to 'init_empty_weights' issue: {error_msg}")
+                print("Trying alternative initialization method...")
+                # Fallback to a more compatible model
+                try:
+                    import os
+                    os.environ["TOKENIZERS_PARALLELISM"] = "false"  # Avoid parallelism warnings
+                    from sentence_transformers import SentenceTransformer as ST
+                    # Try with an older stable model
+                    backup_model = "paraphrase-MiniLM-L6-v2"
+                    print(f"Trying backup model: {backup_model}")
+                    self.model = ST(backup_model)
+                    print(f"Successfully loaded backup sentence transformer model: {backup_model}")
+                    # Update the model name to reflect what was actually loaded
+                    self.embedding_model = backup_model
+                except Exception as e2:
+                    print(f"CRITICAL: Also failed to load backup model: {str(e2)}")
+                    raise RuntimeError(f"Failed to initialize sentence transformer models: {error_msg} AND {str(e2)}")
+            else:
+                print(f"ERROR: Failed to load sentence transformer model: {error_msg}")
+                raise
         
         # Initialize vector database
         self.index = None
