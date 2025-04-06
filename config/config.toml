@@ -15,7 +15,7 @@ log_date_format = "%Y-%m-%d %H:%M:%S"
 # Extraction settings
 [extraction]
 ocr_enabled = true
-ocr_language = "eng+ita+spa+fra+deu"  # Support multiple languages: English, Italian, Spanish, French, German
+ocr_language = "auto"  # Auto-detect language (uses langdetect) and select appropriate OCR language
 ocr_dpi = 300  # DPI for image conversion, between 150-600 (higher = better quality but more memory)
 ocr_max_image_size = 4000  # Maximum dimension (width or height) in pixels for OCR processing
 ocr_batch_size = 10  # Process this many pages in each batch to avoid memory issues

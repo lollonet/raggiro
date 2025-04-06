@@ -38,6 +38,17 @@ class Extractor:
         self.ocr_enabled = extraction_config.get("ocr_enabled", True)
         self.ocr_language = extraction_config.get("ocr_language", "eng")
         
+        # Handle auto language detection
+        self.language_detector = None
+        if self.ocr_language == "auto":
+            try:
+                import langdetect
+                self.language_detector = langdetect
+                print("Language auto-detection enabled for OCR")
+            except ImportError:
+                print("Warning: langdetect not installed. Using default OCR language 'eng+ita'")
+                self.ocr_language = "eng+ita"
+        
         # Advanced OCR settings
         self.ocr_dpi = extraction_config.get("ocr_dpi", 300)
         self.ocr_max_image_size = extraction_config.get("ocr_max_image_size", 4000)
@@ -208,6 +219,51 @@ class Extractor:
             "error": None,
         }
         
+        # If auto language detection is enabled, try to determine the document language
+        ocr_language = self.ocr_language
+        if self.language_detector is not None and ocr_language == "auto":
+            # Get a sample of text to detect language
+            try:
+                # Try to extract some text from the first few pages without OCR first
+                doc = fitz.open(file_path)
+                sample_text = ""
+                for i in range(min(3, len(doc))):
+                    page_text = doc[i].get_text()
+                    if page_text.strip():
+                        sample_text += page_text + "\n"
+                        if len(sample_text) > 1000:
+                            break
+                
+                if sample_text.strip():
+                    # Detect language from sample
+                    detected_lang = self.language_detector.detect(sample_text)
+                    # Map to Tesseract language codes
+                    lang_map = {
+                        "en": "eng",
+                        "it": "ita",
+                        "fr": "fra",
+                        "de": "deu",
+                        "es": "spa",
+                        "pt": "por",
+                        "nl": "nld",
+                        "ru": "rus",
+                    }
+                    if detected_lang in lang_map:
+                        # Set primary language + eng as fallback
+                        ocr_language = f"{lang_map[detected_lang]}+eng"
+                        print(f"Auto-detected document language: {detected_lang}, using OCR language: {ocr_language}")
+                    else:
+                        # Fallback to multiple common languages
+                        ocr_language = "eng+ita+fra+deu+spa"
+                        print(f"Unable to definitively detect language ({detected_lang}), using multiple languages: {ocr_language}")
+                else:
+                    # No text detected, use multiple languages
+                    ocr_language = "eng+ita+fra+deu+spa"
+                    print(f"No text available for language detection, using multiple languages: {ocr_language}")
+            except Exception as e:
+                print(f"Error in language detection: {str(e)}. Using default languages.")
+                ocr_language = "eng+ita+fra+deu+spa"
+        
         try:
             doc = fitz.open(file_path)
             
@@ -285,9 +341,11 @@ class Extractor:
                             gc.collect()  # Explicit garbage collection
                             
                             # Perform OCR with timeout protection and custom config
+                            # Use the detected language if available
+                            current_lang = ocr_language if 'ocr_language' in locals() else self.ocr_language
                             text = pytesseract.image_to_string(
                                 img, 
-                                lang=self.ocr_language,
+                                lang=current_lang,
                                 config=self.tesseract_config
                             )
                             
@@ -302,9 +360,11 @@ class Extractor:
                             img = Image.open(output_path)
                             
                             # Perform OCR on the saved file
+                            # Use the detected language if available
+                            current_lang = ocr_language if 'ocr_language' in locals() else self.ocr_language
                             text = pytesseract.image_to_string(
                                 img, 
-                                lang=self.ocr_language,
+                                lang=current_lang,
                                 config=self.tesseract_config
                             )
                             
