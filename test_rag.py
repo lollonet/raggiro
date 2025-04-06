@@ -10,6 +10,12 @@ import argparse
 from pathlib import Path
 import re
 
+# Add the project directory to PYTHONPATH
+current_dir = Path(__file__).resolve().parent
+sys.path.insert(0, str(current_dir))
+
+from raggiro.utils.config import load_config
+
 def parse_arguments():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description='Test della pipeline RAG con documenti elaborati')
@@ -29,6 +35,12 @@ args = parse_arguments()
 # Configurazioni
 TEST_DIR = Path(args.output)
 INPUT_JSON = Path(args.input)
+
+# Load configuration
+config_path = current_dir / "config" / "config.toml"
+print(f"Loading config from: {config_path}")
+config = load_config(str(config_path))
+print(f"Using Ollama URL: {config.get('llm', {}).get('ollama_base_url', 'Not set')}")
 
 print("=== Test della pipeline RAG ===")
 print(f"File di input: {INPUT_JSON}")

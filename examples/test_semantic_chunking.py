@@ -52,15 +52,7 @@ def main():
     config_path = root_dir / "config" / "config.toml"
     print(f"Loading config from: {config_path}")
     
-    # Try direct TOML loading first for debugging
-    try:
-        with open(config_path, 'r') as f:
-            direct_config = toml.load(f)
-            print(f"Direct TOML load - Ollama URL: {direct_config.get('llm', {}).get('ollama_base_url', 'Not set in direct load')}")
-    except Exception as e:
-        print(f"Error loading config directly: {str(e)}")
-    
-    # Load through the utility function
+    # Load configuration through the utility function
     config = load_config(str(config_path))
     print(f"Config load via utility - Ollama URL: {config.get('llm', {}).get('ollama_base_url', 'Not set in utility load')}")
     print(f"Strategia di chunking attuale: {config.get('segmentation', {}).get('chunking_strategy', 'size')}")

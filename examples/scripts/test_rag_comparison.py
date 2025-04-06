@@ -205,8 +205,10 @@ def main():
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    # Load configuration
-    config = load_config()
+    # Load configuration with proper path
+    config_path = root_dir / "config" / "config.toml"
+    print(f"Loading config from: {config_path}")
+    config = load_config(str(config_path))
     
     # Process with each strategy
     print(f"=== Confronto strategie di chunking per: {args.input} ===")
