@@ -170,55 +170,204 @@ def ocr_correction_ui():
     """UI for OCR and spelling/semantic correction."""
     st.header("OCR & Text Correction")
     
-    col1, col2 = st.columns(2)
+    # Create tabs for different functionalities
+    ocr_tabs = st.tabs(["Process Documents", "View & Compare Results"])
     
-    with col1:
-        st.subheader("Input")
+    with ocr_tabs[0]:
+        col1, col2 = st.columns(2)
         
-        # File or directory input
-        input_type = st.radio(
-            "Input Type",
-            options=["Upload Files", "Local Path"],
-            index=0,
-            key="ocr_input_type"
+        with col1:
+            st.subheader("Input")
+            
+            # File or directory input
+            input_type = st.radio(
+                "Input Type",
+                options=["Upload Files", "Local Path"],
+                index=0,
+                key="ocr_input_type"
+            )
+            
+            if input_type == "Upload Files":
+                uploaded_files = st.file_uploader(
+                    "Upload documents for OCR/correction",
+                    accept_multiple_files=True,
+                    type=["pdf", "png", "jpg", "jpeg", "tiff", "tif", "bmp"],
+                    key="ocr_upload"
+                )
+            else:
+                input_path = st.text_input(
+                    "Local Path",
+                    placeholder="/path/to/documents",
+                    key="ocr_input_path"
+                )
+                recursive = st.checkbox("Process subdirectories", value=True, key="ocr_recursive")
+        
+        with col2:
+            st.subheader("Output Options")
+            
+            # Output format selection
+            output_formats = st.multiselect(
+                "Output Formats",
+                options=["markdown", "json", "txt", "pdf"],
+                default=["markdown", "json", "pdf"],
+                key="ocr_output_formats"
+            )
+            
+            # Output path
+            use_temp_dir = st.checkbox("Use temporary directory", value=True, key="ocr_use_temp")
+            if not use_temp_dir:
+                output_path = st.text_input(
+                    "Output Path",
+                    placeholder="/path/to/output",
+                    key="ocr_output_path"
+                )
+            else:
+                output_path = None
+            
+            # Add option to save corrected PDFs for manual review
+            save_corrected_pdf = st.checkbox(
+                "Save corrected PDFs for review", 
+                value=True,
+                help="Creates PDFs with the corrected text for manual verification",
+                key="save_corrected_pdf"
+            )
+            
+            # Add option to generate side-by-side comparison
+            generate_comparison = st.checkbox(
+                "Generate comparison view", 
+                value=True,
+                help="Generates a side-by-side comparison of original text and corrected text",
+                key="generate_comparison"
+            )
+    
+    with ocr_tabs[1]:
+        st.subheader("View & Compare OCR Results")
+        
+        # Select directory with processed files
+        st.markdown("### Select Files for Review")
+        
+        review_source = st.radio(
+            "Select Source",
+            options=["Recent Processing Output", "Select Directory"],
+            key="review_source"
         )
         
-        if input_type == "Upload Files":
-            uploaded_files = st.file_uploader(
-                "Upload documents for OCR/correction",
-                accept_multiple_files=True,
-                type=["pdf", "png", "jpg", "jpeg", "tiff", "tif", "bmp"],
-                key="ocr_upload"
-            )
-        else:
-            input_path = st.text_input(
-                "Local Path",
-                placeholder="/path/to/documents",
-                key="ocr_input_path"
-            )
-            recursive = st.checkbox("Process subdirectories", value=True, key="ocr_recursive")
-    
-    with col2:
-        st.subheader("Output Options")
+        review_dir = None
         
-        # Output format selection
-        output_formats = st.multiselect(
-            "Output Formats",
-            options=["markdown", "json", "txt"],
-            default=["markdown", "json"],
-            key="ocr_output_formats"
-        )
-        
-        # Output path
-        use_temp_dir = st.checkbox("Use temporary directory", value=True, key="ocr_use_temp")
-        if not use_temp_dir:
-            output_path = st.text_input(
-                "Output Path",
-                placeholder="/path/to/output",
-                key="ocr_output_path"
-            )
+        if review_source == "Recent Processing Output":
+            if "last_output_dir" in st.session_state:
+                review_dir = st.session_state["last_output_dir"]
+                st.success(f"Using output directory: {review_dir}")
+            else:
+                st.warning("No recent processing output found. Please select a directory.")
+                review_dir = st.text_input(
+                    "Directory with processed files",
+                    placeholder="/path/to/processed/files",
+                    key="review_dir_manual"
+                )
         else:
-            output_path = None
+            review_dir = st.text_input(
+                "Directory with processed files",
+                placeholder="/path/to/processed/files",
+                key="review_dir"
+            )
+        
+        if review_dir:
+            # Find PDF and JSON files in this directory
+            pdf_files = []
+            json_files = []
+            md_files = []
+            
+            try:
+                import glob
+                
+                # Look for original, processed, and corrected PDFs
+                pdf_files = glob.glob(os.path.join(review_dir, "*.pdf"))
+                
+                # Look for JSON files with OCR and correction data
+                json_files = glob.glob(os.path.join(review_dir, "*.json"))
+                
+                # Look for markdown files with readable text
+                md_files = glob.glob(os.path.join(review_dir, "*.md"))
+                
+                if not pdf_files and not json_files and not md_files:
+                    st.warning(f"No PDF, JSON, or Markdown files found in {review_dir}")
+                else:
+                    file_count = f"{len(pdf_files)} PDFs, {len(json_files)} JSONs, {len(md_files)} Markdown files"
+                    st.success(f"Found {file_count} in {review_dir}")
+                    
+                    # Create a list of files to show for selection
+                    files_by_basename = {}
+                    
+                    # Group files by their base name (without extension)
+                    for file_path in pdf_files + json_files + md_files:
+                        basename = os.path.splitext(os.path.basename(file_path))[0]
+                        if basename not in files_by_basename:
+                            files_by_basename[basename] = {"pdf": None, "json": None, "md": None}
+                        
+                        ext = os.path.splitext(file_path)[1].lower()
+                        if ext == ".pdf":
+                            files_by_basename[basename]["pdf"] = file_path
+                        elif ext == ".json":
+                            files_by_basename[basename]["json"] = file_path
+                        elif ext == ".md":
+                            files_by_basename[basename]["md"] = file_path
+                    
+                    # Create a selection dropdown for the documents
+                    doc_options = []
+                    for basename, files in files_by_basename.items():
+                        file_types = []
+                        if files["pdf"]:
+                            file_types.append("PDF")
+                        if files["json"]:
+                            file_types.append("JSON")
+                        if files["md"]:
+                            file_types.append("MD")
+                        
+                        doc_options.append(f"{basename} ({', '.join(file_types)})")
+                    
+                    if doc_options:
+                        selected_doc = st.selectbox(
+                            "Select document to review",
+                            options=doc_options,
+                            key="selected_doc"
+                        )
+                        
+                        # Extract the basename from the selection
+                        selected_basename = selected_doc.split(" (")[0]
+                        
+                        # Get the files for this document
+                        selected_files = files_by_basename[selected_basename]
+                        
+                        # Display the document for review
+                        # Look for a corrected PDF version
+                        corrected_pdf_path = os.path.join(review_dir, f"{selected_basename}_corrected.pdf")
+                        corrected_pdf_exists = os.path.exists(corrected_pdf_path)
+                        
+                        if corrected_pdf_exists:
+                            selected_files["corrected_pdf"] = corrected_pdf_path
+                            st.success("Corrected PDF file found!")
+                        else:
+                            selected_files["corrected_pdf"] = None
+                            
+                        # Look for a comparison PDF version
+                        comparison_pdf_path = os.path.join(review_dir, f"{selected_basename}_comparison.pdf")
+                        comparison_pdf_exists = os.path.exists(comparison_pdf_path)
+                        
+                        if comparison_pdf_exists:
+                            selected_files["comparison_pdf"] = comparison_pdf_path
+                            st.success("Side-by-side comparison file found!")
+                        else:
+                            selected_files["comparison_pdf"] = None
+                        
+                        display_document_comparison(selected_files, review_dir)
+                    else:
+                        st.warning("No paired documents found for review")
+            
+            except Exception as e:
+                st.error(f"Error loading files: {str(e)}")
+                import traceback
+                st.code(traceback.format_exc(), language="python")
     
     # OCR settings section
     st.subheader("OCR Settings")
@@ -437,6 +586,10 @@ def ocr_correction_ui():
             "export": {
                 "formats": output_formats,
             },
+            "pdf_output": {
+                "save_corrected_pdf": save_corrected_pdf,
+                "generate_comparison": generate_comparison,
+            },
         }
         
         # Process documents with the specialized OCR & correction workflow
@@ -451,6 +604,7 @@ def ocr_correction_ui():
                 use_temp_dir=use_temp_dir,
                 config=config,
                 is_ocr_workflow=True,
+                save_corrected_pdf=save_corrected_pdf,
             )
 
 def test_rag_ui():
@@ -1408,6 +1562,317 @@ def configuration_ui():
                         except Exception as e:
                             st.error(f"Error saving configuration: {str(e)}")
 
+def display_document_comparison(files: Dict[str, str], output_dir: str):
+    """Display comparison between original, OCR'd, and corrected document.
+    
+    Args:
+        files: Dictionary with paths to PDF, JSON, and MD files
+        output_dir: Output directory
+    """
+    st.markdown("## Document Comparison View")
+    
+    # Calculate which tabs to show based on available files
+    tabs = ["OCR Text", "PDF Viewer", "JSON Data"]
+    
+    # Add additional tabs if we have corrected or comparison PDFs
+    if files.get("corrected_pdf"):
+        tabs.insert(1, "Corrected PDF")
+    if files.get("comparison_pdf"):
+        tabs.insert(1, "Side-by-Side View")
+    
+    # Create tabs for different views
+    view_tabs = st.tabs(tabs)
+    
+    # Tab index tracker
+    tab_idx = 0
+    
+    # OCR Text View Tab
+    with view_tabs[tab_idx]:
+        tab_idx += 1
+        if files["md"]:
+            try:
+                with open(files["md"], "r", encoding="utf-8") as f:
+                    md_content = f.read()
+                
+                st.markdown("### Extracted and Corrected Text")
+                st.markdown(md_content)
+            except Exception as e:
+                st.error(f"Error reading Markdown file: {str(e)}")
+        else:
+            st.info("No Markdown file available for this document")
+    
+    # Side-by-Side View Tab (if available)
+    if files.get("comparison_pdf"):
+        with view_tabs[tab_idx]:
+            tab_idx += 1
+            st.markdown("### Original vs Corrected Text Comparison")
+            
+            try:
+                # Provide a download button for the comparison PDF
+                with open(files["comparison_pdf"], "rb") as f:
+                    pdf_bytes = f.read()
+                
+                st.download_button(
+                    label="Download Comparison PDF",
+                    data=pdf_bytes,
+                    file_name=os.path.basename(files["comparison_pdf"]),
+                    mime="application/pdf"
+                )
+                
+                # Display the comparison PDF
+                import fitz
+                
+                pdf_doc = fitz.open(files["comparison_pdf"])
+                num_pages = len(pdf_doc)
+                
+                if num_pages > 1:
+                    page_selector = st.slider("Select Page", 1, num_pages, 1, key="comp_page")
+                    selected_page = page_selector - 1  # Convert to 0-based index
+                else:
+                    selected_page = 0
+                
+                # Display the current page
+                page = pdf_doc[selected_page]
+                
+                # Render the page as an image
+                pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))  # Increase resolution
+                img_bytes = pix.tobytes("png")
+                
+                st.image(img_bytes, caption=f"Comparison Page {selected_page + 1}/{num_pages}")
+                st.info("This view shows the original text side-by-side with the corrected text")
+            except Exception as e:
+                st.error(f"Error displaying comparison PDF: {str(e)}")
+    
+    # Corrected PDF Tab (if available)
+    if files.get("corrected_pdf"):
+        with view_tabs[tab_idx]:
+            tab_idx += 1
+            st.markdown("### Corrected PDF Document")
+            
+            try:
+                # Provide a download button for the corrected PDF
+                with open(files["corrected_pdf"], "rb") as f:
+                    pdf_bytes = f.read()
+                
+                st.download_button(
+                    label="Download Corrected PDF",
+                    data=pdf_bytes,
+                    file_name=os.path.basename(files["corrected_pdf"]),
+                    mime="application/pdf"
+                )
+                
+                # Display the corrected PDF
+                import fitz
+                
+                pdf_doc = fitz.open(files["corrected_pdf"])
+                num_pages = len(pdf_doc)
+                
+                if num_pages > 1:
+                    page_selector = st.slider("Select Page", 1, num_pages, 1, key="corr_page")
+                    selected_page = page_selector - 1  # Convert to 0-based index
+                else:
+                    selected_page = 0
+                
+                # Display the current page
+                page = pdf_doc[selected_page]
+                
+                # Render the page as an image
+                pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))  # Increase resolution
+                img_bytes = pix.tobytes("png")
+                
+                st.image(img_bytes, caption=f"Corrected PDF Page {selected_page + 1}/{num_pages}")
+                
+                # Extract and show the text from this page
+                page_text = page.get_text()
+                if page_text.strip():
+                    with st.expander("View Corrected Text", expanded=False):
+                        st.text(page_text)
+            except Exception as e:
+                st.error(f"Error displaying corrected PDF: {str(e)}")
+    
+    # Original PDF Viewer Tab
+    with view_tabs[tab_idx]:
+        tab_idx += 1
+        if files["pdf"]:
+            st.markdown("### Original PDF Document")
+            
+            # Provide a direct link to download the PDF
+            with open(files["pdf"], "rb") as f:
+                pdf_bytes = f.read()
+            
+            st.download_button(
+                label="Download Original PDF",
+                data=pdf_bytes,
+                file_name=os.path.basename(files["pdf"]),
+                mime="application/pdf"
+            )
+            
+            # Display the PDF directly in Streamlit
+            # First create sub-tabs for different pages if needed
+            try:
+                import fitz  # PyMuPDF
+                
+                pdf_doc = fitz.open(files["pdf"])
+                num_pages = len(pdf_doc)
+                
+                if num_pages > 1:
+                    page_selector = st.slider("Select Page", 1, num_pages, 1)
+                    selected_page = page_selector - 1  # Convert to 0-based index
+                else:
+                    selected_page = 0
+                
+                # Display the current page
+                page = pdf_doc[selected_page]
+                
+                # Render the page as an image
+                pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))  # Increase resolution
+                img_bytes = pix.tobytes("png")
+                
+                st.image(img_bytes, caption=f"Page {selected_page + 1}/{num_pages}")
+                
+                # If we have text available for this page, show it below
+                try:
+                    page_text = page.get_text()
+                    if page_text.strip():
+                        with st.expander("View Text for Current Page", expanded=False):
+                            st.text(page_text)
+                except Exception as e:
+                    st.warning(f"Could not extract text from page: {str(e)}")
+                
+            except Exception as e:
+                st.error(f"Error displaying PDF: {str(e)}")
+                # Fallback to a more basic display
+                st.markdown(f"[Open PDF file]({files['pdf']})")
+        else:
+            st.info("No PDF file available for this document")
+    
+    # JSON Data Tab
+    with view_tabs[2]:
+        if files["json"]:
+            try:
+                with open(files["json"], "r", encoding="utf-8") as f:
+                    json_data = json.load(f)
+                
+                st.markdown("### Document Metadata and Processing Data")
+                
+                # Create sections for different parts of the JSON
+                if "metadata" in json_data:
+                    with st.expander("Document Metadata", expanded=True):
+                        st.json(json_data["metadata"])
+                
+                # Show extraction method and extraction stats
+                if "extraction_method" in json_data:
+                    method = json_data["extraction_method"]
+                    st.info(f"Extraction Method: {method}")
+                    
+                    # If this is an OCR document, show OCR info
+                    if method in ["pdf_ocr", "image_ocr"]:
+                        st.success("This document was processed with OCR")
+                        
+                        # Show OCR character count and stats
+                        metadata = json_data.get("metadata", {})
+                        
+                        # Create metrics for character counts in columns
+                        col1, col2, col3 = st.columns(3)
+                        
+                        with col1:
+                            char_count = metadata.get("ocr_char_count", "N/A")
+                            if char_count != "N/A":
+                                st.metric("Total Characters", f"{char_count:,}")
+                            else:
+                                st.metric("Total Characters", "N/A")
+                                
+                        with col2:
+                            chars_per_page = metadata.get("ocr_chars_per_page", "N/A")
+                            if chars_per_page != "N/A":
+                                st.metric("Chars per Page", f"{chars_per_page:,}")
+                            else:
+                                st.metric("Chars per Page", "N/A")
+                                
+                        with col3:
+                            ocr_time = metadata.get("ocr_processing_time", "N/A")
+                            if ocr_time != "N/A":
+                                st.metric("OCR Time (s)", f"{ocr_time:.2f}")
+                            else:
+                                st.metric("OCR Time (s)", "N/A")
+                        
+                        # Show OCR language if available
+                        if "ocr_language" in metadata:
+                            ocr_lang = metadata["ocr_language"]
+                            st.write(f"OCR Language: {ocr_lang}")
+                
+                # Show spelling correction info if available
+                if json_data.get("metadata", {}).get("spelling_corrected"):
+                    st.success("Spelling correction was applied to this document")
+                    
+                    # Show spelling correction details
+                    spelling_lang = json_data["metadata"].get("spelling_language", "unknown")
+                    spelling_backend = json_data["metadata"].get("spelling_backend", "unknown")
+                    st.write(f"Correction Language: {spelling_lang}")
+                    st.write(f"Correction Backend: {spelling_backend}")
+                
+                # Show chunking info
+                if "chunks" in json_data:
+                    chunks = json_data["chunks"]
+                    num_chunks = len(chunks)
+                    st.write(f"Document was segmented into {num_chunks} chunks")
+                    
+                    # Show a sample of the chunks
+                    with st.expander("View Document Chunks", expanded=False):
+                        for i, chunk in enumerate(chunks):
+                            st.markdown(f"#### Chunk {i+1}")
+                            st.write(f"Length: {chunk.get('length', 'unknown')} characters")
+                            st.write(f"Semantic: {chunk.get('semantic', False)}")
+                            
+                # Show page stats if available
+                if "pages" in json_data:
+                    pages = json_data["pages"]
+                    num_pages = len(pages)
+                    
+                    with st.expander("View Page Statistics", expanded=True):
+                        # Create a dataframe with page stats
+                        page_stats = []
+                        
+                        for i, page in enumerate(pages):
+                            char_count = page.get("char_count", len(page.get("text", "")))
+                            has_text = page.get("has_text", True)
+                            
+                            # Calculate character difference if raw_text is available
+                            char_diff = None
+                            if "raw_text" in page and "text" in page:
+                                raw_len = len(page["raw_text"])
+                                corr_len = len(page["text"])
+                                char_diff = corr_len - raw_len
+                            
+                            page_stats.append({
+                                "Page": i + 1,
+                                "Characters": char_count,
+                                "Has Text": has_text,
+                                "Char Diff": char_diff
+                            })
+                        
+                        # Display as dataframe
+                        if page_stats:
+                            page_df = pd.DataFrame(page_stats)
+                            st.dataframe(page_df)
+                            
+                            # Show a preview of the chunk text
+                            chunk_text = chunk.get("text", "")
+                            if chunk_text:
+                                preview = chunk_text[:200] + "..." if len(chunk_text) > 200 else chunk_text
+                                st.text_area(f"Text preview", preview, height=100, disabled=True, key=f"chunk_{i}")
+                            
+                            st.divider()
+                
+                # Show full JSON data
+                with st.expander("View Raw JSON Data", expanded=False):
+                    st.json(json_data)
+                    
+            except Exception as e:
+                st.error(f"Error reading JSON file: {str(e)}")
+        else:
+            st.info("No JSON file available for this document")
+
 def process_documents(
     input_type: str,
     uploaded_files: Optional[List] = None,
@@ -1423,6 +1888,7 @@ def process_documents(
     log_level: str = "info",
     config: Optional[Dict] = None,
     is_ocr_workflow: bool = False,
+    save_corrected_pdf: bool = False,
 ):
     """Process documents with the selected options.
     

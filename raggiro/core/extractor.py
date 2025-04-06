@@ -375,14 +375,18 @@ class Extractor:
                         # Force garbage collection
                         gc.collect()
                         
-                        # Record the text
+                        # Record the text and character count
+                        char_count = len(text)
                         full_text.append(text)
                         pages.append({
                             "page_num": i + 1,
                             "text": text,
                             "has_text": bool(text.strip()),
+                            "char_count": char_count,
                             "processing_time": time.time() - page_start_time
                         })
+                        
+                        print(f"Page {i+1} OCR extracted {char_count} characters")
                         
                         print(f"Page {i+1} OCR completed in {time.time() - page_start_time:.2f} seconds")
                         
@@ -401,12 +405,22 @@ class Extractor:
                 print(f"Batch {batch_start+1}-{batch_end} completed in {time.time() - batch_start_time:.2f} seconds")
             
             # Save the combined result
-            result["text"] = "\n\n".join(full_text)
+            combined_text = "\n\n".join(full_text)
+            result["text"] = combined_text
             result["pages"] = pages
             result["success"] = True
             
+            # Calculate and log character count
+            total_chars = len(combined_text)
+            result["metadata"]["ocr_char_count"] = total_chars
+            
+            # Calculate chars per page
+            chars_per_page = total_chars / max(1, max_pages)
+            result["metadata"]["ocr_chars_per_page"] = round(chars_per_page, 1)
+            
             total_time = time.time() - start_time
             print(f"OCR processing completed for all {max_pages} pages in {total_time:.2f} seconds")
+            print(f"Total characters recognized: {total_chars} (avg: {chars_per_page:.1f} chars/page)")
             result["metadata"]["ocr_processing_time"] = total_time
             
         except Exception as e:

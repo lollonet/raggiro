@@ -342,8 +342,9 @@ class Exporter:
                     # Create a new page in the PDF
                     page = doc.new_page(width=595, height=842)  # A4 size
                     
-                    # Add a header to indicate this is a corrected version
-                    header_text = f"Corrected Text - Page {i+1}/{len(pages)}"
+                    # Add a header to indicate this is a corrected version with char count
+                    char_count = page_data.get("char_count", len(page_text))
+                    header_text = f"Corrected Text - Page {i+1}/{len(pages)} ({char_count} chars)"
                     page.insert_text((50, 50), header_text, fontsize=12, fontname="helv", color=(0, 0, 0.8))
                     
                     # Add a divider line
@@ -429,8 +430,13 @@ class Exporter:
                 # Create a new page for side-by-side comparison
                 page = doc.new_page(width=842, height=595)  # A4 landscape
                 
-                # Add a header
-                header_text = f"Text Comparison - Page {i+1}/{len(pages)}"
+                # Add a header with character counts
+                orig_len = len(original_text)
+                corr_len = len(corrected_text)
+                char_diff = corr_len - orig_len
+                diff_sign = "+" if char_diff >= 0 else ""
+                
+                header_text = f"Text Comparison - Page {i+1}/{len(pages)} (Original: {orig_len} chars, Corrected: {corr_len} chars, Diff: {diff_sign}{char_diff})"
                 page.insert_text((50, 40), header_text, fontsize=12, fontname="helv", color=(0, 0, 0.8))
                 
                 # Add section titles
@@ -463,8 +469,13 @@ class Exporter:
             # Create a new page for side-by-side comparison
             page = doc.new_page(width=842, height=595)  # A4 landscape
             
-            # Add a header
-            header_text = "Text Comparison"
+            # Add a header with character counts
+            orig_len = len(original_text)
+            corr_len = len(corrected_text)
+            char_diff = corr_len - orig_len
+            diff_sign = "+" if char_diff >= 0 else ""
+            
+            header_text = f"Text Comparison (Original: {orig_len} chars, Corrected: {corr_len} chars, Diff: {diff_sign}{char_diff})"
             page.insert_text((50, 40), header_text, fontsize=12, fontname="helv", color=(0, 0, 0.8))
             
             # Add section titles
