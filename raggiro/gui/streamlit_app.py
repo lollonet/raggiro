@@ -1565,7 +1565,8 @@ def display_promptfoo_results(data):
                         # Display the response in a scrollable text area
                         st.markdown("**Response:**")
                         response = result.get("response", "")
-                        st.text_area("", response, height=150, disabled=True, label_visibility="collapsed")
+                        st.text_area("", response, height=150, disabled=True, 
+                                    label_visibility="collapsed", key=f"promptfoo_response_{i}_{j}")
                         
                         # Display any additional metrics or data
                         if "latency" in result:
@@ -1744,10 +1745,12 @@ def display_single_rag_result(item, index, is_error=False):
                         
                         # Show the actual text content
                         if "text" in chunk:
-                            st.text_area(f"Content (Chunk {i+1})", chunk["text"], height=100, disabled=True, label_visibility="collapsed")
+                            st.text_area(f"Content (Chunk {i+1})", chunk["text"], height=100, disabled=True, 
+                                         label_visibility="collapsed", key=f"chunk_text_{index}_{i}")
                     else:
                         # If it's just a string, show it directly
-                        st.text_area(f"Content (Chunk {i+1})", str(chunk), height=100, disabled=True, label_visibility="collapsed")
+                        st.text_area(f"Content (Chunk {i+1})", str(chunk), height=100, disabled=True, 
+                                     label_visibility="collapsed", key=f"chunk_str_{index}_{i}")
                     
                     st.divider()
         
@@ -1763,7 +1766,8 @@ def display_single_rag_result(item, index, is_error=False):
             st.info(f"Response length: {response_length} characters")
             
             # Show the full response
-            st.text_area("", response, height=200, disabled=True, label_visibility="collapsed")
+            st.text_area("", response, height=200, disabled=True, 
+                         label_visibility="collapsed", key=f"response_{index}")
         
         # Display additional metadata
         if "metadata" in item:
