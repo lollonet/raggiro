@@ -1366,7 +1366,9 @@ if __name__ == "__main__":
                             data = json.load(f)
                         
                         st.subheader(f"RAG Results: {file_name}")
-                        display_rag_results(data)
+                        # Add a file_id to make keys unique across different result files
+                        file_id = hash(file_name) % 10000
+                        display_rag_results(data, file_prefix=f"file_{file_id}")
                 else:
                     st.info("No RAG query result files found")
             
@@ -1575,11 +1577,12 @@ def display_promptfoo_results(data):
                         # Add a divider between results
                         st.divider()
 
-def display_rag_results(data):
+def display_rag_results(data, file_prefix="default"):
     """Display formatted RAG query results with enhanced visualizations.
     
     Args:
         data: RAG query results data
+        file_prefix: Prefix to use for keys to ensure uniqueness across files
     """
     # Calculate overall statistics for all queries
     if isinstance(data, list) and data:
@@ -1646,7 +1649,7 @@ def display_rag_results(data):
             with query_tabs[0]:
                 if successful_queries:
                     for i, item in enumerate(successful_queries):
-                        display_single_rag_result(item, i+1, tab_prefix="success")
+                        display_single_rag_result(item, i+1, tab_prefix=f"{file_prefix}_success")
                 else:
                     st.info("No successful queries found")
             
@@ -1654,7 +1657,7 @@ def display_rag_results(data):
             with query_tabs[1]:
                 if failed_queries:
                     for i, item in enumerate(failed_queries):
-                        display_single_rag_result(item, i+1, is_error=True, tab_prefix="fail")
+                        display_single_rag_result(item, i+1, is_error=True, tab_prefix=f"{file_prefix}_fail")
                 else:
                     st.info("No failed queries found")
             
@@ -1662,13 +1665,13 @@ def display_rag_results(data):
             with query_tabs[2]:
                 for i, item in enumerate(data):
                     is_error = not item.get("success", True) or item.get("error")
-                    display_single_rag_result(item, i+1, is_error=is_error, tab_prefix="all")
+                    display_single_rag_result(item, i+1, is_error=is_error, tab_prefix=f"{file_prefix}_all")
         else:
             st.warning("No query results to display")
     else:
         # Display a single result
         is_error = not data.get("success", True) or data.get("error")
-        display_single_rag_result(data, 1, is_error=is_error)
+        display_single_rag_result(data, 1, is_error=is_error, tab_prefix=f"{file_prefix}_single")
 
 def display_single_rag_result(item, index, is_error=False, tab_prefix="main"):
     """Display a single RAG query result.
