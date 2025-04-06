@@ -14,6 +14,7 @@ Raggiro è un framework completo per l'elaborazione di documenti progettato per 
 
 - **Supporto documenti completo**: PDF (nativi e scansionati), DOCX, TXT, HTML, RTF, XLSX, immagini con testo
 - **Preprocessing avanzato**: Estrazione, pulizia, normalizzazione e segmentazione logica
+- **Estrazione OCR ottimizzata**: Supporto batch per documenti grandi con correzione ortografica automatica
 - **Chunking semantico**: Divisione intelligente del contenuto basata sul significato piuttosto che solo sulla dimensione
 - **Estrazione metadata**: Titolo, autore, data, lingua, tipo di documento, rilevamento categoria
 - **Output strutturato**: Formati Markdown e JSON con tutti i metadata
@@ -22,6 +23,7 @@ Raggiro è un framework completo per l'elaborazione di documenti progettato per 
 - **Pipeline RAG completa**: Indicizzazione vettoriale, recupero e generazione di risposte integrati
 - **Utilità di testing**: Strumenti per il benchmarking e confronto tra strategie di chunking
 - **Supporto multilingua**: Rilevamento automatico della lingua e mantenimento della coerenza linguistica
+- **Correzione ortografica**: Miglioramento automatico della qualità del testo, particolarmente per OCR
 
 ## Documentazione
 
