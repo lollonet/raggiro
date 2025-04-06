@@ -10,15 +10,44 @@ elif [ -d "env" ]; then
     source env/bin/activate
 fi
 
+# Parse arguments
+POSITIONAL_ARGS=()
+INPUT_FILE=""
+HAS_INPUT_ARG=false
+
+# Process arguments to find or add --input
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --input|-i)
+      INPUT_FILE="$2"
+      HAS_INPUT_ARG=true
+      POSITIONAL_ARGS+=("$1" "$2")
+      shift 2
+      ;;
+    *)
+      POSITIONAL_ARGS+=("$1")
+      shift
+      ;;
+  esac
+done
+
+# If no input argument was found and first argument exists and is a file
+if [[ "$HAS_INPUT_ARG" = false && -n "${POSITIONAL_ARGS[0]}" && -f "${POSITIONAL_ARGS[0]}" ]]; then
+    INPUT_FILE="${POSITIONAL_ARGS[0]}"
+    # Remove first argument and add it as --input
+    ARGS_WITHOUT_FIRST=("${POSITIONAL_ARGS[@]:1}")
+    POSITIONAL_ARGS=("--input" "$INPUT_FILE" "${ARGS_WITHOUT_FIRST[@]}")
+fi
+
 # Check if input file exists
-if [ -z "$1" ]; then
+if [ -z "$INPUT_FILE" ]; then
     echo "Error: Please provide an input file path."
     echo "Usage: ./run_semantic_chunking_test.sh <input_file> [additional options]"
+    echo "   or: ./run_semantic_chunking_test.sh --input <input_file> [additional options]"
     echo "Example: ./run_semantic_chunking_test.sh tmp/Humanizar_it.pdf --queries \"What is humanization?\" \"Define the main concept\""
     exit 1
 fi
 
-INPUT_FILE="$1"
 if [ ! -f "$INPUT_FILE" ]; then
     echo "Error: File '$INPUT_FILE' not found."
     exit 1
@@ -26,7 +55,8 @@ fi
 
 # Run the script directly
 echo "Running test_semantic_chunking.py script..."
-python3 examples/scripts/test_semantic_chunking.py "$@"
+echo "Command: python3 examples/scripts/test_semantic_chunking.py ${POSITIONAL_ARGS[*]}"
+python3 examples/scripts/test_semantic_chunking.py "${POSITIONAL_ARGS[@]}"
 
 # Check if the script executed successfully
 if [ $? -ne 0 ]; then
