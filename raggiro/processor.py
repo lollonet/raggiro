@@ -163,8 +163,14 @@ class DocumentProcessor:
                 )
                 
             # PHASE 3.5: Spelling Correction (especially for OCR text)
-            if document.get("extraction_method") in ["pdf_ocr", "image_ocr"] or \
-               self.config.get("spelling", {}).get("always_correct", False):
+            # Print debug info about extraction method and config
+            extraction_method = document.get("extraction_method", "unknown")
+            always_correct = self.config.get("spelling", {}).get("always_correct", False)
+            print(f"Document extraction method: {extraction_method}")
+            print(f"Always correct setting: {always_correct}")
+            
+            if extraction_method in ["pdf_ocr", "image_ocr"] or always_correct:
+                print(f"Applying spelling correction to document...")
                 spelling_start = time.time()
                 document = self.spelling_corrector.correct_document(document)
                 spelling_time = int((time.time() - spelling_start) * 1000)
@@ -179,6 +185,7 @@ class DocumentProcessor:
                         total_phases=TOTAL_PHASES,
                         processing_time_ms=spelling_time
                     )
+                print(f"Spelling correction completed in {spelling_time}ms")
             
             # PHASE 4: Text Segmentation
             phase_start = time.time()
