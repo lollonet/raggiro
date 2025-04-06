@@ -1,0 +1,50 @@
+# Test prompts per "Humanizar_it"
+prompts:
+  - "Quali sono i principali temi trattati nel documento Humanizar?"
+  - "Come viene definito il concetto di 'umanizzazione della terra' nel documento?"
+  - "Quali sono i principi di azione valida nel documento Humanizar?"
+  - "Quali approcci metodologici vengono proposti per l'umanizzazione?"
+  - "Come si relaziona il concetto di umanizzazione con la sofferenza umana nel documento?"
+  - "Quanti sono i principi di azione valide secondo il documento?"
+  - "Cosa si intende per controllo dell Forza?
+  - "Quali sono i benefici dell'umanizzazione secondo il documento?"  
+  - "Come viene affrontato il tema della coerenza nel processo di umanizzazione?"
+  - "Cosa è lo sguardo interno?"
+  - "Cosa si intende per felicità?"
+  - "Qual è il senso della vita?"
+  - "Quali sono i principi di azione valida?"
+
+tests:
+  - description: "Verificare la pertinenza delle risposte al documento Humanizar"
+    assert:
+      - type: "language-match"
+        value: "it"
+      - type: "contains-any"
+        value: ["umanizzazione", "empatia", "servizi", "persona", "paziente", "relazione", "assistenza"]
+      
+  - description: "Verificare la qualità e profondità delle risposte"
+    assert:
+      - type: "contains-json"
+        value: |
+          {
+            "min_length": 150
+          }
+      - type: "not-contains-any"
+        value: ["Non lo so", "non posso rispondere", "non ho accesso", "le mie conoscenze sono limitate"]
+
+outputs:
+  - type: "json_file"
+    path: "test_output/humanizar_test_results.json"
+  - type: "markdown_file"
+    path: "test_output/humanizar_test_results.md"
+
+variants:
+  - name: "semantic_chunking"
+    description: "Test con chunking semantico"
+    config:
+      chunking_strategy: "semantic"
+      
+  - name: "size_chunking"
+    description: "Test con chunking basato su dimensione"
+    config:
+      chunking_strategy: "size"

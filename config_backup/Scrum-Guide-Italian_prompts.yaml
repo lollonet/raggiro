@@ -1,0 +1,52 @@
+# Test prompts per la "Guida Scrum 2020" in italiano
+prompts:
+  - "Quali sono i valori fondamentali di Scrum secondo la Guida 2020?"
+  - "Quali sono i tre pilastri di Scrum e come vengono descritti nella guida?"
+  - "Come viene definito il ruolo dello Scrum Master nella Guida Scrum 2020?"
+  - "Quali sono le responsabilità del Product Owner secondo la guida?"
+  - "Come viene definito il team di sviluppo nella Guida Scrum 2020?"
+  - "Quali sono gli eventi Scrum descritti nella guida e qual è il loro scopo?"
+  - "Come viene descritto lo Sprint Planning nella Guida Scrum 2020?"
+  - "Quali sono le caratteristiche di un buon Product Backlog?"
+  - "Come si svolge la Daily Scrum secondo la guida?"
+  - "Quali sono gli artefatti Scrum e come vengono utilizzati?"
+  - "Quali cambiamenti significativi sono stati introdotti nella Guida Scrum 2020 rispetto alle versioni precedenti?"
+  - "Come viene descritto il concetto di 'Definition of Done' nella guida?"
+  - "Quali sono i principi di autogestione del team in Scrum?"
+  - "Come viene affrontato il tema dell'impegno verso gli obiettivi in Scrum?"
+  - "Quali sono le pratiche consigliate per la Sprint Review?"
+
+tests:
+  - description: "Verificare la pertinenza delle risposte alla Guida Scrum"
+    assert:
+      - type: "language-match"
+        value: "it"
+      - type: "contains-any"
+        value: ["Scrum", "Sprint", "Product Owner", "Scrum Master", "team", "backlog", "incremento"]
+      
+  - description: "Verificare la qualità e accuratezza delle risposte"
+    assert:
+      - type: "contains-json"
+        value: |
+          {
+            "min_length": 150
+          }
+      - type: "not-contains-any"
+        value: ["Non lo so", "non posso rispondere", "non ho accesso", "le mie conoscenze sono limitate"]
+
+outputs:
+  - type: "json_file"
+    path: "test_output/scrum_guide_test_results.json"
+  - type: "markdown_file"
+    path: "test_output/scrum_guide_test_results.md"
+
+variants:
+  - name: "semantic_chunking"
+    description: "Test con chunking semantico"
+    config:
+      chunking_strategy: "semantic"
+      
+  - name: "size_chunking"
+    description: "Test con chunking basato su dimensione"
+    config:
+      chunking_strategy: "size"

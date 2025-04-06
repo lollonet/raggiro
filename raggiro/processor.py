@@ -7,6 +7,7 @@ from typing import Dict, List, Optional, Tuple, Union
 from raggiro.core.file_handler import FileHandler
 from raggiro.core.extractor import Extractor
 from raggiro.core.cleaner import Cleaner
+from raggiro.core.spelling import SpellingCorrector
 from raggiro.core.segmenter import Segmenter
 from raggiro.core.metadata import MetadataExtractor
 from raggiro.core.exporter import Exporter
@@ -33,6 +34,7 @@ class DocumentProcessor:
         self.file_handler = FileHandler(self.config)
         self.extractor = Extractor(self.config)
         self.cleaner = Cleaner(self.config)
+        self.spelling_corrector = SpellingCorrector(self.config)
         self.segmenter = Segmenter(self.config)
         self.metadata_extractor = MetadataExtractor(self.config)
         self.exporter = Exporter(self.config)
@@ -159,6 +161,24 @@ class DocumentProcessor:
                     total_phases=TOTAL_PHASES,
                     processing_time_ms=phase_time
                 )
+                
+            # PHASE 3.5: Spelling Correction (especially for OCR text)
+            if document.get("extraction_method") in ["pdf_ocr", "image_ocr"] or \
+               self.config.get("spelling", {}).get("always_correct", False):
+                spelling_start = time.time()
+                document = self.spelling_corrector.correct_document(document)
+                spelling_time = int((time.time() - spelling_start) * 1000)
+                processing_times["spelling_correction"] = spelling_time
+                
+                if self.logger:
+                    self.logger.log_file_processing(
+                        document, "success", 
+                        component="spelling_corrector", 
+                        phase="Spelling correction", 
+                        phase_number=3.5, 
+                        total_phases=TOTAL_PHASES,
+                        processing_time_ms=spelling_time
+                    )
             
             # PHASE 4: Text Segmentation
             phase_start = time.time()

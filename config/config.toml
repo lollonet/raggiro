@@ -27,6 +27,14 @@ normalize_whitespace = true
 remove_special_chars = true
 min_line_length = 3
 
+# Spelling correction settings
+[spelling]
+enabled = true
+language = "auto"  # Can be 'auto', 'en', 'it', 'es', 'fr', 'de', etc.
+backend = "symspellpy"  # Can be 'symspellpy', 'textblob', or 'wordfreq'
+max_edit_distance = 2
+always_correct = false  # When true, apply correction to all documents, not just OCR
+
 # Segmentation settings
 [segmentation]
 use_spacy = true
