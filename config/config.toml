@@ -45,7 +45,7 @@ pretty_json = true
 [vector_db]
 type = "faiss"  # "faiss", "qdrant", "milvus"
 faiss_index_type = "L2"  # "L2", "IP", "Cosine"
-qdrant_url = "http://qdrant6333"
+qdrant_url = "http://qdrant:6333"
 qdrant_collection = "raggiro"
 qdrant_api_key = ""  # Optional API key for Qdrant Cloud
 milvus_url = "http://milvus:19530"
