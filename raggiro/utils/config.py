@@ -79,37 +79,108 @@ def load_config(config_path: Optional[str] = None) -> Dict:
                 import toml
                 with open(config_path_obj, "r", encoding="utf-8") as f:
                     try:
+                        # First attempt: standard TOML parsing
                         config = toml.load(f)
                     except Exception as e:
                         # If standard TOML loading fails (likely due to variable interpolation)
                         print(f"Warning: Standard TOML loading failed: {e}")
-                        # Create a minimal config with the essentials, especially Ollama URL
-                        config = {
-                            "llm": {
+                        
+                        # Second attempt: Try loading section by section to avoid interpolation issues
+                        try:
+                            # Rewind file pointer to the beginning
+                            f.seek(0)
+                            
+                            # Parse each section independently to avoid interpolation errors
+                            import re
+                            config = {}
+                            current_section = ""
+                            section_content = {}
+                            
+                            # Read line by line
+                            for line in f:
+                                line = line.strip()
+                                
+                                # Skip empty lines and comments
+                                if not line or line.startswith('#'):
+                                    continue
+                                    
+                                # Check if it's a section header
+                                section_match = re.match(r'^\[(.*)\]$', line)
+                                if section_match:
+                                    # Save previous section if any
+                                    if current_section and section_content:
+                                        if current_section not in config:
+                                            config[current_section] = {}
+                                        config[current_section].update(section_content)
+                                    
+                                    # Start new section
+                                    current_section = section_match.group(1)
+                                    section_content = {}
+                                    continue
+                                
+                                # Parse key-value pairs
+                                if '=' in line and current_section:
+                                    key, value = [part.strip() for part in line.split('=', 1)]
+                                    
+                                    # Skip interpolation variables
+                                    if '${' in value:
+                                        continue
+                                        
+                                    # Parse various value types
+                                    try:
+                                        # Try to evaluate the value (for booleans, numbers, lists, etc.)
+                                        import ast
+                                        section_content[key] = ast.literal_eval(value)
+                                    except (SyntaxError, ValueError):
+                                        # If that fails, treat it as a string (remove quotes)
+                                        if value.startswith('"') and value.endswith('"'):
+                                            section_content[key] = value[1:-1]
+                                        elif value.startswith("'") and value.endswith("'"):
+                                            section_content[key] = value[1:-1]
+                                        else:
+                                            section_content[key] = value
+                            
+                            # Add the last section
+                            if current_section and section_content:
+                                if current_section not in config:
+                                    config[current_section] = {}
+                                config[current_section].update(section_content)
+                                
+                        except Exception as inner_e:
+                            print(f"Warning: Failed to parse TOML manually: {inner_e}")
+                            
+                        # Final step: ensure essential sections exist
+                        if not config.get("llm"):
+                            config["llm"] = {
                                 "provider": "ollama",
                                 "ollama_base_url": "http://ollama:11434",
                                 "ollama_timeout": 30
-                            },
-                            "rewriting": {
+                            }
+                            
+                        if not config.get("rewriting"):
+                            config["rewriting"] = {
                                 "enabled": True,
                                 "llm_type": "ollama",
                                 "ollama_model": "llama3",
                                 "temperature": 0.1,
                                 "max_tokens": 200,
                                 "ollama_base_url": "http://ollama:11434"
-                            },
-                            "generation": {
+                            }
+                            
+                        if not config.get("generation"):
+                            config["generation"] = {
                                 "llm_type": "ollama",
                                 "ollama_model": "mistral",
                                 "temperature": 0.7,
                                 "max_tokens": 1000,
                                 "ollama_base_url": "http://ollama:11434"
-                            },
-                            "segmentation": {
+                            }
+                            
+                        if not config.get("segmentation"):
+                            config["segmentation"] = {
                                 "semantic_chunking": True,
                                 "chunking_strategy": "hybrid"
                             }
-                        }
             except ImportError:
                 print("Error: TOML support requires 'toml' package. Install with: pip install toml")
                 sys.exit(1)
