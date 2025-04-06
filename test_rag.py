@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test semplificato della pipeline RAG (Retrieval-Augmented Generation)
+Test della pipeline RAG (Retrieval-Augmented Generation) usando la configurazione TOML.
 """
 
 import json
@@ -8,13 +8,17 @@ import os
 import sys
 import argparse
 from pathlib import Path
-import re
+import tempfile
+import time
 
 # Add the project directory to PYTHONPATH
 current_dir = Path(__file__).resolve().parent
 sys.path.insert(0, str(current_dir))
 
 from raggiro.utils.config import load_config
+from raggiro.rag.indexer import VectorIndexer
+from raggiro.rag.pipeline import RagPipeline
+from raggiro.rag.retriever import VectorRetriever
 
 def parse_arguments():
     """Parse command line arguments."""
@@ -25,173 +29,205 @@ def parse_arguments():
     parser.add_argument('--output', '-o', type=str, 
                       default=str(Path.cwd() / 'test_output'),
                       help='Directory di output per i risultati')
+    parser.add_argument('--index', type=str, 
+                      default=None,
+                      help='Directory per l\'indice vettoriale (se non specificata, verrà creata una temporanea)')
     parser.add_argument('--queries', '-q', type=str, nargs='+',
                       help='Query da testare (opzionale)')
+    parser.add_argument('--top-k', type=int, default=3,
+                      help='Numero di chunk da recuperare per query (default: 3)')
     return parser.parse_args()
 
-# Parsing degli argomenti
-args = parse_arguments()
+def main():
+    """Main function."""
+    # Parse arguments
+    args = parse_arguments()
+    
+    # Configurazioni
+    output_dir = Path(args.output)
+    input_json = Path(args.input)
+    
+    # Create output directory
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Check if we need a temporary index directory
+    if args.index:
+        index_dir = Path(args.index)
+        index_dir.mkdir(parents=True, exist_ok=True)
+        temp_index_dir = None
+    else:
+        # Create a temporary directory for the index
+        temp_index_dir = tempfile.mkdtemp(prefix="raggiro_index_")
+        index_dir = Path(temp_index_dir)
+    
+    # Load configuration
+    config_path = current_dir / "config" / "config.toml"
+    print(f"Loading config from: {config_path}")
 
-# Configurazioni
-TEST_DIR = Path(args.output)
-INPUT_JSON = Path(args.input)
-
-# Load configuration
-config_path = current_dir / "config" / "config.toml"
-print(f"Loading config from: {config_path}")
-
-try:
-    config = load_config(str(config_path))
-    print(f"Using Ollama URL: {config.get('llm', {}).get('ollama_base_url', 'Not set')}")
-except Exception as e:
-    print(f"Error loading config: {str(e)}")
-    print("Using hardcoded configuration with correct Ollama URL")
-    config = {
-        "llm": {
-            "provider": "ollama",
-            "ollama_base_url": "http://ollama:11434",
-            "ollama_timeout": 30
+    try:
+        config = load_config(str(config_path))
+        
+        # Print diagnostics about config
+        print(f"Using Ollama URL: {config.get('llm', {}).get('ollama_base_url', 'Not set')}")
+        print(f"LLM provider: {config.get('llm', {}).get('provider', 'Not set')}")
+        print(f"Rewriting model: {config.get('rewriting', {}).get('ollama_model', 'Not set')}")
+        print(f"Generation model: {config.get('generation', {}).get('ollama_model', 'Not set')}")
+    except Exception as e:
+        print(f"Error loading config: {str(e)}")
+        print("Using hardcoded configuration with correct Ollama URL")
+        config = {
+            "llm": {
+                "provider": "ollama",
+                "ollama_base_url": "http://ollama:11434",
+                "ollama_timeout": 30
+            },
+            "rewriting": {
+                "enabled": True,
+                "llm_type": "ollama",
+                "ollama_model": "llama3",
+                "temperature": 0.1,
+                "max_tokens": 200,
+                "ollama_base_url": "http://ollama:11434"
+            },
+            "generation": {
+                "llm_type": "ollama",
+                "ollama_model": "mistral",
+                "temperature": 0.7,
+                "max_tokens": 1000,
+                "ollama_base_url": "http://ollama:11434"
+            }
         }
-    }
-    print(f"Using Ollama URL: {config['llm']['ollama_base_url']}")
+        print(f"Using Ollama URL: {config['llm']['ollama_base_url']}")
 
-print("=== Test della pipeline RAG ===")
-print(f"File di input: {INPUT_JSON}")
+    print("=== Test della pipeline RAG ===")
+    print(f"File di input: {input_json}")
 
-# Funzione per simulare il retrieval basato su similarità semantica
-def simulate_retrieval(document, query, top_k=3):
-    """Simulazione semplificata del retrieval di chunks rilevanti."""
-    print(f"\nQuery: {query}")
-    print(f"Cerco i {top_k} chunks più rilevanti...")
+    # Carica il documento JSON
+    try:
+        with open(input_json, 'r', encoding='utf-8') as f:
+            document = json.load(f)
+        print(f"Documento caricato: {document['metadata'].get('title', 'Documento senza titolo')}")
+        print(f"Contiene {len(document['chunks'])} chunks")
+    except Exception as e:
+        print(f"Errore durante il caricamento del documento: {str(e)}")
+        sys.exit(1)
+
+    # Save document to output dir for indexing
+    document_json_path = output_dir / f"{input_json.stem}_processed.json"
+    with open(document_json_path, 'w', encoding='utf-8') as f:
+        json.dump(document, f, ensure_ascii=False, indent=2)
     
-    # In un caso reale, useremmo embedding vettoriali per la similarità semantica
-    # Qui usiamo una semplice ricerca per parole chiave
-    query_terms = query.lower().split()
+    # Initialize the indexer and index the document
+    print(f"\n=== Indicizzazione del documento ===")
+    indexer = VectorIndexer(config)
+    index_result = indexer.index_directory(output_dir)
     
-    # Calcola punteggi basati su semplice conteggio di termini
-    chunk_scores = []
-    for i, chunk in enumerate(document["chunks"]):
-        score = 0
-        text = chunk["text"].lower()
-        for term in query_terms:
-            score += text.count(term)
-        chunk_scores.append((i, score))
+    if not index_result["success"]:
+        print(f"Errore nell'indicizzazione: {index_result.get('error', 'Errore sconosciuto')}")
+        sys.exit(1)
     
-    # Ordina per punteggio e prendi i top k
-    top_chunks = sorted(chunk_scores, key=lambda x: x[1], reverse=True)[:top_k]
+    # Save the index
+    save_result = indexer.save_index(index_dir)
+    if save_result["success"]:
+        print(f"Indice salvato in {index_dir}")
+    else:
+        print(f"Errore nel salvataggio dell'indice: {save_result.get('error', 'Errore sconosciuto')}")
+        sys.exit(1)
     
+    # Initialize the RAG pipeline
+    print("\n=== Inizializzazione pipeline RAG ===")
+    pipeline = RagPipeline(config)
+    
+    # Load the index
+    load_result = pipeline.retriever.load_index(index_dir)
+    
+    if not load_result["success"]:
+        print(f"Errore nel caricamento dell'indice: {load_result.get('error', 'Errore sconosciuto')}")
+        sys.exit(1)
+    
+    # Test con alcune query diverse
+    default_queries = [
+        "Quali sono i principali trend in AI nel 2023?",
+        "Come viene utilizzata l'AI in ambito sanitario?",
+        "Quali sfide devono affrontare le organizzazioni nell'implementazione dell'AI?",
+        "Cosa sono i Large Language Models e quali sono i loro sviluppi recenti?"
+    ]
+
+    # Usa le query fornite dall'utente o quelle predefinite
+    queries = args.queries if args.queries else default_queries
+
+    print("\n=== Esecuzione di query RAG ===")
+    
+    # File per salvare i risultati
+    results_file = output_dir / "rag_results.json"
     results = []
-    for i, score in top_chunks:
-        if score > 0:  # Solo chunk con punteggio positivo
-            chunk = document["chunks"][i]
+
+    for query in queries:
+        print("\n" + "=" * 80)
+        print(f"QUERY: {query}")
+        
+        # Query the RAG pipeline
+        start_time = time.time()
+        response = pipeline.query(query, top_k=args.top_k)
+        query_time = time.time() - start_time
+        
+        if response["success"]:
+            # Show rewritten query if available
+            if "rewritten_query" in response:
+                print(f"\nQuery riscritta: {response['rewritten_query']}")
+            
+            # Show response
+            print(f"\nRISPOSTA ({response['chunks_used']} chunks usati, {query_time:.2f}s):")
+            print(response["response"])
+            
+            # Extract chunk information if available
+            used_chunks = []
+            for step in response.get("steps", []):
+                if step["step"] == "retrieve":
+                    retrieved_chunks = step["result"].get("chunks", [])
+                    for chunk in retrieved_chunks[:args.top_k]:
+                        used_chunks.append({
+                            "id": chunk.get("id", "unknown"),
+                            "similarity": chunk.get("similarity", 0),
+                            "text_preview": chunk.get("text", "")[:100] + "..."
+                        })
+            
+            # Save result
             results.append({
-                "id": chunk["id"],
-                "text": chunk["text"],
-                "score": score
+                "query": query,
+                "rewritten_query": response.get("rewritten_query"),
+                "response": response["response"],
+                "chunks_used": response.get("chunks_used", 0),
+                "query_time": query_time,
+                "used_chunks": used_chunks,
+                "success": True
             })
-    
-    print(f"Trovati {len(results)} chunks rilevanti")
-    return results
+        else:
+            print(f"\nERRORE: {response.get('error', 'Errore sconosciuto')}")
+            
+            results.append({
+                "query": query,
+                "success": False,
+                "error": response.get("error", "Errore sconosciuto"),
+                "query_time": query_time
+            })
 
-# Funzione per simulare la generazione di una risposta
-def simulate_response_generation(query, chunks):
-    """Simulazione della generazione di risposta basata sui chunks recuperati."""
-    print("\nGenerazione della risposta...")
-    
-    if not chunks:
-        return "Non ho trovato informazioni rilevanti per rispondere alla tua domanda."
-    
-    # Prepara la risposta basata sui chunks recuperati
-    # In un caso reale, qui useremmo un LLM
-    response = f"Basandomi sulle informazioni disponibili, ecco la risposta alla tua domanda: '{query}'\n\n"
-    
-    # Estrai frasi rilevanti dai chunks
-    relevant_sentences = []
-    for chunk in chunks:
-        text = chunk["text"]
-        sentences = re.split(r'(?<=[.!?])\s+', text)
-        
-        for sentence in sentences:
-            for term in query.lower().split():
-                if term in sentence.lower() and len(sentence) > 20:
-                    relevant_sentences.append((sentence, chunk["id"]))
-                    break
-    
-    # Costruisci la risposta
-    if relevant_sentences:
-        response += "La risposta è:\n\n"
-        for i, (sentence, chunk_id) in enumerate(relevant_sentences[:5]):
-            response += f"{i+1}. {sentence} [Fonte: {chunk_id}]\n\n"
-    else:
-        # Se non troviamo frasi specifiche, usa i chunk interi
-        response += "Ecco le informazioni più rilevanti:\n\n"
-        for i, chunk in enumerate(chunks):
-            excerpt = chunk["text"][:200] + "..." if len(chunk["text"]) > 200 else chunk["text"]
-            response += f"Fonte {i+1} [{chunk['id']}]: {excerpt}\n\n"
-    
-    return response
+    # Salva i risultati in formato JSON
+    with open(results_file, 'w', encoding='utf-8') as f:
+        json.dump(results, f, ensure_ascii=False, indent=2)
 
-# Carica il documento JSON
-try:
-    with open(INPUT_JSON, 'r') as f:
-        document = json.load(f)
-    print(f"Documento caricato: {document['metadata'].get('title', 'Documento senza titolo')}")
-    print(f"Contiene {len(document['chunks'])} chunks")
-except Exception as e:
-    print(f"Errore durante il caricamento del documento: {str(e)}")
-    sys.exit(1)
+    print(f"\nRisultati salvati in: {results_file}")
 
-# Test con alcune query diverse
-default_queries = [
-    "Quali sono i principali trend in AI nel 2023?",
-    "Come viene utilizzata l'AI in ambito sanitario?",
-    "Quali sfide devono affrontare le organizzazioni nell'implementazione dell'AI?",
-    "Cosa sono i Large Language Models e quali sono i loro sviluppi recenti?"
-]
+    # Clean up temporary index directory if we created one
+    if temp_index_dir:
+        import shutil
+        try:
+            shutil.rmtree(temp_index_dir)
+            print(f"Directory temporanea dell'indice rimossa: {temp_index_dir}")
+        except Exception as e:
+            print(f"Errore nella rimozione della directory temporanea: {e}")
 
-# Usa le query fornite dall'utente o quelle predefinite
-queries = args.queries if args.queries else default_queries
+    print("\n=== Test RAG completato ===")
 
-print("\n=== Simulazione di query RAG ===")
-
-# Assicurati che la directory di output esista
-TEST_DIR.mkdir(parents=True, exist_ok=True)
-
-# File per salvare i risultati
-results_file = TEST_DIR / "rag_results.json"
-results = []
-
-for query in queries:
-    print("\n" + "=" * 80)
-    print(f"QUERY: {query}")
-    
-    # 1. Retrieval - trova i chunks rilevanti
-    retrieved_chunks = simulate_retrieval(document, query, top_k=2)
-    
-    # 2. Generazione - crea una risposta basata sui chunks
-    if retrieved_chunks:
-        response = simulate_response_generation(query, retrieved_chunks)
-        print("\nRISPOSTA:")
-        print(response)
-        
-        # Salva il risultato
-        results.append({
-            "query": query,
-            "chunks": [{"id": c["id"], "score": c["score"]} for c in retrieved_chunks],
-            "response": response
-        })
-    else:
-        print("\nNessun risultato rilevante trovato per questa query.")
-        results.append({
-            "query": query,
-            "chunks": [],
-            "response": "Nessun risultato rilevante trovato."
-        })
-
-# Salva i risultati in formato JSON
-with open(results_file, 'w', encoding='utf-8') as f:
-    json.dump(results, f, ensure_ascii=False, indent=2)
-
-print(f"\nRisultati salvati in: {results_file}")
-
-print("\n=== Test RAG completato ===")
+if __name__ == "__main__":
+    main()
