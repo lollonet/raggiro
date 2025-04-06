@@ -15,7 +15,7 @@ log_date_format = "%Y-%m-%d %H:%M:%S"
 # Extraction settings
 [extraction]
 ocr_enabled = true
-ocr_language = "eng"
+ocr_language = "eng+ita+spa+fra+deu"  # Support multiple languages: English, Italian, Spanish, French, German
 
 # Cleaning settings
 [cleaning]
@@ -27,7 +27,7 @@ min_line_length = 3
 # Segmentation settings
 [segmentation]
 use_spacy = true
-spacy_model = "en_core_web_sm"
+spacy_model = "en_core_web_sm"  # You may want to use "xx_sent_ud_sm" for multilingual support
 min_section_length = 100
 max_chunk_size = 500  # Reduced from 1000 for more granular chunking
 chunk_overlap = 100   # Adjusted for the new chunk size
@@ -55,7 +55,7 @@ milvus_collection = "raggiro"
 [llm]
 provider = "ollama"  # "ollama", "llamacpp", "openai"
 # Make sure this URL is directly accessible from your execution environment
-ollama_base_url = "http://ollama:11434"  # Ollama API URL 
+ollama_base_url = "http://localhost:11434"  # Ollama API URL for local use (use "http://ollama:11434" for Docker)
 ollama_timeout = 30  # Timeout in seconds
 llamacpp_path = ""  # Path to llama.cpp executable
 
@@ -97,7 +97,7 @@ temperature = 0.1
 max_tokens = 200
 
 # Model names by provider type
-ollama_model = "llama3.2-vision"  # Model name for Ollama
+ollama_model = "llama3"  # Model name for Ollama (or use "llama3.2" if available, but not vision model)
 llamacpp_model = "llama3"  # Model name for LLaMA.cpp
 openai_model = ${llm.openai_model}  # Inherit from llm section
 
@@ -114,8 +114,12 @@ You are a helpful assistant that improves user queries for a retrieval system. Y
 3. Expand ambiguous terms while preserving the core meaning
 4. Add any missing but implied context that would help retrieval
 5. Keep the rewritten query concise, focused, and in the form of a question
+6. IMPORTANT: Always maintain the original language of the query
+7. Verify your rewritten query against the original to ensure consistency and relevance
 
 Original Query: {query}
+
+{extra_instructions}
 
 Rewritten Query: 
 """
@@ -127,7 +131,7 @@ temperature = 0.1
 max_tokens = 1000
 
 # Model names by provider type
-ollama_model = "llama3.2-vision"  # Model name for Ollama
+ollama_model = "llama3"  # Model name for Ollama (or use "llama3.2" if available, but not vision model)
 llamacpp_model = "mistral"  # Model name for LLaMA.cpp
 openai_model = ${llm.openai_model}  # Inherit from llm section
 
@@ -145,11 +149,16 @@ You are a helpful assistant that answers questions based on the provided context
 4. If the chunks don't contain enough information to answer the question, state this clearly
 5. Include specific citations in your answer referencing the source documents
 6. Format your response clearly with proper paragraphs, bullet points, or numbered lists as appropriate
+7. IMPORTANT: Your response MUST be in the same language as the document chunks and the user query
 
 User Question: {query}
 
+Document Language: {document_language}
+
 Context Chunks:
 {chunks}
+
+{additional_instructions}
 
 Your Answer (include citations to specific documents):
 """
