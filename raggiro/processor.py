@@ -165,9 +165,13 @@ class DocumentProcessor:
             # PHASE 3.5: Spelling Correction (especially for OCR text)
             # Print debug info about extraction method and config
             extraction_method = document.get("extraction_method", "unknown")
-            always_correct = self.config.get("spelling", {}).get("always_correct", False)
+            spelling_config = self.config.get("spelling", {})
+            always_correct = spelling_config.get("always_correct", False)
+            spelling_enabled = spelling_config.get("enabled", True)
+            backend = spelling_config.get("backend", "symspellpy")
+            
             print(f"Document extraction method: {extraction_method}")
-            print(f"Always correct setting: {always_correct}")
+            print(f"Spelling config - enabled: {spelling_enabled}, always_correct: {always_correct}, backend: {backend}")
             
             if extraction_method in ["pdf_ocr", "image_ocr"] or always_correct:
                 print(f"Applying spelling correction to document...")

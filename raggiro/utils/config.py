@@ -33,6 +33,13 @@ def load_config(config_path: Optional[str] = None) -> Dict:
             "normalize_whitespace": True,
             "remove_special_chars": True,
         },
+        "spelling": {
+            "enabled": True,
+            "language": "auto",
+            "backend": "symspellpy",
+            "max_edit_distance": 2,
+            "always_correct": True,
+        },
         "segmentation": {
             "use_spacy": True,
             "spacy_model": "en_core_web_sm",
