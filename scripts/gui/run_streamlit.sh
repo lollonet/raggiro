@@ -10,8 +10,8 @@ export PYTHONPATH="$SCRIPT_DIR:$PYTHONPATH"
 
 # Make sure all scripts are executable
 chmod +x "$SCRIPT_DIR/launch_gui.py"
-chmod +x "$SCRIPT_DIR/direct_run.py"
-chmod +x "$SCRIPT_DIR/raggiro/gui/streamlit_app.py"
+chmod +x "$SCRIPT_DIR/../utils/direct_run.py"
+chmod +x "$SCRIPT_DIR/../../raggiro/gui/streamlit_app.py"
 
 # Ensure we're using the correct configuration
 export STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
@@ -27,7 +27,7 @@ case "$METHOD" in
     "direct")
         # Try the direct Python method (most compatible with PyTorch)
         echo "Using direct Python launcher..."
-        exec python "$SCRIPT_DIR/direct_run.py"
+        exec python "$SCRIPT_DIR/../utils/direct_run.py"
         ;;
     "monkey")
         # Try the monkeypatching method
@@ -37,7 +37,7 @@ case "$METHOD" in
     "streamlit")
         # Try the regular Streamlit method
         echo "Using standard Streamlit launcher..."
-        exec streamlit run "$SCRIPT_DIR/raggiro/gui/streamlit_app.py" --server.fileWatcherType none
+        exec streamlit run "$SCRIPT_DIR/../../raggiro/gui/streamlit_app.py" --server.fileWatcherType none
         ;;
     *)
         echo "Unknown method: $METHOD"

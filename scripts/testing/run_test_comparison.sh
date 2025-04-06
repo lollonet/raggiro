@@ -42,9 +42,9 @@ fi
 # Check if input file exists
 if [ -z "$INPUT_FILE" ]; then
     echo "Error: Please provide an input file path."
-    echo "Usage: ./run_test_comparison.sh <input_file> [--strategies <list of strategies>]"
-    echo "   or: ./run_test_comparison.sh --input <input_file> [--strategies <list of strategies>]"
-    echo "Example: ./run_test_comparison.sh tmp/Humanizar_it.pdf --strategies size semantic hybrid"
+    echo "Usage: ./scripts/testing/run_test_comparison.sh <input_file> [--strategies <list of strategies>]"
+    echo "   or: ./scripts/testing/run_test_comparison.sh --input <input_file> [--strategies <list of strategies>]"
+    echo "Example: ./scripts/testing/run_test_comparison.sh tmp/Humanizar_it.pdf --strategies size semantic hybrid"
     exit 1
 fi
 

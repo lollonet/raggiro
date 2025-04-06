@@ -171,8 +171,10 @@ def test_rag_ui():
     if not is_package_installed("promptfoo"):
         st.warning("PromptFoo is not installed. Some test features will be unavailable.")
         st.markdown("### Install PromptFoo")
-        st.info("PromptFoo is used for advanced RAG testing. Install it with:")
-        st.code("pip install promptfoo", language="bash")
+        st.info("PromptFoo is a Node.js application used for advanced RAG testing. Install it with:")
+        st.code("npm install -g promptfoo", language="bash")
+        st.markdown("**Alternative: Use the helper script**")
+        st.code("chmod +x scripts/installation/install_promptfoo.sh && ./scripts/installation/install_promptfoo.sh", language="bash")
         st.markdown("---")
     
     # Input directory (processed documents)
@@ -722,17 +724,32 @@ def is_package_installed(package_name):
     Returns:
         True if the package is installed, False otherwise
     """
-    try:
-        # Try importing the package
-        __import__(package_name)
-        return True
-    except ImportError:
-        # Check if it's a command-line tool
+    # Special handling for promptfoo which is an npm package, not Python
+    if package_name == "promptfoo":
         try:
-            subprocess.run([package_name, "--version"], check=True, capture_output=True)
+            # Try global installation
+            subprocess.run(["promptfoo", "--version"], check=True, capture_output=True)
             return True
         except (subprocess.CalledProcessError, FileNotFoundError):
-            return False
+            # Try npx as a fallback
+            try:
+                subprocess.run(["npx", "promptfoo", "--version"], check=True, capture_output=True)
+                return True
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                return False
+    else:
+        # For Python packages
+        try:
+            # Try importing the package
+            __import__(package_name)
+            return True
+        except ImportError:
+            # Check if it's a command-line tool
+            try:
+                subprocess.run([package_name, "--version"], check=True, capture_output=True)
+                return True
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                return False
 
 def get_ollama_models(base_url="http://ollama:11434"):
     """Get list of available models from Ollama server.
@@ -1582,7 +1599,7 @@ if __name__ == "__main__":
                 with tab1:
                     st.markdown("#### User Installation (Recommended)")
                     st.markdown("This installs PromptFoo in your user directory, avoiding permission issues:")
-                    st.code("chmod +x install_promptfoo.sh && ./install_promptfoo.sh", language="bash")
+                    st.code("chmod +x scripts/installation/install_promptfoo.sh && ./scripts/installation/install_promptfoo.sh", language="bash")
                     st.markdown("**After installation**, add this to your ~/.bashrc or ~/.profile:")
                     st.code("export PATH=\"$HOME/.npm-global/bin:$PATH\"", language="bash")
                     st.markdown("Then reload your terminal or run:")
@@ -1708,8 +1725,11 @@ if __name__ == "__main__":
                         subprocess.run(["promptfoo", "--version"], check=True, capture_output=True)
                         st.info("No PromptFoo result files found.")
                     except (subprocess.CalledProcessError, FileNotFoundError):
-                        st.error("PromptFoo is not installed. Please install it with: pip install promptfoo")
-                        st.code("pip install promptfoo", language="bash")
+                        st.error("PromptFoo is not installed. PromptFoo is a Node.js application that must be installed via npm.")
+                        st.code("npm install -g promptfoo", language="bash")
+                        # Provide helper script info as an alternative
+                        st.markdown("**Alternative: Use the helper script**")
+                        st.code("chmod +x scripts/installation/install_promptfoo.sh && ./scripts/installation/install_promptfoo.sh", language="bash")
                         st.info("After installation, restart the application and try again.")
             
             with result_tabs[1]:  # RAG Query Results

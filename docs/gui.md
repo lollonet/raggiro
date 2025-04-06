@@ -12,7 +12,9 @@ raggiro gui
 # oppure
 streamlit run $(which raggiro)
 # o direttamente dallo script
-python launch_gui.py
+python scripts/gui/launch_gui.py
+# o utilizzando lo script bash
+./scripts/gui/run_streamlit.sh
 ```
 
 L'interfaccia Streamlit include quattro schede principali:

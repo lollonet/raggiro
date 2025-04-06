@@ -42,9 +42,9 @@ fi
 # Check if input file exists
 if [ -z "$INPUT_FILE" ]; then
     echo "Error: Please provide an input file path."
-    echo "Usage: ./run_semantic_chunking_test.sh <input_file> [additional options]"
-    echo "   or: ./run_semantic_chunking_test.sh --input <input_file> [additional options]"
-    echo "Example: ./run_semantic_chunking_test.sh tmp/Humanizar_it.pdf --queries \"What is humanization?\" \"Define the main concept\""
+    echo "Usage: ./scripts/testing/run_semantic_chunking_test.sh <input_file> [additional options]"
+    echo "   or: ./scripts/testing/run_semantic_chunking_test.sh --input <input_file> [additional options]"
+    echo "Example: ./scripts/testing/run_semantic_chunking_test.sh tmp/Humanizar_it.pdf --queries \"What is humanization?\" \"Define the main concept\""
     exit 1
 fi
 

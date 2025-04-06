@@ -50,7 +50,7 @@ else
             echo "   Add the following to your ~/.bashrc or ~/.profile:"
             echo "   export PATH=\"$HOME/.npm-global/bin:\$PATH\""
         else
-            echo "   PromptFoo is not installed. Run ./install_promptfoo.sh to install it."
+            echo "   PromptFoo is not installed. Run ./scripts/installation/install_promptfoo.sh to install it."
         fi
     fi
 fi

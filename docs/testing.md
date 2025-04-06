@@ -46,13 +46,13 @@ Per facilità d'uso, sono forniti script helper:
 
 ```bash
 # Usa lo script helper (consigliato)
-./run_semantic_chunking_test.sh document.pdf --output test_output
+./scripts/testing/run_semantic_chunking_test.sh document.pdf --output test_output
 
 # Testa con query personalizzate e impostazioni Ollama
-./run_semantic_chunking_test.sh document.pdf --queries "Qual è l'argomento principale?" "Riassumi i punti chiave" --ollama-url http://localhost:11434 --rewriting-model llama3 --generation-model mistral
+./scripts/testing/run_semantic_chunking_test.sh document.pdf --queries "Qual è l'argomento principale?" "Riassumi i punti chiave" --ollama-url http://localhost:11434 --rewriting-model llama3 --generation-model mistral
 
 # Specifica il numero di chunk da recuperare per ogni query
-./run_semantic_chunking_test.sh document.pdf --top-k 5
+./scripts/testing/run_semantic_chunking_test.sh document.pdf --top-k 5
 ```
 
 ## Confronto tra strategie di chunking
@@ -61,13 +61,13 @@ Puoi confrontare diverse strategie di chunking per trovare l'approccio più effi
 
 ```bash
 # Confronta tutte le strategie disponibili usando lo script helper (consigliato)
-./run_test_comparison.sh documento.pdf
+./scripts/testing/run_test_comparison.sh documento.pdf
 
 # Confronta solo strategie specifiche con impostazioni Ollama personalizzate
-./run_test_comparison.sh documento.pdf --strategies size hybrid --ollama-url http://localhost:11434 --rewriting-model llama3 --generation-model mistral
+./scripts/testing/run_test_comparison.sh documento.pdf --strategies size hybrid --ollama-url http://localhost:11434 --rewriting-model llama3 --generation-model mistral
 
 # Testa con query specifiche e directory di output
-./run_test_comparison.sh documento.pdf --queries "Qual è l'argomento principale?" --output miei_risultati_test
+./scripts/testing/run_test_comparison.sh documento.pdf --queries "Qual è l'argomento principale?" --output miei_risultati_test
 ```
 
 ## Configurazioni di test personalizzate

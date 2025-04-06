@@ -91,14 +91,14 @@ Raggiro include script helper per semplificare i test e altre operazioni comuni:
 
 ```bash
 # Verifica l'installazione di PromptFoo
-./verify_promptfoo.sh
+./scripts/installation/verify_promptfoo.sh
 
 # Installa PromptFoo (preferibilmente a livello utente)
-./install_promptfoo.sh
+./scripts/installation/install_promptfoo.sh
 
 # Esegui test del chunking semantico
-./run_semantic_chunking_test.sh documento.pdf --output test_output
+./scripts/testing/run_semantic_chunking_test.sh documento.pdf --output test_output
 
 # Confronta le strategie di chunking
-./run_test_comparison.sh documento.pdf --strategies size semantic hybrid
+./scripts/testing/run_test_comparison.sh documento.pdf --strategies size semantic hybrid
 ```
