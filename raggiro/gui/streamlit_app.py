@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Streamlit-based GUI for Raggiro document processing."""
 
 import os
@@ -1770,15 +1771,6 @@ def display_single_rag_result(item, index, is_error=False):
                 st.json(item["metadata"])
 
 if __name__ == "__main__":
-    try:
-        # Try the newer API first (Streamlit 1.8.0+)
-        import streamlit.web.cli as cli
-        cli.main()
-    except (ImportError, AttributeError):
-        try:
-            # Fall back to older bootstrap API (pre-1.8.0)
-            import streamlit.web.bootstrap as bootstrap
-            bootstrap.run(__file__, [], {})
-        except (ImportError, TypeError):
-            # Last resort - run app directly
-            run_app()
+    # When run directly, just call the app function
+    # This ensures it works in any Streamlit version
+    run_app()

@@ -23,7 +23,10 @@ echo "Launching Raggiro Streamlit interface..."
 
 # Always use the direct file path - more compatible with all versions
 STREAMLIT_APP_PATH="$SCRIPT_DIR/raggiro/gui/streamlit_app.py"
-echo "Running: $STREAMLIT_APP_PATH"
+echo "Running: streamlit run $STREAMLIT_APP_PATH"
 
-# Launch Streamlit
-streamlit run "$STREAMLIT_APP_PATH"
+# Make sure the script has proper permissions
+chmod +x "$STREAMLIT_APP_PATH"
+
+# Launch Streamlit explicitly with the 'run' command
+exec streamlit run "$STREAMLIT_APP_PATH"
