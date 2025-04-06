@@ -89,7 +89,29 @@ def main():
     print(f"\n=== Elaborazione documento: {args.input} ===")
     processor = DocumentProcessor(config)
     
-    process_result = processor.process_file(args.input, output_dir)
+    # Check if input is a JSON file (already processed document)
+    input_path = Path(args.input)
+    if input_path.suffix.lower() == '.json':
+        try:
+            # Try to load the JSON directly
+            print(f"Detected JSON input file, trying to load directly: {input_path}")
+            with open(input_path, 'r', encoding='utf-8') as f:
+                document_data = json.load(f)
+            
+            # Check if it's a processed document with expected structure
+            if isinstance(document_data, dict) and 'chunks' in document_data and 'metadata' in document_data:
+                print(f"Successfully loaded pre-processed document from JSON")
+                process_result = {"success": True, "document": document_data}
+            else:
+                # Process it as a normal file
+                print(f"JSON doesn't contain a valid document structure, processing as regular file")
+                process_result = processor.process_file(args.input, output_dir)
+        except Exception as e:
+            print(f"Error loading JSON: {e}, processing as regular file")
+            process_result = processor.process_file(args.input, output_dir)
+    else:
+        # Process as normal file
+        process_result = processor.process_file(args.input, output_dir)
     
     if not process_result["success"]:
         print(f"Errore nell'elaborazione del documento: {process_result.get('error', 'Errore sconosciuto')}")
