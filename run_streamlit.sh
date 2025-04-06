@@ -21,13 +21,9 @@ fi
 # Version-aware streamlit launcher
 echo "Launching Raggiro Streamlit interface..."
 
-# Check for module mode vs script mode
-if python -c "import importlib.util; print(importlib.util.find_spec('raggiro') is not None)" | grep -q "True"; then
-    # Module mode - use the raggiro package
-    echo "Using module mode"
-    streamlit run -m raggiro.gui.streamlit_app
-else
-    # Script mode - use direct file path
-    echo "Using script mode"
-    streamlit run "$SCRIPT_DIR/raggiro/gui/streamlit_app.py"
-fi
+# Always use the direct file path - more compatible with all versions
+STREAMLIT_APP_PATH="$SCRIPT_DIR/raggiro/gui/streamlit_app.py"
+echo "Running: $STREAMLIT_APP_PATH"
+
+# Launch Streamlit
+streamlit run "$STREAMLIT_APP_PATH"
