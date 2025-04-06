@@ -170,10 +170,16 @@ raggiro test-rag --prompt-set tests/prompts.yaml --output test_results
 Raggiro's GUI interfaces provide interactive document processing without having to use command-line parameters:
 
 1. **Streamlit Interface (Web-based)**
-   - Upload and process documents through a browser
-   - Configure processing options visually
-   - View processing results in real-time
-   - Interactive file browsing
+   - **Document Processing**: Upload and process documents through a browser
+   - **RAG Testing**: Run and evaluate tests on your processed documents
+   - **Result Visualization**: View test results with metrics and charts
+   - **Configuration Management**: Edit and manage configuration options visually
+   
+   The Streamlit interface includes four main tabs:
+   - **Process Documents**: Upload and process documents with customizable options
+   - **Test RAG**: Run tests on processed documents with predefined or custom prompts
+   - **View Results**: Analyze test results with visualizations and metrics
+   - **Configuration**: Edit configuration settings for the entire pipeline
 
 2. **Textual Interface (Terminal-based)**
    - Text-based UI for environments without a web browser
@@ -603,9 +609,11 @@ Total processing time: 1579ms
 
 ## Testing and Evaluation
 
-Raggiro includes comprehensive tools for testing and evaluating your RAG system:
+Raggiro includes comprehensive tools for testing and evaluating your RAG system, accessible through both command-line interfaces and the GUI:
 
 ### Running Evaluation Tests
+
+#### Command Line Testing
 
 ```bash
 # Run promptfoo evaluations
@@ -617,6 +625,31 @@ python -m raggiro.examples.scripts.test_semantic_chunking --input /path/to/your/
 # Compare different chunking strategies
 python -m raggiro.examples.scripts.test_rag_comparison --input /path/to/your/document.pdf --strategies size semantic hybrid
 ```
+
+#### GUI Testing with Streamlit
+
+The Streamlit GUI provides a user-friendly interface for RAG testing:
+
+1. **Test RAG Tab**:
+   - Select processed documents to test
+   - Choose from predefined test prompts or create custom ones
+   - Execute tests with real-time progress tracking
+   - View results immediately after test completion
+
+2. **View Results Tab**:
+   - Browse test history across different test runs
+   - Compare results from different chunking strategies
+   - View detailed metrics and statistics
+   - See visualizations of test performance
+
+3. **Test Capabilities**:
+   - Semantic chunking evaluation
+   - Query rewriting effectiveness
+   - Response quality assessment
+   - Retrieval accuracy metrics
+   - Performance statistics
+
+The GUI makes it easy to conduct and interpret tests without writing a single line of code, supporting both technical and non-technical users in evaluating RAG system performance.
 
 ### Testing Semantic Chunking
 

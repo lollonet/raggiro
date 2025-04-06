@@ -132,18 +132,55 @@ def main():
     print("\n=== Test di query RAG ===")
     
     # Initialize RAG pipeline
-    # Check exact config being passed to the pipeline
     print("=== Config diagnostics ===")
     print(f"Config type: {type(config)}")
-    llm_config = config.get('llm', {})
-    print(f"LLM config: {llm_config}")
-    rewriting_config = config.get('rewriting', {})
-    print(f"Rewriting config: {rewriting_config}")
-    generation_config = config.get('generation', {})
-    print(f"Generation config: {generation_config}")
     
-    # Initialize the pipeline with the forced config
-    pipeline = RagPipeline(config)
+    # Verify and log LLM configurations
+    llm_config = config.get('llm', {})
+    rewriting_config = config.get('rewriting', {})
+    generation_config = config.get('generation', {})
+    
+    # Log and confirm Ollama URLs are correctly set
+    ollama_base_url = llm_config.get('ollama_base_url', 'Not set')
+    rewriting_ollama_url = rewriting_config.get('ollama_base_url', 'Inherits from LLM')
+    generation_ollama_url = generation_config.get('ollama_base_url', 'Inherits from LLM')
+    
+    print(f"Main LLM Ollama URL: {ollama_base_url}")
+    print(f"Rewriting LLM Ollama URL: {rewriting_ollama_url}")
+    print(f"Generation LLM Ollama URL: {generation_ollama_url}")
+    
+    print(f"Rewriting model: {rewriting_config.get('ollama_model', 'Not set')}")
+    print(f"Generation model: {generation_config.get('ollama_model', 'Not set')}")
+    
+    # Log retrieval configuration
+    retrieval_config = config.get('retrieval', {})
+    print(f"Retrieval top_k: {retrieval_config.get('top_k', 'Not set')}")
+    print(f"Using command line top_k: {args.top_k}")
+    
+    # Make sure all components use the same Ollama URL
+    # This ensures consistent behavior across all components
+    if llm_config.get('provider') == 'ollama':
+        # Create a validated config with consistent URLs
+        validated_config = config.copy()
+        
+        # Make sure rewriting and generation use the same URL as the main LLM config
+        if 'rewriting' not in validated_config:
+            validated_config['rewriting'] = {}
+        if 'generation' not in validated_config:
+            validated_config['generation'] = {}
+            
+        validated_config['rewriting']['ollama_base_url'] = ollama_base_url
+        validated_config['generation']['ollama_base_url'] = ollama_base_url
+        
+        print(f"Using validated Ollama URL: {ollama_base_url} for all components")
+        
+        # Initialize the pipeline with the validated config
+        pipeline = RagPipeline(validated_config)
+    else:
+        # Initialize with original config for non-Ollama providers
+        pipeline = RagPipeline(config)
+        
+    # Load the index
     load_result = pipeline.retriever.load_index(index_dir)
     
     if not load_result["success"]:
