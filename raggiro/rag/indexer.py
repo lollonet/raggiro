@@ -295,6 +295,113 @@ class VectorIndexer:
             "total_vectors": collection_info.vectors_count,
         }
     
+    def _index_md_files(self, md_files: List[Path]) -> Dict:
+        """Index markdown files directly.
+        
+        Args:
+            md_files: List of markdown file paths
+            
+        Returns:
+            Indexing results
+        """
+        results = []
+        
+        for md_file in tqdm(md_files, desc="Indexing markdown files"):
+            try:
+                # Read the markdown file
+                with open(md_file, "r", encoding="utf-8") as f:
+                    content = f.read()
+                
+                # Create a simple document structure
+                file_name = md_file.name
+                document = {
+                    "text": content,
+                    "metadata": {
+                        "title": file_name,
+                        "file": {
+                            "path": str(md_file),
+                            "hash": f"md_{hash(content) & 0xFFFFFFFF}",  # Simple hash for uniqueness
+                            "name": file_name
+                        }
+                    },
+                    # Create a single chunk from the content
+                    "chunks": [
+                        {
+                            "id": f"{file_name}_chunk_1",
+                            "text": content,
+                            "segments": []  # No segments for simplicity
+                        }
+                    ]
+                }
+                
+                # Calculate embeddings for the chunk
+                text = document["chunks"][0]["text"]
+                embedding = self.model.encode([text])[0]
+                
+                # Index the document
+                chunk = {
+                    "id": document["chunks"][0]["id"],
+                    "text": text,
+                    "metadata": {
+                        "document_id": document["metadata"]["file"]["hash"],
+                        "document_title": document["metadata"]["title"],
+                        "document_path": document["metadata"]["file"]["path"],
+                        "chunk_id": document["chunks"][0]["id"],
+                        "sections": []
+                    }
+                }
+                
+                # Add to index using appropriate method
+                if self.vector_db == "faiss" and FAISS_AVAILABLE:
+                    # Initialize FAISS index if needed
+                    if self.index is None:
+                        dimension = len(embedding)
+                        self.index = faiss.IndexFlatL2(dimension)
+                    
+                    # Get current index size
+                    current_size = self.index.ntotal
+                    
+                    # Add embedding to index
+                    self.index.add(embedding.reshape(1, -1).astype(np.float32))
+                    
+                    # Store chunk metadata
+                    self.document_lookup[current_size] = {
+                        "text": chunk["text"],
+                        "metadata": chunk["metadata"]
+                    }
+                
+                results.append({
+                    "document_path": str(md_file),
+                    "chunks_indexed": 1,
+                    "success": True
+                })
+                
+            except Exception as e:
+                results.append({
+                    "document_path": str(md_file),
+                    "success": False,
+                    "error": f"Failed to index markdown file: {str(e)}"
+                })
+        
+        # Generate indexing summary
+        successful = sum(1 for r in results if r["success"])
+        failed = len(results) - successful
+        total_chunks = sum(r.get("chunks_indexed", 0) for r in results if r["success"])
+        
+        summary = {
+            "total_files": len(results),
+            "successful_files": successful,
+            "failed_files": failed,
+            "success_rate": round(successful / len(results) * 100, 2) if results else 0,
+            "total_chunks_indexed": total_chunks,
+        }
+        
+        return {
+            "success": successful > 0,
+            "summary": summary,
+            "results": results,
+        }
+    
     def index_directory(self, directory_path: Union[str, Path]) -> Dict:
         """Index all processed documents in a directory.
         
@@ -314,8 +421,27 @@ class VectorIndexer:
                 "error": "Directory does not exist",
             }
         
-        # Find all JSON files
+        # Find all JSON files (using different patterns to cover both document files and raw dumps)
         json_files = list(directory_path.glob("**/*.json"))
+        
+        # If directory itself is a JSON file, add it directly (special case for test scripts)
+        if directory_path.suffix.lower() == '.json' and directory_path.is_file():
+            json_files = [directory_path]
+        
+        # Special case: if the directory itself doesn't have JSON files but it has subdirectories
+        # with "chunks" in their names, look for JSON files there
+        if not json_files:
+            chunk_dirs = [d for d in directory_path.glob("*chunks*") if d.is_dir()]
+            for chunk_dir in chunk_dirs:
+                json_files.extend(list(chunk_dir.glob("**/*.json")))
+        
+        # If still no JSON files, check if there are MD files that can be used directly
+        if not json_files:
+            md_files = list(directory_path.glob("**/*.md"))
+            if md_files:
+                # Create an index with text from MD files
+                print(f"No JSON files found, but found {len(md_files)} Markdown files. Creating index from MD content.")
+                return self._index_md_files(md_files)
         
         if not json_files:
             return {
