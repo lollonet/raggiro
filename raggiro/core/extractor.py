@@ -64,8 +64,39 @@ class Extractor:
         # Configure tesseract parameters
         self.tesseract_config = f'--dpi {self.ocr_dpi} --oem 1 --psm 3'
         
+        # Verify and fix language configuration
+        # Handle special case when language is "auto" to ensure Tesseract doesn't fail
+        # Tesseract doesn't have an "auto" language pack, so we use a fallback
+        if self.ocr_language == "auto":
+            # Using auto for language detection, but need a specific language for tesseract
+            self.actual_ocr_language = "eng+ita"  # Default fallback
+            print(f"WARNING: Using 'auto' for language detection, but Tesseract will use '{self.actual_ocr_language}' until detection")
+        else:
+            self.actual_ocr_language = self.ocr_language
+            
+        # Check if TESSDATA_PREFIX is set
+        tessdata_prefix = os.environ.get("TESSDATA_PREFIX")
+        if not tessdata_prefix:
+            # Try to find tessdata directory
+            common_tessdata_paths = [
+                "/usr/share/tesseract-ocr/4.00/tessdata",
+                "/usr/share/tesseract-ocr/5/tessdata",
+                "/usr/local/share/tessdata",
+                "/opt/homebrew/share/tessdata",  # For macOS homebrew
+                "/usr/share/tessdata",
+            ]
+            
+            for path in common_tessdata_paths:
+                if os.path.exists(path):
+                    os.environ["TESSDATA_PREFIX"] = path
+                    print(f"Setting TESSDATA_PREFIX to {path}")
+                    break
+            
+            if not os.environ.get("TESSDATA_PREFIX"):
+                print("WARNING: Could not find tessdata directory. OCR might not work correctly.")
+        
         # Log configuration
-        print(f"OCR Configuration: language={self.ocr_language}, dpi={self.ocr_dpi}, " +
+        print(f"OCR Configuration: language={self.actual_ocr_language} (from {self.ocr_language}), dpi={self.ocr_dpi}, " +
               f"max_image_size={self.ocr_max_image_size}, batch_size={self.ocr_batch_size}")
     
     def extract(self, file_path: Union[str, Path], file_type_info: Dict) -> Dict:
@@ -222,8 +253,7 @@ class Extractor:
         }
         
         # If auto language detection is enabled, try to determine the document language
-        ocr_language = self.ocr_language
-        if self.language_detector is not None and ocr_language == "auto":
+        if self.language_detector is not None and self.ocr_language == "auto":
             # Get a sample of text to detect language
             try:
                 # Try to extract some text from the first few pages without OCR first
@@ -252,19 +282,19 @@ class Extractor:
                     }
                     if detected_lang in lang_map:
                         # Set primary language + eng as fallback
-                        ocr_language = f"{lang_map[detected_lang]}+eng"
-                        print(f"Auto-detected document language: {detected_lang}, using OCR language: {ocr_language}")
+                        self.actual_ocr_language = f"{lang_map[detected_lang]}+eng"
+                        print(f"Auto-detected document language: {detected_lang}, using OCR language: {self.actual_ocr_language}")
                     else:
                         # Fallback to multiple common languages
-                        ocr_language = "eng+ita+fra+deu+spa"
-                        print(f"Unable to definitively detect language ({detected_lang}), using multiple languages: {ocr_language}")
+                        self.actual_ocr_language = "eng+ita+fra+deu+spa"
+                        print(f"Unable to definitively detect language ({detected_lang}), using multiple languages: {self.actual_ocr_language}")
                 else:
                     # No text detected, use multiple languages
-                    ocr_language = "eng+ita+fra+deu+spa"
-                    print(f"No text available for language detection, using multiple languages: {ocr_language}")
+                    self.actual_ocr_language = "eng+ita+fra+deu+spa"
+                    print(f"No text available for language detection, using multiple languages: {self.actual_ocr_language}")
             except Exception as e:
                 print(f"Error in language detection: {str(e)}. Using default languages.")
-                ocr_language = "eng+ita+fra+deu+spa"
+                self.actual_ocr_language = "eng+ita+fra+deu+spa"
         
         try:
             doc = fitz.open(file_path)
@@ -305,7 +335,7 @@ class Extractor:
             
             # Log the OCR processing settings
             print(f"OCR processing {len(page_indices)} pages with batch size {batch_size}")
-            print(f"Settings: DPI={self.ocr_dpi}, Language={self.ocr_language}, Max image size={self.ocr_max_image_size}px")
+            print(f"Settings: DPI={self.ocr_dpi}, Language={self.actual_ocr_language} (selected: {self.ocr_language}), Max image size={self.ocr_max_image_size}px")
             start_time = time.time()
             
             # Process pages in batches to manage memory
@@ -363,11 +393,10 @@ class Extractor:
                             gc.collect()  # Explicit garbage collection
                             
                             # Perform OCR with timeout protection and custom config
-                            # Use the detected language if available
-                            current_lang = ocr_language if 'ocr_language' in locals() else self.ocr_language
+                            # Use the actual_ocr_language property which handles the "auto" case
                             text = pytesseract.image_to_string(
                                 img, 
-                                lang=current_lang,
+                                lang=self.actual_ocr_language,
                                 config=self.tesseract_config
                             )
                             
@@ -382,11 +411,10 @@ class Extractor:
                             img = Image.open(output_path)
                             
                             # Perform OCR on the saved file
-                            # Use the detected language if available
-                            current_lang = ocr_language if 'ocr_language' in locals() else self.ocr_language
+                            # Use the actual_ocr_language property which handles the "auto" case
                             text = pytesseract.image_to_string(
                                 img, 
-                                lang=current_lang,
+                                lang=self.actual_ocr_language,
                                 config=self.tesseract_config
                             )
                             
@@ -810,8 +838,8 @@ class Extractor:
                 "height": image.height,
             }
             
-            # Perform OCR
-            text = pytesseract.image_to_string(image, lang=self.ocr_language)
+            # Perform OCR using the actual_ocr_language that handles the "auto" case
+            text = pytesseract.image_to_string(image, lang=self.actual_ocr_language)
             
             result["text"] = text
             result["pages"] = [{
