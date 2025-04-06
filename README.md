@@ -14,16 +14,17 @@ Raggiro è un framework completo per l'elaborazione di documenti progettato per 
 
 - **Supporto documenti completo**: PDF (nativi e scansionati), DOCX, TXT, HTML, RTF, XLSX, immagini con testo
 - **Preprocessing avanzato**: Estrazione, pulizia, normalizzazione e segmentazione logica
-- **Estrazione OCR ottimizzata**: Supporto batch per documenti grandi con correzione ortografica automatica
-- **Chunking semantico**: Divisione intelligente del contenuto basata sul significato piuttosto che solo sulla dimensione
+- **Estrazione OCR ottimizzata**: Supporto batch per documenti grandi con rilevamento automatico della lingua
+- **Correzione ortografica intelligente**: Miglioramento automatico della qualità del testo OCR con supporto multilingua
+- **Chunking semantico adattivo**: Divisione intelligente del contenuto basata sul significato con ottimizzazioni per documenti OCR
 - **Estrazione metadata**: Titolo, autore, data, lingua, tipo di documento, rilevamento categoria
 - **Output strutturato**: Formati Markdown e JSON con tutti i metadata
-- **Architettura modulare**: Interfacce CLI, API Python e GUI (Streamlit/Textual)
+- **Interfaccia GUI dedicata**: Sezioni specializzate per OCR e correzione ortografica/semantica
 - **Funzionamento completamente offline**: Funziona senza dipendenze API esterne
 - **Pipeline RAG completa**: Indicizzazione vettoriale, recupero e generazione di risposte integrati
 - **Utilità di testing**: Strumenti per il benchmarking e confronto tra strategie di chunking
 - **Supporto multilingua**: Rilevamento automatico della lingua e mantenimento della coerenza linguistica
-- **Correzione ortografica**: Miglioramento automatico della qualità del testo, particolarmente per OCR
+- **Visualizzazione avanzata**: Dashboard per analizzare la qualità del chunking e della correzione ortografica
 
 ## Documentazione
 
@@ -48,9 +49,22 @@ pip install -e .
 # Elabora un documento
 raggiro process document.pdf --output output_dir
 
-# Avvia l'interfaccia GUI
-raggiro gui
+# Avvia l'interfaccia GUI Streamlit
+python3 scripts/gui/launch_gui.py
+# oppure
+bash scripts/gui/run_streamlit.sh
+
+# Usa l'interfaccia OCR specializzata
+# Seleziona la scheda "OCR & Correction" nell'interfaccia GUI
 ```
+
+### Novità
+
+- **Sezione OCR e Correzione Ortografica**: Nuova scheda dedicata nell'interfaccia GUI
+- **Rilevamento automatico lingua OCR**: Ottimizza l'estrazione di testo dalle immagini
+- **Miglioramenti al chunking semantico**: Algoritmi avanzati per documenti OCR
+- **Visualizzazione analisi chunk**: Metriche dettagliate sulla qualità della segmentazione
+- **Installazione semplificata PromptFoo**: Strumenti migliorati per l'installazione dei componenti di test
 
 ## Contribuire
 

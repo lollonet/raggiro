@@ -38,18 +38,21 @@ def run_app():
     st.write("Process documents for Retrieval-Augmented Generation (RAG) systems")
     
     # Create tabs for different functionality
-    tab1, tab2, tab3, tab4 = st.tabs(["Process Documents", "Test RAG", "View Results", "Configuration"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["Process Documents", "OCR & Correction", "Test RAG", "View Results", "Configuration"])
     
     with tab1:
         process_documents_ui()
     
     with tab2:
-        test_rag_ui()
+        ocr_correction_ui()
     
     with tab3:
-        view_results_ui()
+        test_rag_ui()
     
     with tab4:
+        view_results_ui()
+    
+    with tab5:
         configuration_ui()
 
 def process_documents_ui():
@@ -163,19 +166,335 @@ def process_documents_ui():
                 log_level=log_level,
             )
 
+def ocr_correction_ui():
+    """UI for OCR and spelling/semantic correction."""
+    st.header("OCR & Text Correction")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("Input")
+        
+        # File or directory input
+        input_type = st.radio(
+            "Input Type",
+            options=["Upload Files", "Local Path"],
+            index=0,
+            key="ocr_input_type"
+        )
+        
+        if input_type == "Upload Files":
+            uploaded_files = st.file_uploader(
+                "Upload documents for OCR/correction",
+                accept_multiple_files=True,
+                type=["pdf", "png", "jpg", "jpeg", "tiff", "tif", "bmp"],
+                key="ocr_upload"
+            )
+        else:
+            input_path = st.text_input(
+                "Local Path",
+                placeholder="/path/to/documents",
+                key="ocr_input_path"
+            )
+            recursive = st.checkbox("Process subdirectories", value=True, key="ocr_recursive")
+    
+    with col2:
+        st.subheader("Output Options")
+        
+        # Output format selection
+        output_formats = st.multiselect(
+            "Output Formats",
+            options=["markdown", "json", "txt"],
+            default=["markdown", "json"],
+            key="ocr_output_formats"
+        )
+        
+        # Output path
+        use_temp_dir = st.checkbox("Use temporary directory", value=True, key="ocr_use_temp")
+        if not use_temp_dir:
+            output_path = st.text_input(
+                "Output Path",
+                placeholder="/path/to/output",
+                key="ocr_output_path"
+            )
+        else:
+            output_path = None
+    
+    # OCR settings section
+    st.subheader("OCR Settings")
+    ocr_enabled = st.checkbox("Enable OCR", value=True, key="ocr_enabled")
+    
+    # OCR language options
+    ocr_language_options = [
+        ("auto", "Auto-detect (Recommended)"),
+        ("eng", "English"),
+        ("ita", "Italian"),
+        ("fra", "French"),
+        ("deu", "German"),
+        ("spa", "Spanish"),
+        ("por", "Portuguese"),
+        ("eng+ita", "English + Italian"),
+        ("eng+fra+deu+spa", "Multiple European Languages")
+    ]
+    
+    ocr_language = st.selectbox(
+        "OCR Language",
+        options=[code for code, _ in ocr_language_options],
+        format_func=lambda x: next((name for code, name in ocr_language_options if code == x), x),
+        index=0,
+        key="ocr_language"
+    )
+    
+    # OCR quality settings
+    col1, col2 = st.columns(2)
+    with col1:
+        ocr_dpi = st.slider(
+            "OCR Resolution (DPI)",
+            min_value=150,
+            max_value=600,
+            value=300,
+            step=50,
+            help="Higher values provide better quality but require more memory and processing time",
+            key="ocr_dpi"
+        )
+    
+    with col2:
+        ocr_batch_size = st.slider(
+            "Batch Size",
+            min_value=1,
+            max_value=20,
+            value=10,
+            step=1,
+            help="Number of pages to process in each batch",
+            key="ocr_batch"
+        )
+    
+    # Spelling correction section
+    st.subheader("Spelling Correction")
+    
+    spelling_enabled = st.checkbox("Enable spelling correction", value=True, key="spelling_enabled")
+    
+    # Create columns for spelling settings
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        spelling_backends = {
+            "symspellpy": "SymSpellPy (Fast, recommended)",
+            "textblob": "TextBlob (Good multilingual support)",
+            "wordfreq": "Wordfreq (Lightweight fallback)"
+        }
+        
+        spelling_backend = st.selectbox(
+            "Correction Engine",
+            options=list(spelling_backends.keys()),
+            format_func=lambda x: spelling_backends.get(x, x),
+            key="spelling_backend"
+        )
+        
+        spelling_languages = {
+            "auto": "Auto-detect (Recommended)",
+            "en": "English",
+            "it": "Italian",
+            "fr": "French",
+            "de": "German",
+            "es": "Spanish",
+            "pt": "Portuguese"
+        }
+        
+        spelling_language = st.selectbox(
+            "Correction Language",
+            options=list(spelling_languages.keys()),
+            format_func=lambda x: spelling_languages.get(x, x),
+            key="spelling_language"
+        )
+    
+    with col2:
+        max_edit_distance = st.slider(
+            "Max Edit Distance",
+            min_value=1,
+            max_value=3,
+            value=2,
+            help="Maximum number of character edits for correction suggestions",
+            key="max_edit_distance"
+        )
+        
+        always_correct = st.checkbox(
+            "Apply to all documents (not just OCR)",
+            value=True,
+            help="Apply spelling correction to all documents, not just those processed with OCR",
+            key="always_correct"
+        )
+    
+    # Semantic chunking section
+    st.subheader("Semantic Segmentation")
+    
+    semantic_chunking = st.checkbox("Enable semantic chunking", value=True, key="semantic_chunking")
+    
+    # Create columns for chunking settings
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        chunking_strategies = {
+            "hybrid": "Hybrid (Combines size and semantic approaches)",
+            "semantic": "Semantic (Based on content similarity)",
+            "size": "Size-based (Fixed size chunks)"
+        }
+        
+        chunking_strategy = st.selectbox(
+            "Chunking Strategy",
+            options=list(chunking_strategies.keys()),
+            format_func=lambda x: chunking_strategies.get(x, x),
+            key="chunking_strategy"
+        )
+    
+    with col2:
+        semantic_similarity = st.slider(
+            "Semantic Similarity Threshold",
+            min_value=0.4,
+            max_value=0.9,
+            value=0.55,
+            step=0.05,
+            help="Threshold for semantic similarity when creating chunks (lower = more chunks)",
+            key="semantic_similarity"
+        )
+    
+    # Add advanced options expander
+    with st.expander("Advanced Chunking Options"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            max_chunk_size = st.number_input(
+                "Max Chunk Size",
+                min_value=500,
+                max_value=3000,
+                value=1500,
+                step=100,
+                help="Maximum character count per chunk",
+                key="max_chunk_size"
+            )
+        
+        with col2:
+            chunk_overlap = st.number_input(
+                "Chunk Overlap",
+                min_value=0,
+                max_value=500,
+                value=200,
+                step=50,
+                help="Number of characters to overlap between chunks",
+                key="chunk_overlap"
+            )
+    
+    # Process button
+    process_button = st.button("Process Documents", type="primary", key="ocr_process_btn")
+    
+    if process_button:
+        if input_type == "Upload Files" and not uploaded_files:
+            st.error("Please upload at least one file")
+            return
+        
+        if input_type == "Local Path" and not input_path:
+            st.error("Please enter a local path")
+            return
+        
+        if not use_temp_dir and not output_path:
+            st.error("Please enter an output path")
+            return
+        
+        # Create configuration for the processor
+        config = {
+            "processing": {
+                "dry_run": False,
+                "recursive": recursive if input_type == "Local Path" else False,
+            },
+            "logging": {
+                "log_level": "info",
+            },
+            "extraction": {
+                "ocr_enabled": ocr_enabled,
+                "ocr_language": ocr_language,
+                "ocr_dpi": ocr_dpi,
+                "ocr_batch_size": ocr_batch_size,
+            },
+            "cleaning": {
+                "remove_headers_footers": True,
+                "normalize_whitespace": True,
+                "remove_special_chars": True,
+            },
+            "spelling": {
+                "enabled": spelling_enabled,
+                "language": spelling_language,
+                "backend": spelling_backend,
+                "max_edit_distance": max_edit_distance,
+                "always_correct": always_correct,
+            },
+            "segmentation": {
+                "semantic_chunking": semantic_chunking,
+                "chunking_strategy": chunking_strategy,
+                "semantic_similarity_threshold": semantic_similarity,
+                "max_chunk_size": max_chunk_size,
+                "chunk_overlap": chunk_overlap,
+            },
+            "export": {
+                "formats": output_formats,
+            },
+        }
+        
+        # Process documents with the specialized OCR & correction workflow
+        with st.spinner("Processing documents with OCR and text correction..."):
+            process_documents(
+                input_type=input_type,
+                uploaded_files=uploaded_files if input_type == "Upload Files" else None,
+                input_path=input_path if input_type == "Local Path" else None,
+                recursive=recursive if input_type == "Local Path" else False,
+                output_formats=output_formats,
+                output_path=output_path,
+                use_temp_dir=use_temp_dir,
+                config=config,
+                is_ocr_workflow=True,
+            )
+
 def test_rag_ui():
     """UI for testing RAG capabilities."""
     st.header("Test RAG System")
     
     # Check if promptfoo is installed and show a warning if not
     if not is_package_installed("promptfoo"):
-        st.warning("PromptFoo is not installed. Some test features will be unavailable.")
-        st.markdown("### Install PromptFoo")
-        st.info("PromptFoo is a Node.js application used for advanced RAG testing. Install it with:")
-        st.code("npm install -g promptfoo", language="bash")
-        st.markdown("**Alternative: Use the helper script**")
-        st.code("chmod +x scripts/installation/install_promptfoo.sh && ./scripts/installation/install_promptfoo.sh", language="bash")
-        st.markdown("---")
+        with st.warning("PromptFoo is not installed. Some test features will be unavailable."):
+            st.markdown("### Install PromptFoo")
+            
+            # Find the installation script
+            repo_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            install_script_path = os.path.join(repo_dir, "scripts", "installation", "install_promptfoo.sh")
+            verify_script_path = os.path.join(repo_dir, "scripts", "installation", "verify_promptfoo.sh")
+            
+            if os.path.exists(install_script_path):
+                st.info("PromptFoo installation script found. Use one of these methods to install:")
+                
+                tab1, tab2 = st.tabs(["Method 1: User Installation", "Method 2: Global Installation"])
+                
+                with tab1:
+                    st.markdown("#### User Installation (Recommended)")
+                    st.markdown("This installs PromptFoo in your user directory, avoiding permission issues:")
+                    st.code(f"chmod +x {install_script_path} && {install_script_path}", language="bash")
+                    st.markdown("**After installation**, add this to your ~/.bashrc or ~/.profile:")
+                    st.code("export PATH=\"$HOME/.npm-global/bin:$PATH\"", language="bash")
+                    st.markdown("Then reload your terminal or run:")
+                    st.code("source ~/.bashrc", language="bash")
+                
+                with tab2:
+                    st.markdown("#### Global Installation (Alternative)")
+                    st.markdown("This installs PromptFoo globally (may require sudo):")
+                    st.code("npm install -g promptfoo", language="bash")
+                
+                if os.path.exists(verify_script_path):
+                    st.markdown("#### Verify Installation")
+                    st.markdown("After installing, you can verify your installation with:")
+                    st.code(f"chmod +x {verify_script_path} && {verify_script_path}", language="bash")
+            else:
+                st.info("PromptFoo is a Node.js application used for advanced RAG testing. Install it with:")
+                st.code("npm install -g promptfoo", language="bash")
+            
+            st.markdown("---")
     
     # Input directory (processed documents)
     st.subheader("Input")
@@ -1102,6 +1421,8 @@ def process_documents(
     ocr_enabled: bool = True,
     ocr_language: str = "eng",
     log_level: str = "info",
+    config: Optional[Dict] = None,
+    is_ocr_workflow: bool = False,
 ):
     """Process documents with the selected options.
     
@@ -1118,28 +1439,31 @@ def process_documents(
         ocr_enabled: Whether to enable OCR
         ocr_language: OCR language
         log_level: Logging level
+        config: Optional config dictionary (overrides individual parameters)
+        is_ocr_workflow: Whether this is an OCR-specific workflow (displays additional info)
     """
-    # Create configuration for the processor
-    config = {
-        "processing": {
-            "dry_run": False,
-            "recursive": recursive,
-        },
-        "logging": {
-            "log_level": log_level,
-        },
-        "extraction": {
-            "ocr_enabled": ocr_enabled,
-            "ocr_language": ocr_language,
-        },
-        "segmentation": {
-            "semantic_chunking": semantic_chunking,
-            "chunking_strategy": chunking_strategy,
-        },
-        "export": {
-            "formats": output_formats,
-        },
-    }
+    # Create or use provided configuration
+    if config is None:
+        config = {
+            "processing": {
+                "dry_run": False,
+                "recursive": recursive,
+            },
+            "logging": {
+                "log_level": log_level,
+            },
+            "extraction": {
+                "ocr_enabled": ocr_enabled,
+                "ocr_language": ocr_language,
+            },
+            "segmentation": {
+                "semantic_chunking": semantic_chunking,
+                "chunking_strategy": chunking_strategy,
+            },
+            "export": {
+                "formats": output_formats,
+            },
+        }
     
     # Create processor
     processor = DocumentProcessor(config=config)
@@ -1264,32 +1588,105 @@ def process_documents(
         
         # Display processed files
         if summary["successful_files"] > 0:
+            # Create a DataFrame to display processed files
+            data = []
+            ocr_files = []
+            corrected_files = []
+            chunk_stats = {}
+            
+            # Collect information for all files
+            for r in result["results"]:
+                if r["success"]:
+                    file_path = r["file_path"]
+                    file_name = os.path.basename(file_path)
+                    output_files = []
+                    
+                    # Find output files
+                    for fmt in output_formats:
+                        base_name = os.path.splitext(file_name)[0]
+                        output_file = os.path.join(output_dir, f"{base_name}.{fmt}")
+                        
+                        if os.path.exists(output_file):
+                            output_files.append(output_file)
+                    
+                    # Basic metadata for all files
+                    entry = {
+                        "File": file_name,
+                        "Output Files": ", ".join([os.path.basename(f) for f in output_files]),
+                        "Metadata": json.dumps(r.get("document", {}).get("metadata", {}), indent=2)
+                    }
+                    data.append(entry)
+                    
+                    # Collect OCR and spelling correction stats
+                    document = r.get("document", {})
+                    if document.get("extraction_method") in ["pdf_ocr", "image_ocr"]:
+                        ocr_files.append(file_name)
+                    
+                    if document.get("metadata", {}).get("spelling_corrected"):
+                        corrected_files.append(file_name)
+                    
+                    # Collect chunking stats
+                    chunks = document.get("chunks", [])
+                    if chunks:
+                        chunk_stats[file_name] = {
+                            "chunks": len(chunks),
+                            "avg_size": sum(len(chunk.get("text", "")) for chunk in chunks) // max(1, len(chunks)),
+                            "semantic_chunks": sum(1 for chunk in chunks if chunk.get("semantic", False))
+                        }
+            
+            # Display basic file table
             with st.expander("View processed files"):
-                # Create a DataTable with the processed files
-                data = []
-                
-                for r in result["results"]:
-                    if r["success"]:
-                        file_path = r["file_path"]
-                        file_name = os.path.basename(file_path)
-                        output_files = []
-                        
-                        for fmt in output_formats:
-                            base_name = os.path.splitext(file_name)[0]
-                            output_file = os.path.join(output_dir, f"{base_name}.{fmt}")
-                            
-                            if os.path.exists(output_file):
-                                output_files.append(output_file)
-                        
-                        data.append({
-                            "File": file_name,
-                            "Output Files": ", ".join([os.path.basename(f) for f in output_files]),
-                            "Metadata": json.dumps(r.get("document", {}).get("metadata", {}), indent=2)
-                        })
-                
                 if data:
                     df = pd.DataFrame(data)
                     st.dataframe(df)
+            
+            # Show OCR-specific information if in OCR workflow
+            if is_ocr_workflow:
+                with st.expander("OCR & Correction Details", expanded=True):
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.subheader("OCR Extraction")
+                        if ocr_files:
+                            st.success(f"{len(ocr_files)} files processed with OCR:")
+                            for f in ocr_files:
+                                st.write(f"- {f}")
+                        else:
+                            st.info("No files processed with OCR")
+                    
+                    with col2:
+                        st.subheader("Spelling Correction")
+                        if corrected_files:
+                            st.success(f"{len(corrected_files)} files had spelling correction applied:")
+                            for f in corrected_files:
+                                st.write(f"- {f}")
+                        else:
+                            st.info("No files had spelling correction applied")
+                
+                with st.expander("Chunking Results", expanded=True):
+                    st.subheader("Document Segmentation")
+                    
+                    if chunk_stats:
+                        # Create a DataFrame for chunk statistics
+                        chunk_data = []
+                        for filename, stats in chunk_stats.items():
+                            chunk_data.append({
+                                "File": filename,
+                                "Total Chunks": stats["chunks"],
+                                "Avg. Chunk Size (chars)": stats["avg_size"],
+                                "Semantic Chunks": stats["semantic_chunks"],
+                            })
+                        
+                        # Display as table
+                        chunk_df = pd.DataFrame(chunk_data)
+                        st.table(chunk_df)
+                        
+                        # Show warning if any document has very few chunks
+                        few_chunks = [f for f, stats in chunk_stats.items() if stats["chunks"] < 3]
+                        if few_chunks:
+                            st.warning(f"The following documents have fewer than 3 chunks, which might affect retrieval quality: {', '.join(few_chunks)}")
+                    else:
+                        st.info("No chunking information available")
         
         # Display failed files
         if summary["failed_files"] > 0:
@@ -1589,32 +1986,43 @@ if __name__ == "__main__":
             if not promptfoo_installed:
                 append_log("⚠️ PromptFoo is not installed. PromptFoo is a Node.js application that must be installed via npm.", error=True)
                 append_log("⚠️ Test results will be limited without PromptFoo.", error=True)
-                st.warning("PromptFoo is not installed. Some test features will be unavailable.")
                 
-                st.markdown("### Install PromptFoo")
-                st.info("PromptFoo is a Node.js application used for advanced RAG testing. There are two ways to install it:")
-                
-                tab1, tab2 = st.tabs(["Method 1: User Installation", "Method 2: Project Installation"])
-                
-                with tab1:
-                    st.markdown("#### User Installation (Recommended)")
-                    st.markdown("This installs PromptFoo in your user directory, avoiding permission issues:")
-                    st.code("chmod +x scripts/installation/install_promptfoo.sh && ./scripts/installation/install_promptfoo.sh", language="bash")
-                    st.markdown("**After installation**, add this to your ~/.bashrc or ~/.profile:")
-                    st.code("export PATH=\"$HOME/.npm-global/bin:$PATH\"", language="bash")
-                    st.markdown("Then reload your terminal or run:")
-                    st.code("source ~/.bashrc", language="bash")
-                
-                with tab2:
-                    st.markdown("#### Project Installation (Alternative)")
-                    st.markdown("This installs PromptFoo locally in the project directory:")
-                    st.code("npm install promptfoo --save", language="bash")
-                    st.markdown("Then use `npx promptfoo` instead of just `promptfoo`:")
-                    st.code("npx promptfoo --version", language="bash")
-                
-                st.markdown("#### Troubleshooting")
-                st.markdown("If you encounter issues, run the verification script:")
-                st.code("chmod +x verify_promptfoo.sh && ./verify_promptfoo.sh", language="bash")
+                with st.warning("PromptFoo is not installed. Some test features will be unavailable."):
+                    st.markdown("### Install PromptFoo")
+                    
+                    # Find the installation script
+                    repo_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                    install_script_path = os.path.join(repo_dir, "scripts", "installation", "install_promptfoo.sh")
+                    verify_script_path = os.path.join(repo_dir, "scripts", "installation", "verify_promptfoo.sh")
+                    
+                    if os.path.exists(install_script_path):
+                        st.info("PromptFoo installation script found. Use one of these methods to install:")
+                        
+                        tab1, tab2 = st.tabs(["Method 1: User Installation", "Method 2: Project Installation"])
+                        
+                        with tab1:
+                            st.markdown("#### User Installation (Recommended)")
+                            st.markdown("This installs PromptFoo in your user directory, avoiding permission issues:")
+                            st.code(f"chmod +x {install_script_path} && {install_script_path}", language="bash")
+                            st.markdown("**After installation**, add this to your ~/.bashrc or ~/.profile:")
+                            st.code("export PATH=\"$HOME/.npm-global/bin:$PATH\"", language="bash")
+                            st.markdown("Then reload your terminal or run:")
+                            st.code("source ~/.bashrc", language="bash")
+                        
+                        with tab2:
+                            st.markdown("#### Project Installation (Alternative)")
+                            st.markdown("This installs PromptFoo locally in the project directory:")
+                            st.code("npm install promptfoo --save", language="bash")
+                            st.markdown("Then use `npx promptfoo` instead of just `promptfoo`:")
+                            st.code("npx promptfoo --version", language="bash")
+                        
+                        if os.path.exists(verify_script_path):
+                            st.markdown("#### Troubleshooting")
+                            st.markdown("If you encounter issues, run the verification script:")
+                            st.code(f"chmod +x {verify_script_path} && {verify_script_path}", language="bash")
+                    else:
+                        st.info("PromptFoo is a Node.js application used for advanced RAG testing. Install it with:")
+                        st.code("npm install -g promptfoo", language="bash")
                 # Continue with the test but skip the promptfoo part
                 test_progress.progress(100)
                 return
@@ -1725,12 +2133,18 @@ if __name__ == "__main__":
                         subprocess.run(["promptfoo", "--version"], check=True, capture_output=True)
                         st.info("No PromptFoo result files found.")
                     except (subprocess.CalledProcessError, FileNotFoundError):
-                        st.error("PromptFoo is not installed. PromptFoo is a Node.js application that must be installed via npm.")
-                        st.code("npm install -g promptfoo", language="bash")
-                        # Provide helper script info as an alternative
-                        st.markdown("**Alternative: Use the helper script**")
-                        st.code("chmod +x scripts/installation/install_promptfoo.sh && ./scripts/installation/install_promptfoo.sh", language="bash")
-                        st.info("After installation, restart the application and try again.")
+                        with st.error("PromptFoo is not installed. PromptFoo is a Node.js application that must be installed via npm."):
+                            # Find the installation script
+                            repo_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                            install_script_path = os.path.join(repo_dir, "scripts", "installation", "install_promptfoo.sh")
+                            
+                            if os.path.exists(install_script_path):
+                                st.markdown("**Installation Script Available:**")
+                                st.code(f"chmod +x {install_script_path} && {install_script_path}", language="bash")
+                            else:
+                                st.code("npm install -g promptfoo", language="bash")
+                            
+                            st.info("After installation, restart the application and try again.")
             
             with result_tabs[1]:  # RAG Query Results
                 if result_categories["RAG Query Results"]:

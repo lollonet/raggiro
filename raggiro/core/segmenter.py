@@ -56,6 +56,10 @@ class Segmenter:
             r"^(?:\d+\.)*\d+\s+[A-Z][a-zA-Z\s]+$",  # Numbered headers like "1.2.3 Header"
             r"^[A-Z][a-z]+\s+\d+\s*[:.]\s*[A-Z][a-zA-Z\s]+$",  # "Section 1: Header"
             r"^(?:Chapter|Section|Part|Appendix)\s+[IVXLCDM]+\s*[:.]\s*[A-Z][a-zA-Z\s]+$",  # "Chapter IV: Header"
+            r"^(?:\d+\.)+\s*[A-Z]",  # Hierarchical numbered headers like "1.2.3. Title"
+            r"^[A-Z][A-Za-z\s]{2,20}$",  # Short capitalized titles
+            r"^(?:[A-Z]{1,2}|[IVX]+)\.(?:[A-Z]{1,2}|[IVX]+)\.",  # Hierarchical references like "A.I." or "II.B."
+            r"^[A-Z][a-z]+ \d{1,2}$",  # Simple section identifiers like "Figure 1" or "Table 2"
         ]
         
         # Load spaCy model if enabled
@@ -86,11 +90,27 @@ class Segmenter:
         
         # Extract structural segments
         segments = self._extract_segments(document["text"])
+        
+        # Pass extraction method info to segments if available
+        if "extraction_method" in document:
+            extraction_method = document["extraction_method"]
+            for segment in segments:
+                segment["extraction_method"] = extraction_method
+                
+            # Log info about OCR documents to help with debugging
+            if extraction_method in ["pdf_ocr", "image_ocr"]:
+                print(f"Processing OCR document with {len(segments)} segments")
+                
         result["segments"] = segments
         
         # Create chunks from segments
         chunks = self._create_chunks(segments)
         result["chunks"] = chunks
+        
+        # Log chunking results
+        print(f"Document segmentation complete: {len(segments)} segments → {len(chunks)} chunks")
+        if len(chunks) <= 2 and len(document["text"]) > 1000:
+            print(f"WARNING: Document was segmented into only {len(chunks)} chunks despite having {len(document['text'])} characters")
         
         return result
     
@@ -112,21 +132,33 @@ class Segmenter:
         # First try standard double newline approach
         paragraphs = re.split(r"\n\s*\n", text)
         
-        # If we only got a few large paragraphs, try additional splitting approaches
-        if len(paragraphs) < 10 and len(text) > 5000:
+        # For OCR documents, be more aggressive with segmentation
+        is_likely_ocr = len(text) > 1000 and (len(text.split()) / len(text.split('\n')) > 20)
+        
+        # If we only got a few large paragraphs or likely OCR text, try additional splitting approaches
+        if (len(paragraphs) < 10 and len(text) > 3000) or is_likely_ocr:
             # Try splitting by single newlines followed by indentation or bullet points
             paragraphs = re.split(r"\n(?=\s{2,}|\t|•|\*|\-|[0-9]+\.|\([0-9]+\))", text)
             
+            # For OCR documents, also look for potential section breaks
+            if is_likely_ocr:
+                # Look for sentences that might indicate section breaks (all caps terms, etc.)
+                ocr_para_splits = re.split(r'(?<=[.!?])\s+(?=[A-Z]{2,})', text)
+                
+                # If this gives us more reasonable segments, use it
+                if len(ocr_para_splits) > len(paragraphs) * 1.2:
+                    paragraphs = ocr_para_splits
+            
             # If still insufficient, try splitting by sentences for very large paragraphs
-            if len(paragraphs) < 15 and any(len(p) > 1000 for p in paragraphs):
+            if len(paragraphs) < 15 and any(len(p) > 800 for p in paragraphs):
                 new_paragraphs = []
                 for p in paragraphs:
-                    if len(p) > 1000:
+                    if len(p) > 800:
                         # Split large paragraphs into sentence groups
                         sentences = re.split(r'(?<=[.!?])\s+(?=[A-Z])', p)
                         # Group sentences into smaller paragraph units (3-5 sentences per unit)
-                        for i in range(0, len(sentences), 3):
-                            group = " ".join(sentences[i:i+3])
+                        for i in range(0, len(sentences), 4):
+                            group = " ".join(sentences[i:i+4])
                             if group.strip():
                                 new_paragraphs.append(group)
                     else:
@@ -284,6 +316,30 @@ class Segmenter:
         current_chunk_text = ""
         current_chunk_segments = []
         
+        # Special handling for OCR documents: look for indicators
+        is_ocr_document = False
+        extraction_method = None
+        
+        # Check if we have extraction method info in the first segment
+        if segments and len(segments) > 0:
+            for segment in segments:
+                if "extraction_method" in segment:
+                    extraction_method = segment.get("extraction_method")
+                    if extraction_method in ["pdf_ocr", "image_ocr"]:
+                        is_ocr_document = True
+                        print(f"Detected OCR document with method: {extraction_method}")
+                        break
+        
+        # Adjust chunk size target based on document type
+        effective_max_size = self.max_chunk_size
+        if is_ocr_document:
+            # For OCR documents, we want to ensure we have enough content in each chunk
+            # but avoid having only 1-2 large chunks
+            if len(segments) < 5:
+                # Very few segments, use a smaller max size to force more chunks
+                effective_max_size = min(self.max_chunk_size, 800)
+                print(f"OCR document with few segments detected, using reduced max size: {effective_max_size}")
+        
         for segment in segments:
             # Skip extremely short segments (like single words)
             if segment["length"] < 5:
@@ -296,7 +352,7 @@ class Segmenter:
                 continue
             
             # For sections and paragraphs, check if adding would exceed max size
-            if len(current_chunk_text) + segment["length"] > self.max_chunk_size and current_chunk_text:
+            if len(current_chunk_text) + segment["length"] > effective_max_size and current_chunk_text:
                 # Save current chunk
                 chunks.append({
                     "text": current_chunk_text.strip(),
@@ -340,10 +396,60 @@ class Segmenter:
                 "length": len(current_chunk_text),
             })
         
+        # Check if we ended up with too few chunks for the document size
+        total_text = sum(len(seg["text"]) for seg in segments)
+        min_expected_chunks = max(2, total_text // 1000)
+        
+        # If we have fewer chunks than expected for the document size, subdivide the largest chunks
+        if len(chunks) < min_expected_chunks and total_text > 2000:
+            print(f"Document produced only {len(chunks)} chunks, expected at least {min_expected_chunks}. Subdividing...")
+            
+            # Sort chunks by size to identify the largest ones
+            chunks_by_size = sorted(chunks, key=lambda c: c["length"], reverse=True)
+            
+            # Take the largest chunks and split them further
+            for i in range(min(3, len(chunks_by_size))):
+                large_chunk = chunks_by_size[i]
+                
+                # Only process truly large chunks
+                if large_chunk["length"] < 800:
+                    continue
+                    
+                # Split the chunk text into sentences
+                sentences = re.split(r'(?<=[.!?])\s+(?=[A-Z])', large_chunk["text"])
+                
+                # If we can meaningfully split this chunk
+                if len(sentences) >= 6:
+                    # Remove the original chunk from the list
+                    chunks.remove(large_chunk)
+                    
+                    # Split into two roughly equal parts
+                    mid_point = len(sentences) // 2
+                    
+                    # Create two new chunks
+                    first_half = {
+                        "text": " ".join(sentences[:mid_point]),
+                        "segments": large_chunk["segments"][:len(large_chunk["segments"])//2],
+                        "length": len(" ".join(sentences[:mid_point])),
+                    }
+                    
+                    second_half = {
+                        "text": " ".join(sentences[mid_point:]),
+                        "segments": large_chunk["segments"][len(large_chunk["segments"])//2:],
+                        "length": len(" ".join(sentences[mid_point:])),
+                    }
+                    
+                    # Add the new chunks to the list
+                    chunks.append(first_half)
+                    chunks.append(second_half)
+                    
+                    print(f"Split a large chunk of {large_chunk['length']} chars into two of {first_half['length']} and {second_half['length']} chars")
+        
         # Add chunk IDs
         for i, chunk in enumerate(chunks):
             chunk["id"] = f"chunk_{i+1}"
         
+        print(f"Created {len(chunks)} chunks from {len(segments)} segments")
         return chunks
     
     def _create_semantic_chunks(self, segments: List[Dict]) -> List[Dict]:
@@ -375,6 +481,20 @@ class Segmenter:
         # Compute similarity matrix
         similarity_matrix = cosine_similarity(normalized_embeddings)
         
+        # Check if this is an OCR document that might need special handling
+        is_ocr_document = False
+        for segment in filtered_segments:
+            if segment.get("extraction_method") in ["pdf_ocr", "image_ocr"]:
+                is_ocr_document = True
+                print("Using adjusted semantic similarity for OCR document")
+                break
+                
+        # Adjust similarity threshold for OCR documents
+        similarity_threshold = self.semantic_similarity_threshold
+        if is_ocr_document:
+            # Use a lower threshold for OCR documents since they might have errors
+            similarity_threshold = max(0.45, similarity_threshold - 0.15)
+            
         # Group segments into chunks based on semantic similarity
         chunks = []
         used_segments = set()
@@ -390,10 +510,15 @@ class Segmenter:
                 for j, other_segment in enumerate(filtered_segments):
                     if j != i and j not in used_segments:
                         # Check semantic similarity and add if above threshold
-                        if similarity_matrix[i, j] >= self.semantic_similarity_threshold:
+                        if similarity_matrix[i, j] >= similarity_threshold:
                             chunk_segments.append(other_segment)
                             chunk_text += other_segment["text"] + "\n\n"
                             used_segments.add(j)
+                            
+                            # For OCR documents, limit the chunk size more strictly to prevent 
+                            # getting just one huge chunk
+                            if is_ocr_document and len(chunk_text) > self.max_chunk_size * 0.8:
+                                break
                 
                 chunks.append({
                     "text": chunk_text.strip(),
@@ -408,12 +533,21 @@ class Segmenter:
                 chunk_text = segment["text"] + "\n\n"
                 used_segments.add(i)
                 
+                # Determine max allowed chunk size
+                max_size_multiplier = 1.5  # Allow slightly larger chunks for semantic coherence
+                if is_ocr_document:
+                    # For OCR, use a smaller multiplier and lower absolute limit
+                    max_size_multiplier = 1.2
+                    max_allowed_size = min(self.max_chunk_size * max_size_multiplier, 1200)
+                else:
+                    max_allowed_size = self.max_chunk_size * max_size_multiplier
+                
                 # Find semantically related segments
                 for j, other_segment in enumerate(filtered_segments):
                     if j != i and j not in used_segments:
                         # Check semantic similarity and chunk size limit
-                        if (similarity_matrix[i, j] >= self.semantic_similarity_threshold and 
-                            len(chunk_text) + other_segment["length"] <= self.max_chunk_size * 1.5):  # Allow slightly larger chunks for semantic coherence
+                        if (similarity_matrix[i, j] >= similarity_threshold and 
+                            len(chunk_text) + other_segment["length"] <= max_allowed_size):
                             chunk_segments.append(other_segment)
                             chunk_text += other_segment["text"] + "\n\n"
                             used_segments.add(j)
@@ -461,6 +595,26 @@ class Segmenter:
         # Compute similarity matrix
         similarity_matrix = cosine_similarity(normalized_embeddings)
         
+        # Check if this is an OCR document
+        is_ocr_document = False
+        for chunk in size_chunks:
+            for segment in chunk.get("segments", []):
+                if segment.get("extraction_method") in ["pdf_ocr", "image_ocr"]:
+                    is_ocr_document = True
+                    print("Using adjusted hybrid chunking strategy for OCR document")
+                    break
+            if is_ocr_document:
+                break
+        
+        # Adjust similarity threshold and size limits for OCR documents
+        similarity_threshold = self.semantic_similarity_threshold
+        max_size_multiplier = 1.5
+        if is_ocr_document:
+            # For OCR documents, be more conservative with merging to prevent very large chunks
+            similarity_threshold = max(0.5, similarity_threshold - 0.1)
+            max_size_multiplier = 1.2
+            print(f"Adjusted OCR similarity threshold: {similarity_threshold}, size multiplier: {max_size_multiplier}")
+        
         # Merge similar chunks that are below the size limit
         final_chunks = []
         used_chunks = set()
@@ -476,22 +630,36 @@ class Segmenter:
             }
             used_chunks.add(i)
             
+            # Determine max allowed size for merged chunks
+            if is_ocr_document:
+                max_allowed_size = min(self.max_chunk_size * max_size_multiplier, 1200)
+            else:
+                max_allowed_size = self.max_chunk_size * max_size_multiplier
+            
             # Look for similar chunks to merge
             for j, other_chunk in enumerate(size_chunks):
                 if j != i and j not in used_chunks:
                     # Check semantic similarity and combined size
-                    if (similarity_matrix[i, j] >= self.semantic_similarity_threshold and
-                        merged_chunk["length"] + other_chunk["length"] <= self.max_chunk_size * 1.5):
+                    if (similarity_matrix[i, j] >= similarity_threshold and
+                        merged_chunk["length"] + other_chunk["length"] <= max_allowed_size):
                         
                         # Merge the chunks
                         merged_chunk["text"] += "\n\n" + other_chunk["text"]
                         merged_chunk["segments"].extend(other_chunk["segments"])
                         merged_chunk["length"] = len(merged_chunk["text"])
                         used_chunks.add(j)
+                        
+                        # For OCR documents, limit the number of merges to prevent very large chunks
+                        if is_ocr_document and merged_chunk["length"] > self.max_chunk_size * 0.8:
+                            break
             
             # Add semantic flag
             merged_chunk["semantic"] = True
+            merged_chunk["hybrid"] = True
             final_chunks.append(merged_chunk)
+            
+        # Log chunking statistics
+        print(f"Hybrid chunking: {len(size_chunks)} size chunks → {len(final_chunks)} final chunks")
         
         # Add chunk IDs
         for i, chunk in enumerate(final_chunks):
