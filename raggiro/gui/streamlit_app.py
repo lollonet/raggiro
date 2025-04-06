@@ -411,12 +411,49 @@ def ocr_correction_ui():
         ocr_batch_size = st.slider(
             "Batch Size",
             min_value=1,
-            max_value=20,
-            value=10,
-            step=1,
+            max_value=40,
+            value=20,
+            step=5,
             help="Number of pages to process in each batch",
             key="ocr_batch"
         )
+    
+    # Advanced OCR page settings in an expander
+    with st.expander("Advanced OCR Page Settings"):
+        st.markdown("##### Page Selection Settings")
+        st.info("These settings control which pages are processed in large documents")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            ocr_max_pages = st.number_input(
+                "Max Pages to Process",
+                min_value=0,
+                max_value=1000,
+                value=0,
+                step=10,
+                help="Maximum number of pages to process (0 = all pages)",
+                key="ocr_max_pages"
+            )
+        
+        with col2:
+            ocr_page_step = st.number_input(
+                "Process Every N Pages",
+                min_value=1,
+                max_value=20,
+                value=1,
+                step=1,
+                help="Process every N pages (1 = all pages, 2 = every other page, etc.)",
+                key="ocr_page_step"
+            )
+            
+        st.markdown("##### For Large Documents (e.g., 88 pages)")
+        st.markdown("""
+        - Use **Process Every N Pages** to process a subset (e.g., set to 2 to process every other page)
+        - OR set **Max Pages** to a reasonable number (e.g., 40) to only process the first part
+        - Increase **Batch Size** to process more pages at once if you have enough memory
+        """)
+        
     
     # Spelling correction section
     st.subheader("Spelling Correction")
@@ -563,6 +600,8 @@ def ocr_correction_ui():
                 "ocr_language": ocr_language,
                 "ocr_dpi": ocr_dpi,
                 "ocr_batch_size": ocr_batch_size,
+                "ocr_max_pages": ocr_max_pages,
+                "ocr_page_step": ocr_page_step,
             },
             "cleaning": {
                 "remove_headers_footers": True,

@@ -52,7 +52,9 @@ class Extractor:
         # Advanced OCR settings
         self.ocr_dpi = extraction_config.get("ocr_dpi", 300)
         self.ocr_max_image_size = extraction_config.get("ocr_max_image_size", 4000)
-        self.ocr_batch_size = extraction_config.get("ocr_batch_size", 10)
+        self.ocr_batch_size = extraction_config.get("ocr_batch_size", 20)  # Increased from 10 to 20
+        self.ocr_max_pages = extraction_config.get("ocr_max_pages", 0)  # 0 = process all pages
+        self.ocr_page_step = extraction_config.get("ocr_page_step", 1)  # Process every N page (1 = all pages)
         
         # Configure pytesseract path if provided
         tesseract_path = extraction_config.get("tesseract_path")
@@ -283,27 +285,47 @@ class Extractor:
             # Extract text from each page using OCR
             full_text = []
             pages = []
-            max_pages = len(doc)
+            total_doc_pages = len(doc)
+            
+            # Apply max_pages limitation if specified
+            if self.ocr_max_pages > 0 and self.ocr_max_pages < total_doc_pages:
+                max_pages = self.ocr_max_pages
+                print(f"Limiting OCR to first {max_pages} pages (document has {total_doc_pages} pages)")
+            else:
+                max_pages = total_doc_pages
+                
+            # Apply page step (process every Nth page)
+            if self.ocr_page_step > 1:
+                page_indices = list(range(0, max_pages, self.ocr_page_step))
+                print(f"Processing every {self.ocr_page_step} page ({len(page_indices)} of {max_pages} pages)")
+            else:
+                page_indices = list(range(max_pages))
+                
             batch_size = self.ocr_batch_size
             
-            # Log the total number of pages
-            print(f"OCR processing PDF with {max_pages} pages using batch size {batch_size}")
+            # Log the OCR processing settings
+            print(f"OCR processing {len(page_indices)} pages with batch size {batch_size}")
+            print(f"Settings: DPI={self.ocr_dpi}, Language={self.ocr_language}, Max image size={self.ocr_max_image_size}px")
             start_time = time.time()
             
             # Process pages in batches to manage memory
-            for batch_start in range(0, max_pages, batch_size):
-                batch_end = min(batch_start + batch_size, max_pages)
-                print(f"Processing batch of pages {batch_start+1}-{batch_end} of {max_pages}")
+            batch_indices = [page_indices[i:i+batch_size] for i in range(0, len(page_indices), batch_size)]
+            
+            for batch_num, batch_page_indices in enumerate(batch_indices):
+                batch_start = batch_page_indices[0] + 1  # 1-based for display
+                batch_end = batch_page_indices[-1] + 1   # 1-based for display
+                print(f"Processing batch {batch_num+1}/{len(batch_indices)}: pages {batch_start}-{batch_end} of {max_pages}")
                 batch_start_time = time.time()
                 
                 # Process each page in the current batch
-                for i in range(batch_start, batch_end):
+                for page_idx in batch_page_indices:
                     try:
-                        page = doc[i]
+                        # Use the actual page index for the document
+                        page = doc[page_idx]
                         page_start_time = time.time()
                         
-                        # Log progress for debugging
-                        print(f"OCR processing page {i+1}/{max_pages}")
+                        # Log progress for debugging (use 1-based page numbers for display)
+                        print(f"OCR processing page {page_idx+1}/{total_doc_pages}")
                         
                         # Calculate zoom factor based on page dimensions and max image size
                         rect = page.rect
@@ -379,24 +401,24 @@ class Extractor:
                         char_count = len(text)
                         full_text.append(text)
                         pages.append({
-                            "page_num": i + 1,
+                            "page_num": page_idx + 1,
                             "text": text,
                             "has_text": bool(text.strip()),
                             "char_count": char_count,
                             "processing_time": time.time() - page_start_time
                         })
                         
-                        print(f"Page {i+1} OCR extracted {char_count} characters")
+                        print(f"Page {page_idx+1} OCR extracted {char_count} characters")
                         
-                        print(f"Page {i+1} OCR completed in {time.time() - page_start_time:.2f} seconds")
+                        print(f"Page {page_idx+1} OCR completed in {time.time() - page_start_time:.2f} seconds")
                         
                     except Exception as page_error:
-                        print(f"Error processing page {i+1}: {str(page_error)}")
+                        print(f"Error processing page {page_idx+1}: {str(page_error)}")
                         # Add placeholder for failed page
-                        full_text.append(f"[ERROR: Failed to process page {i+1}]")
+                        full_text.append(f"[ERROR: Failed to process page {page_idx+1}]")
                         pages.append({
-                            "page_num": i + 1,
-                            "text": f"[ERROR: Failed to process page {i+1} - {str(page_error)}]",
+                            "page_num": page_idx + 1,
+                            "text": f"[ERROR: Failed to process page {page_idx+1} - {str(page_error)}]",
                             "has_text": False,
                         })
                 
