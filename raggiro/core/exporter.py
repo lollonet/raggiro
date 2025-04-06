@@ -84,15 +84,21 @@ class Exporter:
                     
                     # If this is a corrected document, generate corrected PDF if configured
                     if (is_ocr_document or has_spell_correction) and self.save_corrected_pdf:
-                        corrected_pdf_path = output_dir / f"{base_filename}_corrected.pdf"
-                        self._export_corrected_pdf(document, corrected_pdf_path)
-                        result["formats"]["corrected_pdf"] = str(corrected_pdf_path)
+                        try:
+                            corrected_pdf_path = output_dir / f"{base_filename}_corrected.pdf"
+                            self._export_corrected_pdf(document, corrected_pdf_path)
+                            result["formats"]["corrected_pdf"] = str(corrected_pdf_path)
+                        except Exception as e:
+                            print(f"Warning: Failed to create corrected PDF: {str(e)}")
                     
                     # Generate side-by-side comparison if configured
                     if (is_ocr_document or has_spell_correction) and self.generate_comparison:
-                        comparison_pdf_path = output_dir / f"{base_filename}_comparison.pdf"
-                        self._export_comparison_pdf(document, comparison_pdf_path)
-                        result["formats"]["comparison_pdf"] = str(comparison_pdf_path)
+                        try:
+                            comparison_pdf_path = output_dir / f"{base_filename}_comparison.pdf"
+                            self._export_comparison_pdf(document, comparison_pdf_path)
+                            result["formats"]["comparison_pdf"] = str(comparison_pdf_path)
+                        except Exception as e:
+                            print(f"Warning: Failed to create comparison PDF: {str(e)}")
             
             result["success"] = True
             
@@ -316,6 +322,15 @@ class Exporter:
         """
         if not HAS_FITZ:
             raise ImportError("PyMuPDF (fitz) is required to create PDF files")
+            
+        # List of built-in PDF fonts we can use safely
+        BUILTIN_FONTS = ["helv", "times", "courier", "symbol", "zapf"]
+        # Default to Helvetica for all text
+        DEFAULT_FONT = "helv"
+        
+        # Set text size limits to avoid overflows
+        MAX_TEXT_SIZE = 100000  # Maximum character count for a single textbox
+        MAX_PAGE_LENGTH = 5000  # Maximum length of text per page
         
         # Create a new PDF document
         doc = fitz.open()
@@ -345,6 +360,7 @@ class Exporter:
                     # Add a header to indicate this is a corrected version with char count
                     char_count = page_data.get("char_count", len(page_text))
                     header_text = f"Corrected Text - Page {i+1}/{len(pages)} ({char_count} chars)"
+                    # Use 'helv' (Helvetica) font which is built-in to PDF
                     page.insert_text((50, 50), header_text, fontsize=12, fontname="helv", color=(0, 0, 0.8))
                     
                     # Add a divider line
@@ -352,8 +368,20 @@ class Exporter:
                     
                     # Add the text content
                     rect = fitz.Rect(50, 80, 545, 792)  # Leave margins
-                    page.insert_textbox(rect, page_text, fontsize=10, fontname="helv",
-                                       align=0, color=(0, 0, 0))
+                    try:
+                        # Truncate text if it's too long to avoid memory issues
+                        if len(page_text) > MAX_TEXT_SIZE:
+                            truncated_text = page_text[:MAX_TEXT_SIZE] + "\n\n[... Text truncated due to size limits. See JSON for full content ...]"
+                            print(f"Warning: Truncating page {i+1} text from {len(page_text)} to {len(truncated_text)} characters")
+                            page_text = truncated_text
+                            
+                        page.insert_textbox(rect, page_text, fontsize=10, fontname="helv",
+                                          align=0, color=(0, 0, 0))
+                    except Exception as e:
+                        # If textbox fails, try simpler text insertion with fallback
+                        print(f"Warning: Failed to insert text box, using simpler method: {str(e)}")
+                        page.insert_text((50, 100), "Error rendering text. See JSON output for content.", 
+                                       fontsize=10, fontname="helv", color=(0.8, 0, 0))
         else:
             # If no individual pages, use the full text
             full_text = document.get("text", "")
@@ -370,8 +398,39 @@ class Exporter:
                 
                 # Add the text content
                 rect = fitz.Rect(50, 80, 545, 792)  # Leave margins
-                page.insert_textbox(rect, full_text, fontsize=10, fontname="helv",
-                                   align=0, color=(0, 0, 0))
+                try:
+                    # Split into multiple pages if text is very long
+                    if len(full_text) > MAX_PAGE_LENGTH:
+                        # Create a multi-page document
+                        current_text = full_text
+                        page_number = 1
+                        
+                        while current_text:
+                            # Take a chunk of text for this page
+                            page_chunk = current_text[:MAX_PAGE_LENGTH]
+                            current_text = current_text[MAX_PAGE_LENGTH:]
+                            
+                            if page_number > 1:
+                                # Create a new page for the next chunk
+                                page = doc.new_page(width=595, height=842)  # A4 size
+                                header_text = f"Corrected Text - Page {page_number}"
+                                page.insert_text((50, 50), header_text, fontsize=12, fontname="helv", color=(0, 0, 0.8))
+                                page.draw_line((50, 70), (545, 70), color=(0, 0, 0.5), width=1)
+                                
+                            # Insert this chunk
+                            page.insert_textbox(rect, page_chunk, fontsize=10, fontname="helv",
+                                              align=0, color=(0, 0, 0))
+                            
+                            page_number += 1
+                    else:
+                        # Short enough for a single page
+                        page.insert_textbox(rect, full_text, fontsize=10, fontname="helv",
+                                          align=0, color=(0, 0, 0))
+                except Exception as e:
+                    # If textbox fails, try simpler text insertion with fallback
+                    print(f"Warning: Failed to insert text box, using simpler method: {str(e)}")
+                    page.insert_text((50, 100), "Error rendering text. See JSON output for content.", 
+                                   fontsize=10, fontname="helv", color=(0.8, 0, 0))
         
         # Save the PDF
         doc.save(output_path)
@@ -386,6 +445,10 @@ class Exporter:
         """
         if not HAS_FITZ:
             raise ImportError("PyMuPDF (fitz) is required to create PDF files")
+            
+        # Set text size limits to avoid overflows
+        MAX_TEXT_SIZE = 50000  # Maximum character count for a single textbox in comparison
+        MAX_PAGE_LENGTH = 3000  # Maximum length of text per page in comparison
         
         # Create a new PDF document
         doc = fitz.open()
@@ -439,9 +502,9 @@ class Exporter:
                 header_text = f"Text Comparison - Page {i+1}/{len(pages)} (Original: {orig_len} chars, Corrected: {corr_len} chars, Diff: {diff_sign}{char_diff})"
                 page.insert_text((50, 40), header_text, fontsize=12, fontname="helv", color=(0, 0, 0.8))
                 
-                # Add section titles
-                page.insert_text((150, 70), "Original Text", fontsize=11, fontname="helv-b", color=(0, 0, 0))
-                page.insert_text((550, 70), "Corrected Text", fontsize=11, fontname="helv-b", color=(0, 0, 0))
+                # Add section titles - use standard helvetica (helv) which is built into PDFs
+                page.insert_text((150, 70), "Original Text", fontsize=11, fontname="helv", color=(0, 0, 0))
+                page.insert_text((550, 70), "Corrected Text", fontsize=11, fontname="helv", color=(0, 0, 0))
                 
                 # Add divider lines
                 page.draw_line((50, 80), (792, 80), color=(0, 0, 0.5), width=1)  # Horizontal
@@ -451,13 +514,39 @@ class Exporter:
                 rect_orig = fitz.Rect(50, 90, 411, 545)  # Left column
                 rect_corr = fitz.Rect(431, 90, 792, 545)  # Right column
                 
-                # Insert original text
-                page.insert_textbox(rect_orig, original_text, fontsize=10, fontname="helv",
-                                   align=0, color=(0, 0, 0))
+                # Insert original text with error handling and size management
+                try:
+                    # Truncate text if it's too long to avoid memory issues
+                    if len(original_text) > MAX_TEXT_SIZE:
+                        truncated_text = original_text[:MAX_TEXT_SIZE] + "\n\n[... Text truncated due to size limits ...]"
+                        print(f"Warning: Truncating original text from {len(original_text)} to {len(truncated_text)} characters")
+                        original_text = truncated_text
+                        
+                    page.insert_textbox(rect_orig, original_text, fontsize=10, fontname="helv",
+                                       align=0, color=(0, 0, 0))
+                except Exception as e:
+                    # If textbox fails, try simpler text insertion
+                    print(f"Warning: Failed to insert original text box: {str(e)}")
+                    page.insert_text((rect_orig.x0, rect_orig.y0 + 20), 
+                                   "Error rendering text. See JSON output for content.", 
+                                   fontsize=10, fontname="helv", color=(0.8, 0, 0))
                 
-                # Insert corrected text
-                page.insert_textbox(rect_corr, corrected_text, fontsize=10, fontname="helv",
-                                   align=0, color=(0, 0, 0))
+                # Insert corrected text with error handling and size management
+                try:
+                    # Truncate text if it's too long to avoid memory issues
+                    if len(corrected_text) > MAX_TEXT_SIZE:
+                        truncated_text = corrected_text[:MAX_TEXT_SIZE] + "\n\n[... Text truncated due to size limits ...]"
+                        print(f"Warning: Truncating corrected text from {len(corrected_text)} to {len(truncated_text)} characters")
+                        corrected_text = truncated_text
+                        
+                    page.insert_textbox(rect_corr, corrected_text, fontsize=10, fontname="helv",
+                                       align=0, color=(0, 0, 0))
+                except Exception as e:
+                    # If textbox fails, try simpler text insertion
+                    print(f"Warning: Failed to insert corrected text box: {str(e)}")
+                    page.insert_text((rect_corr.x0, rect_corr.y0 + 20), 
+                                   "Error rendering text. See JSON output for content.", 
+                                   fontsize=10, fontname="helv", color=(0.8, 0, 0))
         else:
             # If no individual pages, use the full text
             corrected_text = document.get("text", "")
@@ -478,9 +567,9 @@ class Exporter:
             header_text = f"Text Comparison (Original: {orig_len} chars, Corrected: {corr_len} chars, Diff: {diff_sign}{char_diff})"
             page.insert_text((50, 40), header_text, fontsize=12, fontname="helv", color=(0, 0, 0.8))
             
-            # Add section titles
-            page.insert_text((150, 70), "Original Text", fontsize=11, fontname="helv-b", color=(0, 0, 0))
-            page.insert_text((550, 70), "Corrected Text", fontsize=11, fontname="helv-b", color=(0, 0, 0))
+            # Add section titles - use standard helvetica (helv) which is built into PDFs
+            page.insert_text((150, 70), "Original Text", fontsize=11, fontname="helv", color=(0, 0, 0))
+            page.insert_text((550, 70), "Corrected Text", fontsize=11, fontname="helv", color=(0, 0, 0))
             
             # Add divider lines
             page.draw_line((50, 80), (792, 80), color=(0, 0, 0.5), width=1)  # Horizontal
@@ -490,13 +579,39 @@ class Exporter:
             rect_orig = fitz.Rect(50, 90, 411, 545)  # Left column
             rect_corr = fitz.Rect(431, 90, 792, 545)  # Right column
             
-            # Insert original text
-            page.insert_textbox(rect_orig, original_text, fontsize=10, fontname="helv",
-                               align=0, color=(0, 0, 0))
+            # Insert original text with error handling and size management
+            try:
+                # Truncate text if it's too long to avoid memory issues
+                if len(original_text) > MAX_TEXT_SIZE:
+                    truncated_text = original_text[:MAX_TEXT_SIZE] + "\n\n[... Text truncated due to size limits ...]"
+                    print(f"Warning: Truncating original text from {len(original_text)} to {len(truncated_text)} characters")
+                    original_text = truncated_text
+                    
+                page.insert_textbox(rect_orig, original_text, fontsize=10, fontname="helv",
+                                   align=0, color=(0, 0, 0))
+            except Exception as e:
+                # If textbox fails, try simpler text insertion
+                print(f"Warning: Failed to insert original text box: {str(e)}")
+                page.insert_text((rect_orig.x0, rect_orig.y0 + 20), 
+                               "Error rendering text. See JSON output for content.", 
+                               fontsize=10, fontname="helv", color=(0.8, 0, 0))
             
-            # Insert corrected text
-            page.insert_textbox(rect_corr, corrected_text, fontsize=10, fontname="helv",
-                               align=0, color=(0, 0, 0))
+            # Insert corrected text with error handling and size management
+            try:
+                # Truncate text if it's too long to avoid memory issues
+                if len(corrected_text) > MAX_TEXT_SIZE:
+                    truncated_text = corrected_text[:MAX_TEXT_SIZE] + "\n\n[... Text truncated due to size limits ...]"
+                    print(f"Warning: Truncating corrected text from {len(corrected_text)} to {len(truncated_text)} characters")
+                    corrected_text = truncated_text
+                    
+                page.insert_textbox(rect_corr, corrected_text, fontsize=10, fontname="helv",
+                                   align=0, color=(0, 0, 0))
+            except Exception as e:
+                # If textbox fails, try simpler text insertion
+                print(f"Warning: Failed to insert corrected text box: {str(e)}")
+                page.insert_text((rect_corr.x0, rect_corr.y0 + 20), 
+                               "Error rendering text. See JSON output for content.", 
+                               fontsize=10, fontname="helv", color=(0.8, 0, 0))
         
         # Save the PDF
         doc.save(output_path)
