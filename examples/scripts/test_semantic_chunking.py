@@ -35,6 +35,13 @@ def parse_arguments():
                         help='Query da testare (opzionale)')
     parser.add_argument('--top-k', type=int, default=3,
                         help='Numero di chunk da recuperare per query (default: 3)')
+    # Add Ollama configuration options
+    parser.add_argument('--ollama-url', type=str, default='http://ollama:11434',
+                        help='URL del server Ollama')
+    parser.add_argument('--rewriting-model', type=str, default='llama3',
+                        help='Nome del modello Ollama per il rewriting delle query')
+    parser.add_argument('--generation-model', type=str, default='mistral',
+                        help='Nome del modello Ollama per la generazione delle risposte')
     return parser.parse_args()
 
 def main():
@@ -52,36 +59,39 @@ def main():
     config_path = root_dir / "config" / "config.toml"
     print(f"Loading config from: {config_path}")
     
-    # Use a manually created config with the correct Ollama URL from the TOML file
-    print("Creating config with proper Ollama settings")
+    # Use a manually created config with the correct Ollama URL from the command line args
+    print("Creating config with Ollama settings from command line arguments")
     
     config = {
         "llm": {
             "provider": "ollama",
-            "ollama_base_url": "http://ollama:11434",
+            "ollama_base_url": args.ollama_url,
             "ollama_timeout": 30
         },
         "rewriting": {
             "enabled": True,
             "llm_type": "ollama", 
-            "ollama_model": "llama3",
+            "ollama_model": args.rewriting_model,
             "temperature": 0.1,
             "max_tokens": 200,
-            "ollama_base_url": "http://ollama:11434"
+            "ollama_base_url": args.ollama_url
         },
         "generation": {
             "llm_type": "ollama",
-            "ollama_model": "mistral", 
+            "ollama_model": args.generation_model, 
             "temperature": 0.7,
             "max_tokens": 1000,
-            "ollama_base_url": "http://ollama:11434"
+            "ollama_base_url": args.ollama_url
         },
         "segmentation": {
             "semantic_chunking": True,
             "chunking_strategy": "hybrid"
         }
     }
-    print(f"Using hardcoded config with Ollama URL: {config['llm']['ollama_base_url']}")
+    # Print configuration details for verification
+    print(f"Using Ollama URL: {config['llm']['ollama_base_url']}")
+    print(f"Using rewriting model: {config['rewriting']['ollama_model']}")
+    print(f"Using generation model: {config['generation']['ollama_model']}")
     print(f"Strategia di chunking attuale: {config.get('segmentation', {}).get('chunking_strategy', 'size')}")
     
     # Process the document

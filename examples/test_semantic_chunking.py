@@ -35,6 +35,13 @@ def parse_arguments():
                         help='Query da testare (opzionale)')
     parser.add_argument('--top-k', type=int, default=3,
                         help='Numero di chunk da recuperare per query (default: 3)')
+    # Add Ollama configuration options
+    parser.add_argument('--ollama-url', type=str, default='http://ollama:11434',
+                        help='URL del server Ollama')
+    parser.add_argument('--rewriting-model', type=str, default='llama3',
+                        help='Nome del modello Ollama per il rewriting delle query')
+    parser.add_argument('--generation-model', type=str, default='mistral',
+                        help='Nome del modello Ollama per la generazione delle risposte')
     return parser.parse_args()
 
 def main():
@@ -52,40 +59,60 @@ def main():
     config_path = root_dir / "config" / "config.toml"
     print(f"Loading config from: {config_path}")
     
-    # Try loading configuration, but handle interpolation errors
+    # Try loading configuration, but handle interpolation errors and override with command line args
     try:
         # First try to load with utility function
         config = load_config(str(config_path))
+        # Override config with command line args
+        if "llm" not in config:
+            config["llm"] = {}
+        config["llm"]["provider"] = "ollama"
+        config["llm"]["ollama_base_url"] = args.ollama_url
+        
+        if "rewriting" not in config:
+            config["rewriting"] = {}
+        config["rewriting"]["llm_type"] = "ollama"
+        config["rewriting"]["ollama_model"] = args.rewriting_model
+        config["rewriting"]["ollama_base_url"] = args.ollama_url
+        
+        if "generation" not in config:
+            config["generation"] = {}
+        config["generation"]["llm_type"] = "ollama"
+        config["generation"]["ollama_model"] = args.generation_model
+        config["generation"]["ollama_base_url"] = args.ollama_url
     except Exception as e:
         print(f"Error loading config directly: {str(e)}")
-        # Fall back to hardcoded config with correct Ollama URL
+        # Fall back to config with command line args
         config = {
             "llm": {
                 "provider": "ollama",
-                "ollama_base_url": "http://ollama:11434",
+                "ollama_base_url": args.ollama_url,
                 "ollama_timeout": 30
             },
             "rewriting": {
                 "enabled": True,
                 "llm_type": "ollama",
-                "ollama_model": "llama3",
+                "ollama_model": args.rewriting_model,
                 "temperature": 0.1,
                 "max_tokens": 200,
-                "ollama_base_url": "http://ollama:11434"
+                "ollama_base_url": args.ollama_url
             },
             "generation": {
                 "llm_type": "ollama",
-                "ollama_model": "mistral",
+                "ollama_model": args.generation_model,
                 "temperature": 0.7,
                 "max_tokens": 1000,
-                "ollama_base_url": "http://ollama:11434"
+                "ollama_base_url": args.ollama_url
             },
             "segmentation": {
                 "semantic_chunking": True,
                 "chunking_strategy": "hybrid"
             }
         }
-    print(f"Config load via utility - Ollama URL: {config.get('llm', {}).get('ollama_base_url', 'Not set in utility load')}")
+    # Print configuration details for verification
+    print(f"Using Ollama URL: {config.get('llm', {}).get('ollama_base_url', 'Not set')}")
+    print(f"Using rewriting model: {config.get('rewriting', {}).get('ollama_model', 'Not set')}")
+    print(f"Using generation model: {config.get('generation', {}).get('ollama_model', 'Not set')}")
     print(f"Strategia di chunking attuale: {config.get('segmentation', {}).get('chunking_strategy', 'size')}")
     
     # Process the document

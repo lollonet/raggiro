@@ -1439,13 +1439,38 @@ if __name__ == "__main__":
         test_file = test_file_candidates[0]
         st.info(f"Testing with file: {os.path.basename(test_file)}")
         
-        # Prepare the command with all available options
+        # Load configuration to get Ollama settings
+        config_path = os.path.join(repo_dir, "config", "config.toml")
+        try:
+            config = load_config(str(config_path))
+            append_log(f"Loaded config from {config_path}")
+            
+            # Get Ollama settings from config
+            ollama_url = config.get('llm', {}).get('ollama_base_url', 'http://ollama:11434')
+            rewriting_model = config.get('rewriting', {}).get('ollama_model', 'llama3')
+            generation_model = config.get('generation', {}).get('ollama_model', 'mistral')
+            
+            append_log(f"Using Ollama URL: {ollama_url}")
+            append_log(f"Using rewriting model: {rewriting_model}")
+            append_log(f"Using generation model: {generation_model}")
+        except Exception as e:
+            append_log(f"Warning: Error loading config: {str(e)}, using default values", error=True)
+            # Default values
+            ollama_url = "http://ollama:11434"
+            rewriting_model = "llama3"
+            generation_model = "mistral"
+        
+        # Prepare the command with all available options and Ollama config
         command = [
             "python", 
             semantic_chunking_script, 
             "--input", test_file, 
             "--output", output_dir,
-            "--index", os.path.join(output_dir, "index")
+            "--index", os.path.join(output_dir, "index"),
+            # Add Ollama configuration options (modify if your script accepts these)
+            "--ollama-url", ollama_url,
+            "--rewriting-model", rewriting_model,
+            "--generation-model", generation_model
         ]
         
         # Try to find test queries in the prompt file
