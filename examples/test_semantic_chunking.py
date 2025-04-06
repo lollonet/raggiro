@@ -52,8 +52,39 @@ def main():
     config_path = root_dir / "config" / "config.toml"
     print(f"Loading config from: {config_path}")
     
-    # Load configuration through the utility function
-    config = load_config(str(config_path))
+    # Try loading configuration, but handle interpolation errors
+    try:
+        # First try to load with utility function
+        config = load_config(str(config_path))
+    except Exception as e:
+        print(f"Error loading config directly: {str(e)}")
+        # Fall back to hardcoded config with correct Ollama URL
+        config = {
+            "llm": {
+                "provider": "ollama",
+                "ollama_base_url": "http://ollama:11434",
+                "ollama_timeout": 30
+            },
+            "rewriting": {
+                "enabled": True,
+                "llm_type": "ollama",
+                "ollama_model": "llama3",
+                "temperature": 0.1,
+                "max_tokens": 200,
+                "ollama_base_url": "http://ollama:11434"
+            },
+            "generation": {
+                "llm_type": "ollama",
+                "ollama_model": "mistral",
+                "temperature": 0.7,
+                "max_tokens": 1000,
+                "ollama_base_url": "http://ollama:11434"
+            },
+            "segmentation": {
+                "semantic_chunking": True,
+                "chunking_strategy": "hybrid"
+            }
+        }
     print(f"Config load via utility - Ollama URL: {config.get('llm', {}).get('ollama_base_url', 'Not set in utility load')}")
     print(f"Strategia di chunking attuale: {config.get('segmentation', {}).get('chunking_strategy', 'size')}")
     

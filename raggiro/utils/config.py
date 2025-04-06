@@ -78,7 +78,38 @@ def load_config(config_path: Optional[str] = None) -> Dict:
             try:
                 import toml
                 with open(config_path_obj, "r", encoding="utf-8") as f:
-                    config = toml.load(f)
+                    try:
+                        config = toml.load(f)
+                    except Exception as e:
+                        # If standard TOML loading fails (likely due to variable interpolation)
+                        print(f"Warning: Standard TOML loading failed: {e}")
+                        # Create a minimal config with the essentials, especially Ollama URL
+                        config = {
+                            "llm": {
+                                "provider": "ollama",
+                                "ollama_base_url": "http://ollama:11434",
+                                "ollama_timeout": 30
+                            },
+                            "rewriting": {
+                                "enabled": True,
+                                "llm_type": "ollama",
+                                "ollama_model": "llama3",
+                                "temperature": 0.1,
+                                "max_tokens": 200,
+                                "ollama_base_url": "http://ollama:11434"
+                            },
+                            "generation": {
+                                "llm_type": "ollama",
+                                "ollama_model": "mistral",
+                                "temperature": 0.7,
+                                "max_tokens": 1000,
+                                "ollama_base_url": "http://ollama:11434"
+                            },
+                            "segmentation": {
+                                "semantic_chunking": True,
+                                "chunking_strategy": "hybrid"
+                            }
+                        }
             except ImportError:
                 print("Error: TOML support requires 'toml' package. Install with: pip install toml")
                 sys.exit(1)

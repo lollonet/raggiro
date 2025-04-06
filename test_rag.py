@@ -39,8 +39,21 @@ INPUT_JSON = Path(args.input)
 # Load configuration
 config_path = current_dir / "config" / "config.toml"
 print(f"Loading config from: {config_path}")
-config = load_config(str(config_path))
-print(f"Using Ollama URL: {config.get('llm', {}).get('ollama_base_url', 'Not set')}")
+
+try:
+    config = load_config(str(config_path))
+    print(f"Using Ollama URL: {config.get('llm', {}).get('ollama_base_url', 'Not set')}")
+except Exception as e:
+    print(f"Error loading config: {str(e)}")
+    print("Using hardcoded configuration with correct Ollama URL")
+    config = {
+        "llm": {
+            "provider": "ollama",
+            "ollama_base_url": "http://ollama:11434",
+            "ollama_timeout": 30
+        }
+    }
+    print(f"Using Ollama URL: {config['llm']['ollama_base_url']}")
 
 print("=== Test della pipeline RAG ===")
 print(f"File di input: {INPUT_JSON}")

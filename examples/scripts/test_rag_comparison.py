@@ -208,7 +208,39 @@ def main():
     # Load configuration with proper path
     config_path = root_dir / "config" / "config.toml"
     print(f"Loading config from: {config_path}")
-    config = load_config(str(config_path))
+    
+    # Try loading configuration, but handle interpolation errors
+    try:
+        config = load_config(str(config_path))
+    except Exception as e:
+        print(f"Error loading config: {str(e)}")
+        print("Using hardcoded configuration with correct Ollama URL")
+        config = {
+            "llm": {
+                "provider": "ollama",
+                "ollama_base_url": "http://ollama:11434",
+                "ollama_timeout": 30
+            },
+            "rewriting": {
+                "enabled": True,
+                "llm_type": "ollama",
+                "ollama_model": "llama3",
+                "temperature": 0.1,
+                "max_tokens": 200,
+                "ollama_base_url": "http://ollama:11434"
+            },
+            "generation": {
+                "llm_type": "ollama",
+                "ollama_model": "mistral",
+                "temperature": 0.7,
+                "max_tokens": 1000,
+                "ollama_base_url": "http://ollama:11434"
+            },
+            "segmentation": {
+                "semantic_chunking": True,
+                "chunking_strategy": "hybrid"
+            }
+        }
     
     # Process with each strategy
     print(f"=== Confronto strategie di chunking per: {args.input} ===")

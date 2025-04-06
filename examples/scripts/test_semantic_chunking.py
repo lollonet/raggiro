@@ -52,26 +52,35 @@ def main():
     config_path = root_dir / "config" / "config.toml"
     print(f"Loading config from: {config_path}")
     
-    # Skip TOML direct loading due to variable interpolation issues
-    print("TOML direct loading skipped - TOML file uses variable interpolation")
+    # Use a manually created config with the correct Ollama URL from the TOML file
+    print("Creating config with proper Ollama settings")
     
-    # Load the configuration from the TOML file
-    try:
-        config = load_config(str(config_path))
-        print(f"Successfully loaded configuration from {config_path}")
-    except Exception as e:
-        print(f"Error loading config: {e}, falling back to default configuration")
-        config = {
-            "llm": {
-                "provider": "ollama",
-                "ollama_base_url": "http://ollama:11434",
-                "ollama_timeout": 30
-            },
-            "segmentation": {
-                "semantic_chunking": True,
-                "chunking_strategy": "hybrid"
-            }
+    config = {
+        "llm": {
+            "provider": "ollama",
+            "ollama_base_url": "http://ollama:11434",
+            "ollama_timeout": 30
+        },
+        "rewriting": {
+            "enabled": True,
+            "llm_type": "ollama", 
+            "ollama_model": "llama3",
+            "temperature": 0.1,
+            "max_tokens": 200,
+            "ollama_base_url": "http://ollama:11434"
+        },
+        "generation": {
+            "llm_type": "ollama",
+            "ollama_model": "mistral", 
+            "temperature": 0.7,
+            "max_tokens": 1000,
+            "ollama_base_url": "http://ollama:11434"
+        },
+        "segmentation": {
+            "semantic_chunking": True,
+            "chunking_strategy": "hybrid"
         }
+    }
     print(f"Using hardcoded config with Ollama URL: {config['llm']['ollama_base_url']}")
     print(f"Strategia di chunking attuale: {config.get('segmentation', {}).get('chunking_strategy', 'size')}")
     
