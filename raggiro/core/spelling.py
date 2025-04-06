@@ -338,6 +338,9 @@ class SpellingCorrector:
             
         result = document.copy()
         
+        # Save the original text for comparison purposes
+        result["original_text"] = document["text"]
+        
         # Detect language from the full document text
         detected_lang = None
         if self.language == "auto":
@@ -348,15 +351,29 @@ class SpellingCorrector:
         print(f"Applying spelling correction to document text ({len(document['text'])} chars)...")
         result["text"] = self.correct_text(document["text"])
         
-        # Correct each page
+        # Correct each page and preserve original text
         corrected_pages = []
+        original_pages = []
+        
         for i, page in enumerate(document.get("pages", [])):
             print(f"Applying spelling correction to page {i+1}...")
+            
+            # Save original page
+            original_pages.append(page.copy())
+            
+            # Create corrected page
             page_copy = page.copy()
-            page_copy["text"] = self.correct_text(page["text"])
+            original_text = page["text"]
+            corrected_text = self.correct_text(original_text)
+            
+            # Save both versions
+            page_copy["raw_text"] = original_text
+            page_copy["text"] = corrected_text
+            
             corrected_pages.append(page_copy)
         
         result["pages"] = corrected_pages
+        result["original_pages"] = original_pages
         
         # Add spelling correction metadata
         result["metadata"] = result.get("metadata", {})

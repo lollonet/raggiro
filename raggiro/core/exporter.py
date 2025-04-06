@@ -6,6 +6,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
+# For PDF creation
+try:
+    import fitz  # PyMuPDF
+    HAS_FITZ = True
+except ImportError:
+    HAS_FITZ = False
+
 class Exporter:
     """Exports processed documents in various formats."""
     
@@ -23,6 +30,11 @@ class Exporter:
         self.include_metadata = export_config.get("include_metadata", True)
         self.pretty_json = export_config.get("pretty_json", True)
         self.json_indent = 2 if self.pretty_json else None
+        
+        # Configure PDF output settings
+        pdf_config = self.config.get("pdf_output", {})
+        self.save_corrected_pdf = pdf_config.get("save_corrected_pdf", True)
+        self.generate_comparison = pdf_config.get("generate_comparison", True)
     
     def export(self, document: Dict, output_dir: Union[str, Path]) -> Dict:
         """Export a processed document to the specified formats.
@@ -64,6 +76,23 @@ class Exporter:
                     output_path = output_dir / f"{base_filename}.txt"
                     self._export_text(document, output_path)
                     result["formats"]["txt"] = str(output_path)
+                    
+                elif format_name == "pdf" and HAS_FITZ:
+                    # Check if this is an OCR document with spelling correction
+                    has_spell_correction = document.get("metadata", {}).get("spelling_corrected", False)
+                    is_ocr_document = document.get("extraction_method", "") in ["pdf_ocr", "image_ocr"]
+                    
+                    # If this is a corrected document, generate corrected PDF if configured
+                    if (is_ocr_document or has_spell_correction) and self.save_corrected_pdf:
+                        corrected_pdf_path = output_dir / f"{base_filename}_corrected.pdf"
+                        self._export_corrected_pdf(document, corrected_pdf_path)
+                        result["formats"]["corrected_pdf"] = str(corrected_pdf_path)
+                    
+                    # Generate side-by-side comparison if configured
+                    if (is_ocr_document or has_spell_correction) and self.generate_comparison:
+                        comparison_pdf_path = output_dir / f"{base_filename}_comparison.pdf"
+                        self._export_comparison_pdf(document, comparison_pdf_path)
+                        result["formats"]["comparison_pdf"] = str(comparison_pdf_path)
             
             result["success"] = True
             
@@ -277,3 +306,187 @@ class Exporter:
         # Write to file
         with open(output_path, "w", encoding="utf-8") as f:
             f.write("\n".join(content))
+            
+    def _export_corrected_pdf(self, document: Dict, output_path: Path) -> None:
+        """Export a PDF with corrected text.
+        
+        Args:
+            document: Processed document dictionary
+            output_path: Output file path
+        """
+        if not HAS_FITZ:
+            raise ImportError("PyMuPDF (fitz) is required to create PDF files")
+        
+        # Create a new PDF document
+        doc = fitz.open()
+        
+        # Get document metadata
+        metadata = document.get("metadata", {})
+        
+        # Set document metadata
+        doc.set_metadata({
+            "title": metadata.get("title", ""),
+            "author": metadata.get("author", ""),
+            "subject": "Corrected document from OCR",
+            "creator": "Raggiro OCR Correction",
+            "producer": "Raggiro",
+            "creationDate": fitz.get_pdf_now(),
+        })
+        
+        # Process each page separately if available
+        pages = document.get("pages", [])
+        if pages:
+            for i, page_data in enumerate(pages):
+                page_text = page_data.get("text", "")
+                if page_text:
+                    # Create a new page in the PDF
+                    page = doc.new_page(width=595, height=842)  # A4 size
+                    
+                    # Add a header to indicate this is a corrected version
+                    header_text = f"Corrected Text - Page {i+1}/{len(pages)}"
+                    page.insert_text((50, 50), header_text, fontsize=12, fontname="helv", color=(0, 0, 0.8))
+                    
+                    # Add a divider line
+                    page.draw_line((50, 70), (545, 70), color=(0, 0, 0.5), width=1)
+                    
+                    # Add the text content
+                    rect = fitz.Rect(50, 80, 545, 792)  # Leave margins
+                    page.insert_textbox(rect, page_text, fontsize=10, fontname="helv",
+                                       align=0, color=(0, 0, 0))
+        else:
+            # If no individual pages, use the full text
+            full_text = document.get("text", "")
+            if full_text:
+                # Create a new page in the PDF
+                page = doc.new_page(width=595, height=842)  # A4 size
+                
+                # Add a header to indicate this is a corrected version
+                header_text = "Corrected Text"
+                page.insert_text((50, 50), header_text, fontsize=12, fontname="helv", color=(0, 0, 0.8))
+                
+                # Add a divider line
+                page.draw_line((50, 70), (545, 70), color=(0, 0, 0.5), width=1)
+                
+                # Add the text content
+                rect = fitz.Rect(50, 80, 545, 792)  # Leave margins
+                page.insert_textbox(rect, full_text, fontsize=10, fontname="helv",
+                                   align=0, color=(0, 0, 0))
+        
+        # Save the PDF
+        doc.save(output_path)
+        doc.close()
+        
+    def _export_comparison_pdf(self, document: Dict, output_path: Path) -> None:
+        """Export a PDF with side-by-side comparison of original and corrected text.
+        
+        Args:
+            document: Processed document dictionary
+            output_path: Output file path
+        """
+        if not HAS_FITZ:
+            raise ImportError("PyMuPDF (fitz) is required to create PDF files")
+        
+        # Create a new PDF document
+        doc = fitz.open()
+        
+        # Get document metadata
+        metadata = document.get("metadata", {})
+        
+        # Set document metadata
+        doc.set_metadata({
+            "title": metadata.get("title", ""),
+            "author": metadata.get("author", ""),
+            "subject": "Text comparison document",
+            "creator": "Raggiro OCR Correction",
+            "producer": "Raggiro",
+            "creationDate": fitz.get_pdf_now(),
+        })
+        
+        # Extract original and corrected text
+        # Check if we have explicit original_text in the document
+        has_original = "original_text" in document or "original_pages" in document
+        
+        # Process each page separately if available
+        pages = document.get("pages", [])
+        original_pages = document.get("original_pages", [])
+        
+        # If we don't have explicit original text, check if the extraction method is OCR
+        is_ocr = document.get("extraction_method", "") in ["pdf_ocr", "image_ocr"]
+        
+        if pages:
+            # Create a page for each text page
+            for i, page_data in enumerate(pages):
+                corrected_text = page_data.get("text", "")
+                
+                # Get original text if available
+                original_text = ""
+                if has_original and i < len(original_pages):
+                    original_text = original_pages[i].get("text", "")
+                elif is_ocr and "raw_text" in page_data:
+                    # For OCR documents, we might have the raw text before correction
+                    original_text = page_data.get("raw_text", "")
+                
+                # Create a new page for side-by-side comparison
+                page = doc.new_page(width=842, height=595)  # A4 landscape
+                
+                # Add a header
+                header_text = f"Text Comparison - Page {i+1}/{len(pages)}"
+                page.insert_text((50, 40), header_text, fontsize=12, fontname="helv", color=(0, 0, 0.8))
+                
+                # Add section titles
+                page.insert_text((150, 70), "Original Text", fontsize=11, fontname="helv-b", color=(0, 0, 0))
+                page.insert_text((550, 70), "Corrected Text", fontsize=11, fontname="helv-b", color=(0, 0, 0))
+                
+                # Add divider lines
+                page.draw_line((50, 80), (792, 80), color=(0, 0, 0.5), width=1)  # Horizontal
+                page.draw_line((421, 80), (421, 545), color=(0, 0, 0.5), width=1)  # Vertical divider
+                
+                # Add text content in two columns
+                rect_orig = fitz.Rect(50, 90, 411, 545)  # Left column
+                rect_corr = fitz.Rect(431, 90, 792, 545)  # Right column
+                
+                # Insert original text
+                page.insert_textbox(rect_orig, original_text, fontsize=10, fontname="helv",
+                                   align=0, color=(0, 0, 0))
+                
+                # Insert corrected text
+                page.insert_textbox(rect_corr, corrected_text, fontsize=10, fontname="helv",
+                                   align=0, color=(0, 0, 0))
+        else:
+            # If no individual pages, use the full text
+            corrected_text = document.get("text", "")
+            original_text = document.get("original_text", "")
+            
+            if not original_text and is_ocr and "raw_text" in document:
+                original_text = document.get("raw_text", "")
+            
+            # Create a new page for side-by-side comparison
+            page = doc.new_page(width=842, height=595)  # A4 landscape
+            
+            # Add a header
+            header_text = "Text Comparison"
+            page.insert_text((50, 40), header_text, fontsize=12, fontname="helv", color=(0, 0, 0.8))
+            
+            # Add section titles
+            page.insert_text((150, 70), "Original Text", fontsize=11, fontname="helv-b", color=(0, 0, 0))
+            page.insert_text((550, 70), "Corrected Text", fontsize=11, fontname="helv-b", color=(0, 0, 0))
+            
+            # Add divider lines
+            page.draw_line((50, 80), (792, 80), color=(0, 0, 0.5), width=1)  # Horizontal
+            page.draw_line((421, 80), (421, 545), color=(0, 0, 0.5), width=1)  # Vertical divider
+            
+            # Add text content in two columns
+            rect_orig = fitz.Rect(50, 90, 411, 545)  # Left column
+            rect_corr = fitz.Rect(431, 90, 792, 545)  # Right column
+            
+            # Insert original text
+            page.insert_textbox(rect_orig, original_text, fontsize=10, fontname="helv",
+                               align=0, color=(0, 0, 0))
+            
+            # Insert corrected text
+            page.insert_textbox(rect_corr, corrected_text, fontsize=10, fontname="helv",
+                               align=0, color=(0, 0, 0))
+        
+        # Save the PDF
+        doc.save(output_path)
+        doc.close()
