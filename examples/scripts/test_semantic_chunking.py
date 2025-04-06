@@ -102,6 +102,12 @@ def main():
             if isinstance(document_data, dict) and 'chunks' in document_data and 'metadata' in document_data:
                 print(f"Successfully loaded pre-processed document from JSON")
                 process_result = {"success": True, "document": document_data}
+                
+                # Save the processed JSON to the output directory for indexing
+                output_json_path = output_dir / f"{input_path.stem}_processed.json"
+                print(f"Saving processed document to {output_json_path} for indexing")
+                with open(output_json_path, 'w', encoding='utf-8') as f:
+                    json.dump(document_data, f, ensure_ascii=False, indent=2)
             else:
                 # Process it as a normal file
                 print(f"JSON doesn't contain a valid document structure, processing as regular file")
