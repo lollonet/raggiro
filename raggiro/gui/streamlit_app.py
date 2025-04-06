@@ -1691,14 +1691,14 @@ def display_single_rag_result(item, index, is_error=False):
         if "rewritten_query" in item and item["rewritten_query"] != query:
             st.markdown(f"**Rewritten Query:** {item['rewritten_query']}")
             # Show a visual comparison
-            with st.expander("Compare Queries"):
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.markdown("**Original**")
-                    st.code(query)
-                with col2:
-                    st.markdown("**Rewritten**")
-                    st.code(item["rewritten_query"])
+            st.markdown("**Query Comparison:**")
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("**Original**")
+                st.code(query)
+            with col2:
+                st.markdown("**Rewritten**")
+                st.code(item["rewritten_query"])
         
         # Display error if present
         if "error" in item:

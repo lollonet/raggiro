@@ -1,6 +1,6 @@
 #!/bin/bash
-# Streamlit launcher script for Raggiro
-# This script helps to properly launch the Streamlit UI with correct environment setup
+# Multiple approach launcher script for Raggiro
+# This script tries several methods to run the GUI reliably
 
 # Determine script directory
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -8,27 +8,40 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 # Set Python path to include the project directory
 export PYTHONPATH="$SCRIPT_DIR:$PYTHONPATH"
 
+# Make sure all scripts are executable
+chmod +x "$SCRIPT_DIR/launch_gui.py"
+chmod +x "$SCRIPT_DIR/direct_run.py"
+chmod +x "$SCRIPT_DIR/raggiro/gui/streamlit_app.py"
+
 # Ensure we're using the correct configuration
 export STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
 export STREAMLIT_THEME_BASE="light"
-# Disable file watching to prevent issues with torch._classes
-export STREAMLIT_SERVER_FILE_WATCHER=false
+export STREAMLIT_SERVER_FILEWATCH_TYPE=none
 
-# Check if the streamlit command is available
-if ! command -v streamlit &> /dev/null; then
-    echo "Streamlit is not installed. Installing..."
-    pip install streamlit
-fi
+# Check if the user specified a method
+METHOD=${1:-"direct"}
 
-# Version-aware streamlit launcher
-echo "Launching Raggiro Streamlit interface..."
+echo "Launching Raggiro GUI using $METHOD method..."
 
-# Always use the direct file path - more compatible with all versions
-STREAMLIT_APP_PATH="$SCRIPT_DIR/raggiro/gui/streamlit_app.py"
-echo "Running: streamlit run $STREAMLIT_APP_PATH --server.fileWatcherType none"
-
-# Make sure the script has proper permissions
-chmod +x "$STREAMLIT_APP_PATH"
-
-# Launch Streamlit explicitly with the 'run' command and disable file watcher
-exec streamlit run "$STREAMLIT_APP_PATH" --server.fileWatcherType none
+case "$METHOD" in
+    "direct")
+        # Try the direct Python method (most compatible with PyTorch)
+        echo "Using direct Python launcher..."
+        exec python "$SCRIPT_DIR/direct_run.py"
+        ;;
+    "monkey")
+        # Try the monkeypatching method
+        echo "Using monkeypatching launcher..."
+        exec "$SCRIPT_DIR/launch_gui.py"
+        ;;
+    "streamlit")
+        # Try the regular Streamlit method
+        echo "Using standard Streamlit launcher..."
+        exec streamlit run "$SCRIPT_DIR/raggiro/gui/streamlit_app.py" --server.fileWatcherType none
+        ;;
+    *)
+        echo "Unknown method: $METHOD"
+        echo "Available methods: direct, monkey, streamlit"
+        exit 1
+        ;;
+esac
