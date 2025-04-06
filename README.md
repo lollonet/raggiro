@@ -53,7 +53,7 @@ pip install -r requirements-dev.txt
 # For vector database support
 pip install -e ".[qdrant]"
 
-# For testing capabilities
+# For testing capabilities (including PromptFoo)
 pip install -e ".[test]"
 
 # For all optional dependencies
@@ -683,13 +683,30 @@ Total processing time: 1579ms
 
 Raggiro includes comprehensive tools for testing and evaluating your RAG system, accessible through both command-line interfaces and the GUI:
 
+### Testing Dependencies
+
+Raggiro uses [PromptFoo](https://www.promptfoo.dev/) for advanced RAG evaluation and testing. This allows you to compare different chunking strategies, evaluate response quality, and generate metrics on your RAG system's performance.
+
+#### Installing PromptFoo
+
+To use the full testing capabilities, you need to install PromptFoo:
+
+```bash
+pip install promptfoo
+```
+
+If PromptFoo is not installed, the Streamlit interface will show an error message with installation instructions. Basic testing will still work, but advanced evaluation features will be limited.
+
 ### Running Evaluation Tests
 
 #### Command Line Testing
 
 ```bash
 # Run promptfoo evaluations
-raggiro test-rag --prompt-set config/test_prompts.yaml --output test_results
+raggiro test-rag --prompt-set test_prompts/kenny_werner.yaml --output test_results
+
+# Override Ollama settings when running tests
+raggiro test-rag --prompt-set test_prompts/scrum_guide.yaml --output test_results --ollama-url http://localhost:11434
 
 # Test semantic chunking with a specific document
 python -m raggiro.examples.scripts.test_semantic_chunking --input /path/to/your/document.pdf --output test_output
@@ -707,6 +724,8 @@ The Streamlit GUI provides a user-friendly interface for RAG testing:
    - Choose from predefined test prompts or create custom ones
    - Execute tests with real-time progress tracking
    - View results immediately after test completion
+   - Automatic PromptFoo installation detection with helpful messages
+   - Full test execution with logs and progress indicators
 
 2. **View Results Tab**:
    - Browse test history across different test runs
@@ -892,11 +911,22 @@ You can also use the testing utilities programmatically:
 from raggiro.testing.promptfoo_runner import run_tests
 
 # Run tests with custom prompt set and output directory
-results = run_tests("path/to/prompts.yaml", "path/to/output")
+results = run_tests(
+    prompt_file="test_prompts/kenny_werner.yaml", 
+    output_dir="test_output",
+    index_dir="index_directory"  # Optional path to vector index
+)
 
-# Check test results
-print(f"Tests run: {results['tests_run']}")
-print(f"Success rate: {results['success_rate']}%")
+# Check if PromptFoo is installed and tests succeeded
+if not results["success"]:
+    error = results.get("error", "Unknown error")
+    if "promptfoo not installed" in error:
+        print("PromptFoo is not installed. Install with: pip install promptfoo")
+    else:
+        print(f"Test failed: {error}")
+else:
+    print(f"Tests run: {results['tests_run']}")
+    print(f"Results saved to: {results.get('output_file')}")
 ```
 
 ## API Reference
