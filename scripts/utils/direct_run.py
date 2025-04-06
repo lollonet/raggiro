@@ -15,14 +15,19 @@ os.environ["STREAMLIT_SERVER_HEADLESS"] = "true"
 os.environ["STREAMLIT_SERVER_FILEWATCH_TYPE"] = "none"
 os.environ["STREAMLIT_BROWSER_GATHER_USAGE_STATS"] = "false"
 
-# Get the repository root directory
-repo_dir = Path(__file__).parent.resolve()
+# Get the repository root directory (3 levels up: scripts/utils -> scripts -> root)
+repo_dir = Path(__file__).parent.parent.parent.resolve()
 
 # Add repo to Python path
 sys.path.insert(0, str(repo_dir))
 
 # The streamlit app path
 app_path = repo_dir / "raggiro" / "gui" / "streamlit_app.py"
+
+# Debug information
+print(f"Repository directory: {repo_dir}")
+print(f"Streamlit app path: {app_path}")
+print(f"Path exists: {app_path.exists()}")
 
 print("Launching Raggiro GUI directly...")
 

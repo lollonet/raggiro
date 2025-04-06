@@ -53,21 +53,27 @@ def main():
     """Main entry point for the GUI launcher"""
     print("Launching Raggiro GUI...")
     
-    # Get the repository root directory
+    # Get the repository root directory (2 levels up: scripts/gui -> scripts -> root)
     script_dir = Path(__file__).parent.resolve()
+    repo_dir = script_dir.parent.parent.resolve()
     
     # Create the monkeypatch module
     monkeypatch_dir = create_temp_module()
     
     # Add the monkeypatch directory to the beginning of sys.path
-    os.environ["PYTHONPATH"] = f"{monkeypatch_dir}:{script_dir}:{os.environ.get('PYTHONPATH', '')}"
+    os.environ["PYTHONPATH"] = f"{monkeypatch_dir}:{repo_dir}:{os.environ.get('PYTHONPATH', '')}"
     
     # Set Streamlit configuration
     os.environ["STREAMLIT_BROWSER_GATHER_USAGE_STATS"] = "false"
     os.environ["STREAMLIT_SERVER_FILEWATCH_TYPE"] = "none"
     
     # Define the app path
-    app_path = script_dir / "raggiro" / "gui" / "streamlit_app.py"
+    app_path = repo_dir / "raggiro" / "gui" / "streamlit_app.py"
+    
+    # Debug info
+    print(f"Repository directory: {repo_dir}")
+    print(f"Streamlit app path: {app_path}")
+    print(f"Path exists: {app_path.exists()}")
     
     # Create the command to run streamlit directly
     cmd = [
