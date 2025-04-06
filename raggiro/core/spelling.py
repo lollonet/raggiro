@@ -71,13 +71,35 @@ class SpellingCorrector:
         if not self.enabled:
             return
         
+        # Try each backend in order until one succeeds
+        backends = []
         if self.backend == "symspellpy":
-            self._initialize_symspellpy()
+            backends = ["symspellpy", "textblob", "wordfreq"]
         elif self.backend == "textblob":
-            self._initialize_textblob()
+            backends = ["textblob", "wordfreq", "symspellpy"]
         else:
-            # Use a simple word frequency based approach as fallback
-            self._initialize_wordfreq()
+            backends = ["wordfreq", "symspellpy", "textblob"]
+            
+        # Try each backend in preferred order
+        for backend in backends:
+            if backend == "symspellpy":
+                success = self._initialize_symspellpy()
+                if success:
+                    self.backend = "symspellpy"
+                    return
+            elif backend == "textblob":
+                success = self._initialize_textblob()
+                if success:
+                    self.backend = "textblob"
+                    return
+            elif backend == "wordfreq":
+                success = self._initialize_wordfreq()
+                if success:
+                    self.backend = "wordfreq"
+                    return
+                    
+        # If we got here, no backend was successful
+        print("WARNING: No spelling correction backend could be initialized. Spelling correction disabled.")
     
     def _initialize_symspellpy(self):
         """Initialize SymSpellPy backend."""
@@ -102,15 +124,21 @@ class SpellingCorrector:
             # Load dictionary
             if not sym_spell.load_dictionary(dictionary_path, term_index=0, count_index=1):
                 print(f"Warning: Failed to load SymSpellPy dictionary for {lang_code}")
-                return
+                return False
                 
             self.spellchecker = sym_spell
             self.verbosity = Verbosity.CLOSEST  # Use the closest match
             print(f"Initialized SymSpellPy with {lang_code} dictionary")
+            return True
             
         except ImportError:
-            print("Warning: symspellpy package not found. Spelling correction disabled.")
+            print("Warning: symspellpy package not found. Trying alternative backends.")
             self.spellchecker = None
+            return False
+        except Exception as e:
+            print(f"Error initializing SymSpellPy: {str(e)}. Trying alternative backends.")
+            self.spellchecker = None
+            return False
     
     def _initialize_textblob(self):
         """Initialize TextBlob backend."""
@@ -118,9 +146,15 @@ class SpellingCorrector:
             from textblob import TextBlob
             self.spellchecker = TextBlob
             print("Initialized TextBlob spelling correction")
+            return True
         except ImportError:
-            print("Warning: textblob package not found. Spelling correction disabled.")
+            print("Warning: textblob package not found. Trying alternative backends.")
             self.spellchecker = None
+            return False
+        except Exception as e:
+            print(f"Error initializing TextBlob: {str(e)}. Trying alternative backends.")
+            self.spellchecker = None
+            return False
     
     def _initialize_wordfreq(self):
         """Initialize wordfreq-based spelling correction as a fallback."""
@@ -149,9 +183,15 @@ class SpellingCorrector:
                 "correct_word": correct_word
             }
             print("Initialized wordfreq-based spelling correction")
+            return True
         except ImportError:
-            print("Warning: wordfreq package not found. Spelling correction disabled.")
+            print("Warning: wordfreq package not found. No spelling correction will be available.")
             self.spellchecker = None
+            return False
+        except Exception as e:
+            print(f"Error initializing wordfreq: {str(e)}. No spelling correction will be available.")
+            self.spellchecker = None
+            return False
     
     def _get_language_code(self):
         """Get the language code to use for spelling correction."""
@@ -293,20 +333,25 @@ class SpellingCorrector:
             Document with corrected text
         """
         if not self.enabled or not self.spellchecker:
+            print(f"Spelling correction skipped: enabled={self.enabled}, spellchecker={self.spellchecker is not None}")
             return document
             
         result = document.copy()
         
         # Detect language from the full document text
+        detected_lang = None
         if self.language == "auto":
-            self._detect_language(document["text"])
+            detected_lang = self._detect_language(document["text"])
+            print(f"Detected language for spelling correction: {detected_lang}")
         
         # Correct the full text
+        print(f"Applying spelling correction to document text ({len(document['text'])} chars)...")
         result["text"] = self.correct_text(document["text"])
         
         # Correct each page
         corrected_pages = []
-        for page in document.get("pages", []):
+        for i, page in enumerate(document.get("pages", [])):
+            print(f"Applying spelling correction to page {i+1}...")
             page_copy = page.copy()
             page_copy["text"] = self.correct_text(page["text"])
             corrected_pages.append(page_copy)
@@ -317,5 +362,7 @@ class SpellingCorrector:
         result["metadata"] = result.get("metadata", {})
         result["metadata"]["spelling_corrected"] = True
         result["metadata"]["spelling_language"] = self._get_language_code()
+        result["metadata"]["spelling_backend"] = self.backend
         
+        print(f"Spelling correction completed using {self.backend} backend in {self._get_language_code()} language")
         return result
