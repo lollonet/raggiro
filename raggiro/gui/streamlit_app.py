@@ -1646,7 +1646,7 @@ def display_rag_results(data):
             with query_tabs[0]:
                 if successful_queries:
                     for i, item in enumerate(successful_queries):
-                        display_single_rag_result(item, i+1)
+                        display_single_rag_result(item, i+1, tab_prefix="success")
                 else:
                     st.info("No successful queries found")
             
@@ -1654,7 +1654,7 @@ def display_rag_results(data):
             with query_tabs[1]:
                 if failed_queries:
                     for i, item in enumerate(failed_queries):
-                        display_single_rag_result(item, i+1, is_error=True)
+                        display_single_rag_result(item, i+1, is_error=True, tab_prefix="fail")
                 else:
                     st.info("No failed queries found")
             
@@ -1662,7 +1662,7 @@ def display_rag_results(data):
             with query_tabs[2]:
                 for i, item in enumerate(data):
                     is_error = not item.get("success", True) or item.get("error")
-                    display_single_rag_result(item, i+1, is_error=is_error)
+                    display_single_rag_result(item, i+1, is_error=is_error, tab_prefix="all")
         else:
             st.warning("No query results to display")
     else:
@@ -1670,16 +1670,20 @@ def display_rag_results(data):
         is_error = not data.get("success", True) or data.get("error")
         display_single_rag_result(data, 1, is_error=is_error)
 
-def display_single_rag_result(item, index, is_error=False):
+def display_single_rag_result(item, index, is_error=False, tab_prefix="main"):
     """Display a single RAG query result.
     
     Args:
         item: Query result data
         index: Query index number
         is_error: Whether this is an error result
+        tab_prefix: Prefix to use for keys to avoid conflicts between tabs
     """
     query = item.get("query", "")
     query_prefix = query[:50] + ('...' if len(query) > 50 else '')
+    
+    # Create a unique identifier for this result to use in keys
+    result_id = f"{tab_prefix}_{index}_{hash(query) % 10000}"
     
     status_emoji = "❌" if is_error else "✅"
     
@@ -1743,14 +1747,14 @@ def display_single_rag_result(item, index, is_error=False):
                         if "source" in chunk:
                             st.markdown(f"Source: {chunk['source']}")
                         
-                        # Show the actual text content
+                        # Show the actual text content with unique keys based on result_id
                         if "text" in chunk:
                             st.text_area(f"Content (Chunk {i+1})", chunk["text"], height=100, disabled=True, 
-                                         label_visibility="collapsed", key=f"chunk_text_{index}_{i}")
+                                         label_visibility="collapsed", key=f"chunk_text_{result_id}_{i}")
                     else:
                         # If it's just a string, show it directly
                         st.text_area(f"Content (Chunk {i+1})", str(chunk), height=100, disabled=True, 
-                                     label_visibility="collapsed", key=f"chunk_str_{index}_{i}")
+                                     label_visibility="collapsed", key=f"chunk_str_{result_id}_{i}")
                     
                     st.divider()
         
@@ -1765,9 +1769,9 @@ def display_single_rag_result(item, index, is_error=False):
             # Show response length
             st.info(f"Response length: {response_length} characters")
             
-            # Show the full response
+            # Show the full response - use a unique key based on result_id
             st.text_area("", response, height=200, disabled=True, 
-                         label_visibility="collapsed", key=f"response_{index}")
+                         label_visibility="collapsed", key=f"response_{result_id}")
         
         # Display additional metadata
         if "metadata" in item:
