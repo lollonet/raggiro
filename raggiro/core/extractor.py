@@ -53,8 +53,22 @@ class Extractor:
         self.ocr_dpi = extraction_config.get("ocr_dpi", 300)
         self.ocr_max_image_size = extraction_config.get("ocr_max_image_size", 4000)
         self.ocr_batch_size = extraction_config.get("ocr_batch_size", 20)  # Increased from 10 to 20
-        self.ocr_max_pages = extraction_config.get("ocr_max_pages", 0)  # 0 = process all pages
-        self.ocr_page_step = extraction_config.get("ocr_page_step", 1)  # Process every N page (1 = all pages)
+        
+        # Page selection settings - ensure these are respected
+        # 0 means process all pages (this is the default)
+        self.ocr_max_pages = extraction_config.get("ocr_max_pages", 0)  
+        
+        # 1 means process every page (this is the default)
+        self.ocr_page_step = extraction_config.get("ocr_page_step", 1)
+        
+        # Log the page selection settings
+        if self.ocr_max_pages == 0:
+            print("OCR configured to process ALL pages in the document")
+        else:
+            print(f"OCR configured to process first {self.ocr_max_pages} pages")
+            
+        if self.ocr_page_step > 1:
+            print(f"OCR configured to process every {self.ocr_page_step}th page")
         
         # Configure pytesseract path if provided
         tesseract_path = extraction_config.get("tesseract_path")
@@ -323,6 +337,7 @@ class Extractor:
                 print(f"Limiting OCR to first {max_pages} pages (document has {total_doc_pages} pages)")
             else:
                 max_pages = total_doc_pages
+                print(f"Processing all {total_doc_pages} pages of the document")
                 
             # Apply page step (process every Nth page)
             if self.ocr_page_step > 1:
@@ -366,7 +381,7 @@ class Extractor:
                         zoom = 1.0
                         if max_dim > self.ocr_max_image_size:
                             zoom = self.ocr_max_image_size / max_dim
-                            print(f"Scaling page {i+1} ({width}x{height}) to fit {self.ocr_max_image_size}px, zoom={zoom:.2f}")
+                            print(f"Scaling page {page_idx+1} ({width}x{height}) to fit {self.ocr_max_image_size}px, zoom={zoom:.2f}")
                         
                         # Create the matrix for scaling to the target DPI
                         # PyMuPDF uses 72 dpi as base, so we calculate relative scaling
@@ -377,15 +392,19 @@ class Extractor:
                         try:
                             pix = page.get_pixmap(matrix=matrix)
                         except Exception as pix_error:
-                            print(f"Error creating pixmap for page {i+1}: {str(pix_error)}")
+                            print(f"Error creating pixmap for page {page_idx+1}: {str(pix_error)}")
                             # Try with lower resolution as fallback
                             fallback_matrix = fitz.Matrix(0.5, 0.5)
                             pix = page.get_pixmap(matrix=fallback_matrix)
+                            print(f"Using fallback matrix for page {page_idx+1} due to pixmap error")
                         
                         # Convert to PIL Image
                         try:
                             img_data = pix.tobytes("png")
                             img = Image.open(io.BytesIO(img_data))
+                            
+                            # Log successful conversion
+                            print(f"Successfully converted page {page_idx+1} to image format for OCR")
                             
                             # Free memory immediately after use
                             del pix
@@ -404,9 +423,9 @@ class Extractor:
                             del img
                             
                         except Exception as img_error:
-                            print(f"Image conversion error on page {i+1}: {str(img_error)}")
+                            print(f"Image conversion error on page {page_idx+1}: {str(img_error)}")
                             # Try with direct PNG output as fallback
-                            output_path = f"/tmp/ocr_page_{i+1}.png"
+                            output_path = f"/tmp/ocr_page_{page_idx+1}.png"
                             pix.save(output_path)
                             img = Image.open(output_path)
                             

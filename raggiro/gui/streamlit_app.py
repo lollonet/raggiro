@@ -430,9 +430,9 @@ def ocr_correction_ui():
                 "Max Pages to Process",
                 min_value=0,
                 max_value=1000,
-                value=0,
+                value=0,  # 0 means process all pages
                 step=10,
-                help="Maximum number of pages to process (0 = all pages)",
+                help="Maximum number of pages to process (0 = process ALL pages, which is the default)",
                 key="ocr_max_pages"
             )
         
