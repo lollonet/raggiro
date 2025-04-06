@@ -1558,10 +1558,14 @@ if __name__ == "__main__":
             try:
                 subprocess.run(["promptfoo", "--version"], check=True, capture_output=True)
             except (subprocess.CalledProcessError, FileNotFoundError):
-                append_log("⚠️ PromptFoo is not installed. Install with: pip install promptfoo", error=True)
+                append_log("⚠️ PromptFoo is not installed. PromptFoo is a Node.js application that must be installed via npm.", error=True)
                 append_log("⚠️ Test results will be limited without PromptFoo.", error=True)
                 st.warning("PromptFoo is not installed. Some test features will be unavailable.")
-                st.code("pip install promptfoo", language="bash")
+                st.markdown("### Install PromptFoo")
+                st.info("PromptFoo is a Node.js application used for advanced RAG testing. Install it with:")
+                st.code("npm install -g promptfoo", language="bash")
+                st.markdown("If you encounter issues, use the included installation script:")
+                st.code("chmod +x install_promptfoo.sh && ./install_promptfoo.sh", language="bash")
                 # Continue with the test but skip the promptfoo part
                 test_progress.progress(100)
                 return

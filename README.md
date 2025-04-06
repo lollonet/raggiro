@@ -689,10 +689,26 @@ Raggiro uses [PromptFoo](https://www.promptfoo.dev/) for advanced RAG evaluation
 
 #### Installing PromptFoo
 
-To use the full testing capabilities, you need to install PromptFoo:
+PromptFoo is a Node.js application that needs to be installed via npm. To use the full testing capabilities:
 
 ```bash
-pip install promptfoo
+# Ensure npm is installed first
+npm install -g promptfoo
+```
+
+You can also use the provided installation script:
+
+```bash
+# Run the installation script
+chmod +x install_promptfoo.sh
+./install_promptfoo.sh
+```
+
+If you get a "command not found" error after installation, you may need to add the npm global bin directory to your PATH:
+
+```bash
+# Add this to your .bashrc or .zshrc
+export PATH="$(npm config get prefix)/bin:$PATH"
 ```
 
 If PromptFoo is not installed, the Streamlit interface will show an error message with installation instructions. Basic testing will still work, but advanced evaluation features will be limited.
