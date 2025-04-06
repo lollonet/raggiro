@@ -56,11 +56,16 @@ You are a helpful assistant that answers questions based on the provided context
 4. If the chunks don't contain enough information to answer the question, state this clearly
 5. Include specific citations in your answer referencing the source documents
 6. Format your response clearly with proper paragraphs, bullet points, or numbered lists as appropriate
+7. IMPORTANT: Your response MUST be in the same language as the document chunks and the user query
 
 User Question: {query}
 
+Document Language: {document_language}
+
 Context Chunks:
 {chunks}
+
+{additional_instructions}
 
 Your Answer (include citations to specific documents):
 """)
@@ -87,13 +92,22 @@ Your Answer (include citations to specific documents):
             # Format context chunks for the prompt
             formatted_chunks = self._format_chunks(chunks)
             
+            # Detect document language from chunks
+            document_language = self._detect_document_language(chunks)
+            
+            # Prepare additional instructions based on document language
+            additional_instructions = ""
+            if document_language:
+                language_name = self._get_language_name(document_language)
+                additional_instructions = f"IMPORTANT: Your response MUST be in {language_name}."
+            
             # Generate response with the appropriate LLM
             if self.llm_type == "ollama":
-                result = self._generate_with_ollama(query, formatted_chunks)
+                result = self._generate_with_ollama(query, formatted_chunks, document_language, additional_instructions)
             elif self.llm_type == "llamacpp":
-                result = self._generate_with_llamacpp(query, formatted_chunks)
+                result = self._generate_with_llamacpp(query, formatted_chunks, document_language, additional_instructions)
             elif self.llm_type == "openai":
-                result = self._generate_with_openai(query, formatted_chunks)
+                result = self._generate_with_openai(query, formatted_chunks, document_language, additional_instructions)
             else:
                 return {
                     "query": query,
@@ -156,12 +170,71 @@ Your Answer (include citations to specific documents):
         
         return "\n".join(formatted_chunks)
     
-    def _generate_with_ollama(self, query: str, formatted_chunks: str) -> Dict:
+    def _detect_document_language(self, chunks: List[Dict]) -> str:
+        """Detect the language of the document from chunks.
+        
+        Args:
+            chunks: Document chunks
+            
+        Returns:
+            Language code or None if detection fails
+        """
+        # First check if language is specified in metadata
+        for chunk in chunks:
+            if "metadata" in chunk and chunk["metadata"].get("language"):
+                return chunk["metadata"].get("language")
+        
+        # If not found in metadata, try to detect from text
+        all_text = " ".join([chunk.get("text", "") for chunk in chunks])
+        return self._detect_language(all_text)
+    
+    def _detect_language(self, text: str) -> str:
+        """Detect the language of a text.
+        
+        Args:
+            text: Text to detect language
+            
+        Returns:
+            Language code or None if detection fails
+        """
+        try:
+            import langdetect
+            return langdetect.detect(text)
+        except:
+            # If langdetect is not available or fails, return None
+            return None
+            
+    def _get_language_name(self, language_code: str) -> str:
+        """Get language name from code.
+        
+        Args:
+            language_code: ISO language code
+            
+        Returns:
+            Full language name
+        """
+        language_map = {
+            "en": "English",
+            "it": "Italian",
+            "es": "Spanish",
+            "fr": "French",
+            "de": "German",
+            "pt": "Portuguese",
+            "ru": "Russian",
+            "zh": "Chinese",
+            "ja": "Japanese"
+        }
+        
+        return language_map.get(language_code, language_code)
+    
+    def _generate_with_ollama(self, query: str, formatted_chunks: str, document_language: str = None, additional_instructions: str = "") -> Dict:
         """Generate a response using Ollama.
         
         Args:
             query: User query
             formatted_chunks: Formatted context chunks
+            document_language: Detected language of the document
+            additional_instructions: Additional instructions for the LLM
             
         Returns:
             Generation result
@@ -173,6 +246,8 @@ Your Answer (include citations to specific documents):
             prompt = self.prompt_template.format(
                 query=query,
                 chunks=formatted_chunks,
+                document_language=document_language or "Not detected",
+                additional_instructions=additional_instructions,
             )
             
             # Call Ollama API
@@ -199,12 +274,14 @@ Your Answer (include citations to specific documents):
         except Exception as e:
             return {"error": str(e)}
     
-    def _generate_with_llamacpp(self, query: str, formatted_chunks: str) -> Dict:
+    def _generate_with_llamacpp(self, query: str, formatted_chunks: str, document_language: str = None, additional_instructions: str = "") -> Dict:
         """Generate a response using llama.cpp.
         
         Args:
             query: User query
             formatted_chunks: Formatted context chunks
+            document_language: Detected language of the document
+            additional_instructions: Additional instructions for the LLM
             
         Returns:
             Generation result
@@ -213,6 +290,8 @@ Your Answer (include citations to specific documents):
         prompt = self.prompt_template.format(
             query=query,
             chunks=formatted_chunks,
+            document_language=document_language or "Not detected",
+            additional_instructions=additional_instructions,
         )
         
         try:
@@ -253,12 +332,14 @@ Your Answer (include citations to specific documents):
         except Exception as e:
             return {"error": str(e)}
             
-    def _generate_with_openai(self, query: str, formatted_chunks: str) -> Dict:
+    def _generate_with_openai(self, query: str, formatted_chunks: str, document_language: str = None, additional_instructions: str = "") -> Dict:
         """Generate a response using OpenAI API.
         
         Args:
             query: User query
             formatted_chunks: Formatted context chunks
+            document_language: Detected language of the document
+            additional_instructions: Additional instructions for the LLM
             
         Returns:
             Generation result
@@ -281,13 +362,21 @@ Your Answer (include citations to specific documents):
             prompt = self.prompt_template.format(
                 query=query,
                 chunks=formatted_chunks,
+                document_language=document_language or "Not detected",
+                additional_instructions=additional_instructions,
             )
+            
+            # Create a system message with language instructions
+            system_content = "You are a helpful assistant that answers questions based on provided context."
+            if document_language:
+                language_name = self._get_language_name(document_language)
+                system_content += f" IMPORTANT: Your response MUST be in {language_name}."
             
             # Call OpenAI API
             response = client.chat.completions.create(
                 model=self.openai_model,  # Use openai_model for API calls
                 messages=[
-                    {"role": "system", "content": "You are a helpful assistant that answers questions based on provided context."},
+                    {"role": "system", "content": system_content},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=self.temperature,

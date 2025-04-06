@@ -29,12 +29,13 @@ class RagPipeline:
         self.use_query_rewriting = pipeline_config.get("use_query_rewriting", True)
         self.top_k = pipeline_config.get("top_k", 5)
     
-    def query(self, query: str, top_k: Optional[int] = None) -> Dict:
+    def query(self, query: str, top_k: Optional[int] = None, document_language: str = None) -> Dict:
         """Process a query through the entire RAG pipeline.
         
         Args:
             query: User query
             top_k: Number of chunks to retrieve (overrides config)
+            document_language: Optional language of the document (for better query rewriting and response generation)
             
         Returns:
             Complete RAG result
@@ -47,19 +48,24 @@ class RagPipeline:
             "original_query": query,
             "success": False,
             "steps": [],
+            "document_language": document_language,
         }
         
         # Step 1: Query rewriting (optional)
         if self.use_query_rewriting:
-            rewrite_result = self.rewriter.rewrite(query)
+            rewrite_result = self.rewriter.rewrite(query, document_language)
             result["steps"].append({
                 "step": "rewrite",
                 "result": rewrite_result,
             })
             
-            if rewrite_result["success"] and rewrite_result["modified"]:
+            if rewrite_result["success"] and rewrite_result.get("modified", False):
                 query = rewrite_result["rewritten_query"]
                 result["rewritten_query"] = query
+                # If document language wasn't provided but was detected during rewriting
+                if not document_language and "query_language" in rewrite_result:
+                    document_language = rewrite_result["query_language"]
+                    result["document_language"] = document_language
         
         # Step 2: Retrieval
         retrieval_result = self.retriever.retrieve(query, k)
