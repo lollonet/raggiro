@@ -60,15 +60,22 @@ class PromptfooRunner:
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
         
-        # Check if promptfoo is installed
+        # Check if promptfoo is installed (try both global and npx versions)
+        promptfoo_cmd = ["promptfoo"]
         try:
+            # First try global installation
             subprocess.run(["promptfoo", "--version"], check=True, capture_output=True)
         except (subprocess.CalledProcessError, FileNotFoundError):
-            return {
-                "prompt_file": str(prompt_file),
-                "success": False,
-                "error": "promptfoo not installed or not found in PATH",
-            }
+            # Try npx as a fallback
+            try:
+                subprocess.run(["npx", "promptfoo", "--version"], check=True, capture_output=True)
+                promptfoo_cmd = ["npx", "promptfoo"]  # Use npx for subsequent calls
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                return {
+                    "prompt_file": str(prompt_file),
+                    "success": False,
+                    "error": "promptfoo not installed or not found. Install with 'npm install -g promptfoo' or locally with 'npm install promptfoo'",
+                }
         
         # Check if the prompt file exists
         if not prompt_file.exists():
@@ -185,17 +192,18 @@ if __name__ == "__main__":
             with open(config_file, "w", encoding="utf-8") as f:
                 yaml.dump(promptfoo_config, f)
             
-            # Run promptfoo
+            # Run promptfoo (using either global or npx command)
             output_file = output_dir / "results.json"
             
-            result = subprocess.run([
-                "promptfoo",
+            command = promptfoo_cmd + [
                 "eval",
                 "--config", str(config_file),
                 "--output-file", str(output_file),
                 "--max-concurrency", str(self.max_concurrency),
                 "--no-cache",
-            ], check=True, capture_output=True, text=True)
+            ]
+            
+            result = subprocess.run(command, check=True, capture_output=True, text=True)
             
             # Load and return the results
             if output_file.exists():

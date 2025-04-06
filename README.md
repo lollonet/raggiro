@@ -689,27 +689,62 @@ Raggiro uses [PromptFoo](https://www.promptfoo.dev/) for advanced RAG evaluation
 
 #### Installing PromptFoo
 
-PromptFoo is a Node.js application that needs to be installed via npm. To use the full testing capabilities:
+PromptFoo is a Node.js application that needs to be installed via npm. There are two main ways to install and use it:
+
+##### Method 1: User-level Installation (Recommended)
+
+This method installs PromptFoo in your user directory, avoiding permission issues:
 
 ```bash
-# Ensure npm is installed first
-npm install -g promptfoo
+# Use the provided installation script
+chmod +x install_promptfoo.sh && ./install_promptfoo.sh
 ```
 
-You can also use the provided installation script:
+The script will:
+1. Configure npm to install global packages in your home directory (~/.npm-global)
+2. Install PromptFoo globally
+3. Provide instructions for adding the npm bin directory to your PATH
+
+After installation, you need to add the npm bin directory to your PATH permanently:
 
 ```bash
-# Run the installation script
-chmod +x install_promptfoo.sh
-./install_promptfoo.sh
+# Add this line to your ~/.bashrc or ~/.profile
+export PATH="$HOME/.npm-global/bin:$PATH"
+
+# Then reload your shell configuration
+source ~/.bashrc  # or ~/.profile
 ```
 
-If you get a "command not found" error after installation, you may need to add the npm global bin directory to your PATH:
+##### Method 2: Project-level Installation
+
+If you prefer not to modify your PATH or install globally, you can install PromptFoo locally in the project:
 
 ```bash
-# Add this to your .bashrc or .zshrc
-export PATH="$(npm config get prefix)/bin:$PATH"
+# Install locally in the project
+npm install promptfoo --save
 ```
+
+When PromptFoo is installed locally, you need to use `npx` to run it:
+
+```bash
+npx promptfoo --version
+```
+
+Raggiro will automatically detect and use the local installation if the global command is not available.
+
+##### Troubleshooting
+
+If you encounter issues with PromptFoo installation, run the verification script:
+
+```bash
+chmod +x verify_promptfoo.sh && ./verify_promptfoo.sh
+```
+
+This script will:
+- Check if npm is installed
+- Verify your npm configuration
+- Check if PromptFoo is installed and accessible
+- Provide detailed troubleshooting tips
 
 If PromptFoo is not installed, the Streamlit interface will show an error message with installation instructions. Basic testing will still work, but advanced evaluation features will be limited.
 

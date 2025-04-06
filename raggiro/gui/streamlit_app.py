@@ -1554,18 +1554,50 @@ if __name__ == "__main__":
         if promptfoo_script:
             append_log("\n=== Running promptfoo tests ===")
             
-            # Check if promptfoo is installed
+            # Check if promptfoo is installed (try both global and npx versions)
+            promptfoo_installed = False
             try:
+                # Try global installation
                 subprocess.run(["promptfoo", "--version"], check=True, capture_output=True)
+                promptfoo_installed = True
             except (subprocess.CalledProcessError, FileNotFoundError):
+                # Try npx as a fallback
+                try:
+                    subprocess.run(["npx", "promptfoo", "--version"], check=True, capture_output=True)
+                    promptfoo_installed = True
+                    append_log("Using npx to run PromptFoo (local installation detected)")
+                except (subprocess.CalledProcessError, FileNotFoundError):
+                    promptfoo_installed = False
+                    
+            if not promptfoo_installed:
                 append_log("⚠️ PromptFoo is not installed. PromptFoo is a Node.js application that must be installed via npm.", error=True)
                 append_log("⚠️ Test results will be limited without PromptFoo.", error=True)
                 st.warning("PromptFoo is not installed. Some test features will be unavailable.")
+                
                 st.markdown("### Install PromptFoo")
-                st.info("PromptFoo is a Node.js application used for advanced RAG testing. Install it with:")
-                st.code("npm install -g promptfoo", language="bash")
-                st.markdown("If you encounter issues, use the included installation script:")
-                st.code("chmod +x install_promptfoo.sh && ./install_promptfoo.sh", language="bash")
+                st.info("PromptFoo is a Node.js application used for advanced RAG testing. There are two ways to install it:")
+                
+                tab1, tab2 = st.tabs(["Method 1: User Installation", "Method 2: Project Installation"])
+                
+                with tab1:
+                    st.markdown("#### User Installation (Recommended)")
+                    st.markdown("This installs PromptFoo in your user directory, avoiding permission issues:")
+                    st.code("chmod +x install_promptfoo.sh && ./install_promptfoo.sh", language="bash")
+                    st.markdown("**After installation**, add this to your ~/.bashrc or ~/.profile:")
+                    st.code("export PATH=\"$HOME/.npm-global/bin:$PATH\"", language="bash")
+                    st.markdown("Then reload your terminal or run:")
+                    st.code("source ~/.bashrc", language="bash")
+                
+                with tab2:
+                    st.markdown("#### Project Installation (Alternative)")
+                    st.markdown("This installs PromptFoo locally in the project directory:")
+                    st.code("npm install promptfoo --save", language="bash")
+                    st.markdown("Then use `npx promptfoo` instead of just `promptfoo`:")
+                    st.code("npx promptfoo --version", language="bash")
+                
+                st.markdown("#### Troubleshooting")
+                st.markdown("If you encounter issues, run the verification script:")
+                st.code("chmod +x verify_promptfoo.sh && ./verify_promptfoo.sh", language="bash")
                 # Continue with the test but skip the promptfoo part
                 test_progress.progress(100)
                 return
@@ -1578,6 +1610,13 @@ if __name__ == "__main__":
             else:
                 command = ["python", promptfoo_script, prompt_file_path, output_dir]
                 append_log("No index directory found, using default index")
+                
+            # Display a note about which PromptFoo method is being used
+            try:
+                which_promptfoo = subprocess.run(["which", "promptfoo"], check=True, capture_output=True, text=True)
+                append_log(f"Using global PromptFoo from: {which_promptfoo.stdout.strip()}")
+            except subprocess.CalledProcessError:
+                append_log("Using local PromptFoo with npx")
             
             append_log(f"Running command: {' '.join(command)}")
             
