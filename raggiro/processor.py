@@ -173,7 +173,9 @@ class DocumentProcessor:
             print(f"Document extraction method: {extraction_method}")
             print(f"Spelling config - enabled: {spelling_enabled}, always_correct: {always_correct}, backend: {backend}")
             
-            if extraction_method in ["pdf_ocr", "image_ocr"] or always_correct:
+            # Force spelling correction regardless of settings for testing
+            always_apply_correction = True
+            if extraction_method in ["pdf_ocr", "image_ocr"] or always_correct or always_apply_correction:
                 print(f"Applying spelling correction to document...")
                 spelling_start = time.time()
                 document = self.spelling_corrector.correct_document(document)
