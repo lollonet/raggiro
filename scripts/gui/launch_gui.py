@@ -53,9 +53,27 @@ def main():
     """Main entry point for the GUI launcher"""
     print("Launching Raggiro GUI...")
     
-    # Get the repository root directory (2 levels up: scripts/gui -> scripts -> root)
-    script_dir = Path(__file__).parent.resolve()
-    repo_dir = script_dir.parent.parent.resolve()
+    # Print current directory and file info for debugging
+    current_file = Path(__file__).resolve()
+    print(f"Current file: {current_file}")
+    print(f"Current working directory: {os.getcwd()}")
+    
+    # Use a more robust method to find the repository root
+    # Look for key files/directories that indicate the repo root
+    current_dir = current_file.parent
+    while True:
+        # If we find the raggiro module directory, we're at the right level
+        if (current_dir / "raggiro").exists() and (current_dir / "raggiro" / "gui").exists():
+            repo_dir = current_dir
+            break
+        # If we've gone too far up without finding it
+        if current_dir.parent == current_dir:  # Reached root of filesystem
+            # Fall back to two levels up from script
+            repo_dir = Path(__file__).parent.parent.parent.resolve()
+            print("WARNING: Could not find repository root by detection, using fallback path")
+            break
+        # Move up one directory
+        current_dir = current_dir.parent
     
     # Create the monkeypatch module
     monkeypatch_dir = create_temp_module()

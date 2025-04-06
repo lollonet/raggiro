@@ -2,11 +2,15 @@
 # Multiple approach launcher script for Raggiro
 # This script tries several methods to run the GUI reliably
 
-# Determine script directory
+# Determine script directory and repository root
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+REPO_ROOT="$( cd "$SCRIPT_DIR/../.." && pwd )"
+
+echo "Script directory: $SCRIPT_DIR"
+echo "Repository root: $REPO_ROOT"
 
 # Set Python path to include the project directory
-export PYTHONPATH="$SCRIPT_DIR:$PYTHONPATH"
+export PYTHONPATH="$REPO_ROOT:$PYTHONPATH"
 
 # Make sure all scripts are executable
 chmod +x "$SCRIPT_DIR/launch_gui.py"
@@ -37,7 +41,10 @@ case "$METHOD" in
     "streamlit")
         # Try the regular Streamlit method
         echo "Using standard Streamlit launcher..."
-        exec streamlit run "$SCRIPT_DIR/../../raggiro/gui/streamlit_app.py" --server.fileWatcherType none
+        APP_PATH="$REPO_ROOT/raggiro/gui/streamlit_app.py"
+        echo "App path: $APP_PATH"
+        echo "Path exists: $([ -f "$APP_PATH" ] && echo 'yes' || echo 'no')"
+        exec streamlit run "$APP_PATH" --server.fileWatcherType none
         ;;
     *)
         echo "Unknown method: $METHOD"

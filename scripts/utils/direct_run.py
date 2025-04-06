@@ -15,8 +15,27 @@ os.environ["STREAMLIT_SERVER_HEADLESS"] = "true"
 os.environ["STREAMLIT_SERVER_FILEWATCH_TYPE"] = "none"
 os.environ["STREAMLIT_BROWSER_GATHER_USAGE_STATS"] = "false"
 
-# Get the repository root directory (3 levels up: scripts/utils -> scripts -> root)
-repo_dir = Path(__file__).parent.parent.parent.resolve()
+# Print current directory and file location for debugging
+current_file = Path(__file__).resolve()
+print(f"Current file: {current_file}")
+print(f"Current working directory: {os.getcwd()}")
+
+# Use a more robust method to find the repository root
+# Look for key files/directories that indicate the repo root
+current_dir = current_file.parent
+while True:
+    # If we find the raggiro module directory, we're at the right level
+    if (current_dir / "raggiro").exists() and (current_dir / "raggiro" / "gui").exists():
+        repo_dir = current_dir
+        break
+    # If we've gone too far up without finding it
+    if current_dir.parent == current_dir:  # Reached root of filesystem
+        # Fall back to two levels up from script
+        repo_dir = Path(__file__).parent.parent.parent.resolve()
+        print("WARNING: Could not find repository root by detection, using fallback path")
+        break
+    # Move up one directory
+    current_dir = current_dir.parent
 
 # Add repo to Python path
 sys.path.insert(0, str(repo_dir))
