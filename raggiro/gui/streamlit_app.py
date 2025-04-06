@@ -1679,11 +1679,16 @@ def display_single_rag_result(item, index, is_error=False, tab_prefix="main"):
         is_error: Whether this is an error result
         tab_prefix: Prefix to use for keys to avoid conflicts between tabs
     """
+    import time
+    
     query = item.get("query", "")
     query_prefix = query[:50] + ('...' if len(query) > 50 else '')
     
     # Create a unique identifier for this result to use in keys
-    result_id = f"{tab_prefix}_{index}_{hash(query) % 10000}"
+    # Add timestamp to ensure uniqueness even if same content is displayed multiple times
+    timestamp = int(time.time() * 1000)  # Milliseconds since epoch
+    random_suffix = hash(f"{query}_{timestamp}") % 100000
+    result_id = f"{tab_prefix}_{index}_{random_suffix}"
     
     status_emoji = "❌" if is_error else "✅"
     
