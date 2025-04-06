@@ -83,7 +83,8 @@ def load_config(config_path: Optional[str] = None) -> Dict:
                         config = toml.load(f)
                     except Exception as e:
                         # If standard TOML loading fails (likely due to variable interpolation)
-                        print(f"Warning: Standard TOML loading failed: {e}")
+                        # Print a more helpful message without the overwhelming error details
+                        print(f"Note: Using custom TOML parser for interpolated variables. This is normal.")
                         
                         # Second attempt: Try loading section by section to avoid interpolation issues
                         try:
@@ -149,38 +150,86 @@ def load_config(config_path: Optional[str] = None) -> Dict:
                         except Exception as inner_e:
                             print(f"Warning: Failed to parse TOML manually: {inner_e}")
                             
-                        # Final step: ensure essential sections exist
-                        if not config.get("llm"):
-                            config["llm"] = {
-                                "provider": "ollama",
-                                "ollama_base_url": "http://ollama:11434",
-                                "ollama_timeout": 30
-                            }
+                        # Final step: ensure all essential sections exist and are properly populated
+                        # LLM section
+                        if "llm" not in config:
+                            config["llm"] = {}
                             
-                        if not config.get("rewriting"):
-                            config["rewriting"] = {
-                                "enabled": True,
-                                "llm_type": "ollama",
-                                "ollama_model": "llama3",
-                                "temperature": 0.1,
-                                "max_tokens": 200,
-                                "ollama_base_url": "http://ollama:11434"
-                            }
+                        llm_defaults = {
+                            "provider": "ollama",
+                            "ollama_base_url": "http://ollama:11434",
+                            "ollama_timeout": 30,
+                            "llamacpp_path": "",
+                            "api_key": "",
+                            "api_url": "",
+                            "openai_model": "gpt-3.5-turbo"
+                        }
+                        
+                        for key, value in llm_defaults.items():
+                            if key not in config["llm"]:
+                                config["llm"][key] = value
                             
-                        if not config.get("generation"):
-                            config["generation"] = {
-                                "llm_type": "ollama",
-                                "ollama_model": "mistral",
-                                "temperature": 0.7,
-                                "max_tokens": 1000,
-                                "ollama_base_url": "http://ollama:11434"
-                            }
+                        # Rewriting section
+                        if "rewriting" not in config:
+                            config["rewriting"] = {}
                             
-                        if not config.get("segmentation"):
-                            config["segmentation"] = {
-                                "semantic_chunking": True,
-                                "chunking_strategy": "hybrid"
-                            }
+                        rewriting_defaults = {
+                            "enabled": True,
+                            "llm_type": config["llm"].get("provider", "ollama"),
+                            "ollama_model": "llama3",
+                            "llamacpp_model": "llama3",
+                            "openai_model": config["llm"].get("openai_model", "gpt-3.5-turbo"),
+                            "temperature": 0.1,
+                            "max_tokens": 200,
+                            "ollama_base_url": config["llm"].get("ollama_base_url", "http://ollama:11434"),
+                            "llamacpp_path": config["llm"].get("llamacpp_path", ""),
+                            "api_key": config["llm"].get("api_key", ""),
+                            "api_url": config["llm"].get("api_url", "")
+                        }
+                        
+                        for key, value in rewriting_defaults.items():
+                            if key not in config["rewriting"]:
+                                config["rewriting"][key] = value
+                                
+                        # Generation section
+                        if "generation" not in config:
+                            config["generation"] = {}
+                            
+                        generation_defaults = {
+                            "llm_type": config["llm"].get("provider", "ollama"),
+                            "ollama_model": "mistral",
+                            "llamacpp_model": "mistral",
+                            "openai_model": config["llm"].get("openai_model", "gpt-3.5-turbo"),
+                            "temperature": 0.7,
+                            "max_tokens": 1000,
+                            "ollama_base_url": config["llm"].get("ollama_base_url", "http://ollama:11434"),
+                            "llamacpp_path": config["llm"].get("llamacpp_path", ""),
+                            "api_key": config["llm"].get("api_key", ""),
+                            "api_url": config["llm"].get("api_url", "")
+                        }
+                        
+                        for key, value in generation_defaults.items():
+                            if key not in config["generation"]:
+                                config["generation"][key] = value
+                                
+                        # Segmentation section
+                        if "segmentation" not in config:
+                            config["segmentation"] = {}
+                            
+                        segmentation_defaults = {
+                            "use_spacy": True,
+                            "spacy_model": "en_core_web_sm",
+                            "min_section_length": 100,
+                            "max_chunk_size": 500,
+                            "chunk_overlap": 100,
+                            "semantic_chunking": True,
+                            "chunking_strategy": "hybrid",
+                            "semantic_similarity_threshold": 0.65
+                        }
+                        
+                        for key, value in segmentation_defaults.items():
+                            if key not in config["segmentation"]:
+                                config["segmentation"][key] = value
             except ImportError:
                 print("Error: TOML support requires 'toml' package. Install with: pip install toml")
                 sys.exit(1)
