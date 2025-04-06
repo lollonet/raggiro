@@ -795,33 +795,44 @@ The GUI makes it easy to conduct and interpret tests without writing a single li
 
 ### Testing Semantic Chunking
 
-The semantic chunking feature can be tested and analyzed using the included test scripts. All scripts now use the central TOML configuration but also accept command-line overrides:
+The semantic chunking feature can be tested and analyzed using the included test scripts. All scripts now use the central TOML configuration but also accept command-line overrides.
+
+For ease of use, helper scripts are provided:
 
 ```bash
-# Basic test with detailed chunk analysis
-python -m raggiro.examples.scripts.test_semantic_chunking --input document.pdf --output test_output
+# Use the helper script (recommended)
+./run_semantic_chunking_test.sh document.pdf --output test_output
 
 # Test with custom queries and Ollama settings
-python -m raggiro.examples.scripts.test_semantic_chunking --input document.pdf --queries "What is the main topic?" "Summarize key points" --ollama-url http://localhost:11434 --rewriting-model llama3 --generation-model mistral
+./run_semantic_chunking_test.sh document.pdf --queries "What is the main topic?" "Summarize key points" --ollama-url http://localhost:11434 --rewriting-model llama3 --generation-model mistral
 
 # Specify number of chunks to retrieve for each query
-python -m raggiro.examples.scripts.test_semantic_chunking --input document.pdf --top-k 5
+./run_semantic_chunking_test.sh document.pdf --top-k 5
+```
+
+If you prefer to run the scripts directly (make sure your PYTHONPATH is set correctly):
+
+```bash
+# Direct script execution
+python3 examples/scripts/test_semantic_chunking.py --input document.pdf --output test_output
 ```
 
 ### Comparing Chunking Strategies
 
-You can compare different chunking strategies to find the most effective approach for your documents:
+You can compare different chunking strategies to find the most effective approach for your documents. Use the provided helper script:
 
 ```bash
-# Compare all available strategies (using TOML config for LLM settings)
-python -m raggiro.examples.scripts.test_rag_comparison --input document.pdf 
+# Compare all available strategies using the helper script (recommended)
+./run_test_comparison.sh document.pdf
 
 # Compare only specific strategies with custom Ollama settings
-python -m raggiro.examples.scripts.test_rag_comparison --input document.pdf --strategies size hybrid --ollama-url http://localhost:11434 --rewriting-model llama3 --generation-model mistral
+./run_test_comparison.sh document.pdf --strategies size hybrid --ollama-url http://localhost:11434 --rewriting-model llama3 --generation-model mistral
 
 # Test with specific queries and output directory
-python -m raggiro.examples.scripts.test_rag_comparison --input document.pdf --queries "What is the main topic?" --output my_test_results
+./run_test_comparison.sh document.pdf --queries "What is the main topic?" --output my_test_results
 ```
+
+These helper scripts automatically activate your virtual environment (if present) and handle the Python path configuration.
 
 ### Example Promptfoo Configurations
 
