@@ -32,15 +32,28 @@ class Extractor:
             config: Configuration dictionary
         """
         self.config = config or {}
+        extraction_config = self.config.get("extraction", {})
         
         # OCR config
-        self.ocr_enabled = self.config.get("extraction", {}).get("ocr_enabled", True)
-        self.ocr_language = self.config.get("extraction", {}).get("ocr_language", "eng")
+        self.ocr_enabled = extraction_config.get("ocr_enabled", True)
+        self.ocr_language = extraction_config.get("ocr_language", "eng")
+        
+        # Advanced OCR settings
+        self.ocr_dpi = extraction_config.get("ocr_dpi", 300)
+        self.ocr_max_image_size = extraction_config.get("ocr_max_image_size", 4000)
+        self.ocr_batch_size = extraction_config.get("ocr_batch_size", 10)
         
         # Configure pytesseract path if provided
-        tesseract_path = self.config.get("extraction", {}).get("tesseract_path")
+        tesseract_path = extraction_config.get("tesseract_path")
         if tesseract_path and os.path.exists(tesseract_path):
             pytesseract.pytesseract.tesseract_cmd = tesseract_path
+            
+        # Configure tesseract parameters
+        self.tesseract_config = f'--dpi {self.ocr_dpi} --oem 1 --psm 3'
+        
+        # Log configuration
+        print(f"OCR Configuration: language={self.ocr_language}, dpi={self.ocr_dpi}, " +
+              f"max_image_size={self.ocr_max_image_size}, batch_size={self.ocr_batch_size}")
     
     def extract(self, file_path: Union[str, Path], file_type_info: Dict) -> Dict:
         """Extract text from a file based on its type.
@@ -174,7 +187,7 @@ class Extractor:
         return result
     
     def _extract_pdf_with_ocr(self, file_path: Path) -> Dict:
-        """Extract text from a PDF file using OCR.
+        """Extract text from a PDF file using OCR with batch processing.
         
         Args:
             file_path: Path to the PDF file
@@ -182,6 +195,9 @@ class Extractor:
         Returns:
             Dictionary with extracted text and metadata
         """
+        import gc  # For explicit garbage collection
+        import time
+        
         result = {
             "text": "",
             "pages": [],
@@ -195,33 +211,143 @@ class Extractor:
         try:
             doc = fitz.open(file_path)
             
-            # Basic metadata
+            # Extract basic metadata from the document
             result["metadata"] = {
+                "title": doc.metadata.get("title", ""),
+                "author": doc.metadata.get("author", ""),
+                "subject": doc.metadata.get("subject", ""),
+                "keywords": doc.metadata.get("keywords", ""),
+                "creator": doc.metadata.get("creator", ""),
+                "producer": doc.metadata.get("producer", ""),
+                "creation_date": doc.metadata.get("creationDate", ""),
+                "modification_date": doc.metadata.get("modDate", ""),
                 "total_pages": len(doc),
             }
             
             # Extract text from each page using OCR
             full_text = []
             pages = []
+            max_pages = len(doc)
+            batch_size = self.ocr_batch_size
             
-            for i, page in enumerate(doc):
-                # Convert page to an image
-                pix = page.get_pixmap()
-                img = Image.open(io.BytesIO(pix.tobytes("png")))
-                
-                # Perform OCR
-                text = pytesseract.image_to_string(img, lang=self.ocr_language)
-                
-                full_text.append(text)
-                pages.append({
-                    "page_num": i + 1,
-                    "text": text,
-                    "has_text": bool(text.strip()),
-                })
+            # Log the total number of pages
+            print(f"OCR processing PDF with {max_pages} pages using batch size {batch_size}")
+            start_time = time.time()
             
+            # Process pages in batches to manage memory
+            for batch_start in range(0, max_pages, batch_size):
+                batch_end = min(batch_start + batch_size, max_pages)
+                print(f"Processing batch of pages {batch_start+1}-{batch_end} of {max_pages}")
+                batch_start_time = time.time()
+                
+                # Process each page in the current batch
+                for i in range(batch_start, batch_end):
+                    try:
+                        page = doc[i]
+                        page_start_time = time.time()
+                        
+                        # Log progress for debugging
+                        print(f"OCR processing page {i+1}/{max_pages}")
+                        
+                        # Calculate zoom factor based on page dimensions and max image size
+                        rect = page.rect
+                        width, height = rect.width, rect.height
+                        max_dim = max(width, height)
+                        
+                        # Calculate zoom to fit within max_image_size
+                        zoom = 1.0
+                        if max_dim > self.ocr_max_image_size:
+                            zoom = self.ocr_max_image_size / max_dim
+                            print(f"Scaling page {i+1} ({width}x{height}) to fit {self.ocr_max_image_size}px, zoom={zoom:.2f}")
+                        
+                        # Create the matrix for scaling to the target DPI
+                        # PyMuPDF uses 72 dpi as base, so we calculate relative scaling
+                        dpi_scale = self.ocr_dpi / 72.0
+                        matrix = fitz.Matrix(zoom * dpi_scale, zoom * dpi_scale)
+                        
+                        # Get the pixmap with appropriate scaling
+                        try:
+                            pix = page.get_pixmap(matrix=matrix)
+                        except Exception as pix_error:
+                            print(f"Error creating pixmap for page {i+1}: {str(pix_error)}")
+                            # Try with lower resolution as fallback
+                            fallback_matrix = fitz.Matrix(0.5, 0.5)
+                            pix = page.get_pixmap(matrix=fallback_matrix)
+                        
+                        # Convert to PIL Image
+                        try:
+                            img_data = pix.tobytes("png")
+                            img = Image.open(io.BytesIO(img_data))
+                            
+                            # Free memory immediately after use
+                            del pix
+                            del img_data
+                            gc.collect()  # Explicit garbage collection
+                            
+                            # Perform OCR with timeout protection and custom config
+                            text = pytesseract.image_to_string(
+                                img, 
+                                lang=self.ocr_language,
+                                config=self.tesseract_config
+                            )
+                            
+                            # Free memory
+                            del img
+                            
+                        except Exception as img_error:
+                            print(f"Image conversion error on page {i+1}: {str(img_error)}")
+                            # Try with direct PNG output as fallback
+                            output_path = f"/tmp/ocr_page_{i+1}.png"
+                            pix.save(output_path)
+                            img = Image.open(output_path)
+                            
+                            # Perform OCR on the saved file
+                            text = pytesseract.image_to_string(
+                                img, 
+                                lang=self.ocr_language,
+                                config=self.tesseract_config
+                            )
+                            
+                            # Cleanup
+                            del img
+                            os.unlink(output_path)
+                        
+                        # Force garbage collection
+                        gc.collect()
+                        
+                        # Record the text
+                        full_text.append(text)
+                        pages.append({
+                            "page_num": i + 1,
+                            "text": text,
+                            "has_text": bool(text.strip()),
+                            "processing_time": time.time() - page_start_time
+                        })
+                        
+                        print(f"Page {i+1} OCR completed in {time.time() - page_start_time:.2f} seconds")
+                        
+                    except Exception as page_error:
+                        print(f"Error processing page {i+1}: {str(page_error)}")
+                        # Add placeholder for failed page
+                        full_text.append(f"[ERROR: Failed to process page {i+1}]")
+                        pages.append({
+                            "page_num": i + 1,
+                            "text": f"[ERROR: Failed to process page {i+1} - {str(page_error)}]",
+                            "has_text": False,
+                        })
+                
+                # After each batch, explicitly run garbage collection
+                gc.collect()
+                print(f"Batch {batch_start+1}-{batch_end} completed in {time.time() - batch_start_time:.2f} seconds")
+            
+            # Save the combined result
             result["text"] = "\n\n".join(full_text)
             result["pages"] = pages
             result["success"] = True
+            
+            total_time = time.time() - start_time
+            print(f"OCR processing completed for all {max_pages} pages in {total_time:.2f} seconds")
+            result["metadata"]["ocr_processing_time"] = total_time
             
         except Exception as e:
             result["error"] = str(e)
