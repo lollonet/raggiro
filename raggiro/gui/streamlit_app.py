@@ -958,91 +958,91 @@ def configuration_ui():
             options=["TOML", "JSON"],
             index=0,
         )
-    
-    if config_format == "TOML":
-        # Display TOML configuration
-        config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "config", "config.toml")
         
-        if os.path.exists(config_path):
-            with open(config_path, "r") as f:
-                config_text = f.read()
-        else:
-            config_text = "# Configuration not found"
-        
-        # Display configuration editor
-        st.subheader("Edit Configuration")
-        edited_config = st.text_area("Configuration (TOML)", value=config_text, height=600)
-        
-        # Save configuration
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            save_path = st.text_input(
-                "Save Path",
-                placeholder="/path/to/config.toml",
-                value=config_path,
-            )
-        
-        with col2:
-            save_button = st.button("Save Configuration")
+        if config_format == "TOML":
+            # Display TOML configuration
+            config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "config", "config.toml")
             
-            if save_button:
-                if not save_path:
-                    st.error("Please enter a save path")
-                else:
-                    try:
-                        # Create directory if it doesn't exist
-                        os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
-                        
-                        # Save configuration
-                        with open(save_path, "w") as f:
-                            f.write(edited_config)
-                            
-                        st.success(f"Configuration saved to {save_path}")
-                    except Exception as e:
-                        st.error(f"Error saving configuration: {str(e)}")
-    else:
-        # Convert to JSON
-        config_text = json.dumps(default_config, indent=2)
-        
-        # Display configuration editor
-        st.subheader("Edit Configuration")
-        edited_config = st.text_area("Configuration (JSON)", value=config_text, height=600)
-        
-        try:
-            # Try to parse the edited configuration
-            json.loads(edited_config)
-            st.success("Configuration is valid JSON")
-        except json.JSONDecodeError as e:
-            st.error(f"Invalid JSON: {str(e)}")
-        
-        # Save configuration
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            save_path = st.text_input(
-                "Save Path",
-                placeholder="/path/to/config.json",
-            )
-        
-        with col2:
-            save_button = st.button("Save Configuration")
+            if os.path.exists(config_path):
+                with open(config_path, "r") as f:
+                    config_text = f.read()
+            else:
+                config_text = "# Configuration not found"
             
-            if save_button:
-                if not save_path:
-                    st.error("Please enter a save path")
-                else:
-                    try:
-                        # Create directory if it doesn't exist
-                        os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
-                        
-                        # Save configuration
-                        with open(save_path, "w") as f:
-                            f.write(edited_config)
+            # Display configuration editor
+            st.subheader("Edit Configuration")
+            edited_config = st.text_area("Configuration (TOML)", value=config_text, height=600)
+            
+            # Save configuration
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                save_path = st.text_input(
+                    "Save Path",
+                    placeholder="/path/to/config.toml",
+                    value=config_path,
+                )
+            
+            with col2:
+                save_button = st.button("Save Configuration")
+                
+                if save_button:
+                    if not save_path:
+                        st.error("Please enter a save path")
+                    else:
+                        try:
+                            # Create directory if it doesn't exist
+                            os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
                             
-                        st.success(f"Configuration saved to {save_path}")
-                    except Exception as e:
-                        st.error(f"Error saving configuration: {str(e)}")
+                            # Save configuration
+                            with open(save_path, "w") as f:
+                                f.write(edited_config)
+                                
+                            st.success(f"Configuration saved to {save_path}")
+                        except Exception as e:
+                            st.error(f"Error saving configuration: {str(e)}")
+        elif config_format == "JSON":
+            # Convert to JSON
+            config_text = json.dumps(default_config, indent=2)
+            
+            # Display configuration editor
+            st.subheader("Edit Configuration")
+            edited_config = st.text_area("Configuration (JSON)", value=config_text, height=600)
+            
+            try:
+                # Try to parse the edited configuration
+                json.loads(edited_config)
+                st.success("Configuration is valid JSON")
+            except json.JSONDecodeError as e:
+                st.error(f"Invalid JSON: {str(e)}")
+            
+            # Save configuration
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                save_path = st.text_input(
+                    "Save Path",
+                    placeholder="/path/to/config.json",
+                )
+            
+            with col2:
+                save_button = st.button("Save Configuration")
+                
+                if save_button:
+                    if not save_path:
+                        st.error("Please enter a save path")
+                    else:
+                        try:
+                            # Create directory if it doesn't exist
+                            os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
+                            
+                            # Save configuration
+                            with open(save_path, "w") as f:
+                                f.write(edited_config)
+                                
+                            st.success(f"Configuration saved to {save_path}")
+                        except Exception as e:
+                            st.error(f"Error saving configuration: {str(e)}")
 
 def process_documents(
     input_type: str,
