@@ -218,12 +218,17 @@ class Extractor:
             result["text"] = "\n\n".join(full_text)
             result["pages"] = pages
             
-            # If no text layer is detected and OCR is enabled, use OCR
-            if not has_text and self.ocr_enabled:
+            # ALWAYS perform OCR if OCR is enabled, regardless of existing text layer
+            # This ensures we process all pages with OCR and don't rely on PDF text layer
+            if self.ocr_enabled:
+                print("Forcing OCR processing even if PDF has text layer")
                 ocr_result = self._extract_pdf_with_ocr(file_path)
                 if ocr_result["success"]:
+                    # If OCR was successful, use its results
                     result = ocr_result
                     result["extraction_method"] = "pdf_ocr"
+                    # Preserve the information about text layer
+                    result["has_text_layer"] = has_text
             
             # If still no text, try pdfminer as a fallback
             if not result["text"].strip() and not result["error"]:

@@ -26,6 +26,40 @@ Raggiro è un framework completo per l'elaborazione di documenti progettato per 
 - **Supporto multilingua**: Rilevamento automatico della lingua e mantenimento della coerenza linguistica
 - **Visualizzazione avanzata**: Dashboard per analizzare la qualità del chunking e della correzione ortografica
 
+## Requisiti di sistema
+
+### Software Python
+
+Il progetto richiede Python 3.8 o superiore con le seguenti librerie principali:
+
+- **Elaborazione PDF**: pymupdf, pdfminer.six
+- **OCR**: pytesseract
+- **Elaborazione documenti**: python-docx, openpyxl, pandas, beautifulsoup4
+- **NLP e analisi testo**: spacy, langdetect, symspellpy, textblob
+- **RAG**: sentence-transformers, faiss-cpu, qdrant-client
+- **GUI**: streamlit, textual
+
+### Programmi esterni richiesti
+
+1. **Tesseract OCR** - Richiesto per OCR su PDF e immagini
+   - **Ubuntu/Debian**: `sudo apt-get install tesseract-ocr tesseract-ocr-ita tesseract-ocr-eng`
+   - **macOS**: `brew install tesseract tesseract-lang`
+   - **Windows**: Scarica e installa da [GitHub](https://github.com/UB-Mannheim/tesseract/wiki)
+
+2. **Poppler** - Richiesto per l'elaborazione PDF
+   - **Ubuntu/Debian**: `sudo apt-get install poppler-utils`
+   - **macOS**: `brew install poppler`
+   - **Windows**: Scarica da [poppler-windows](https://github.com/oschwartz10612/poppler-windows)
+
+3. **Libmagic** - Per il rilevamento dei tipi MIME
+   - **Ubuntu/Debian**: `sudo apt-get install libmagic-dev`
+   - **macOS**: `brew install libmagic`
+   - **Windows**: Installato automaticamente con python-magic-bin
+
+4. **Modelli linguistici Spacy**:
+   - `python -m spacy download en_core_web_sm`
+   - `python -m spacy download it_core_news_sm` (per supporto italiano)
+
 ## Documentazione
 
 Raggiro include una documentazione completa divisa nelle seguenti sezioni:
@@ -38,25 +72,71 @@ Raggiro include una documentazione completa divisa nelle seguenti sezioni:
 - [Testing e valutazione](docs/testing.md) - Strumenti per testare e valutare il sistema RAG
 - [Riferimento API](docs/api.md) - Documentazione dell'API Python per sviluppatori
 
+## Installazione
+
+### 1. Installare programmi esterni richiesti
+
+Prima di installare Raggiro, assicurati di aver installato tutti i programmi esterni richiesti:
+
+```bash
+# Ubuntu/Debian
+sudo apt-get update
+sudo apt-get install -y tesseract-ocr tesseract-ocr-ita tesseract-ocr-eng tesseract-ocr-fra tesseract-ocr-deu poppler-utils libmagic-dev
+
+# Per macOS usando Homebrew
+brew install tesseract tesseract-lang poppler libmagic
+```
+
+### 2. Clonare e installare Raggiro
+
+```bash
+# Clonare il repository
+git clone https://github.com/lollonet/raggiro.git
+cd raggiro
+
+# Installare dipendenze Python
+pip install -e .
+# Oppure specificamente con tutte le dipendenze
+pip install -r requirements.txt
+
+# Installare i modelli linguistici richiesti
+python -m spacy download en_core_web_sm
+python -m spacy download it_core_news_sm  # Opzionale per supporto italiano
+```
+
+### 3. Verifica installazione Tesseract
+
+Raggiro usa Tesseract per OCR. Verifica che sia installato correttamente:
+
+```bash
+# Controlla versione tesseract
+tesseract --version
+
+# Verifica lingue disponibili
+tesseract --list-langs
+```
+
 ## Avvio rapido
 
 ```bash
-# Installazione
-git clone https://github.com/lollonet/raggiro.git
-cd raggiro
-pip install -e .
-
-# Elabora un documento
-raggiro process document.pdf --output output_dir
+# Elabora un documento con OCR
+raggiro process document.pdf --ocr --output output_dir
 
 # Avvia l'interfaccia GUI Streamlit
-python3 scripts/gui/launch_gui.py
+python launch_gui.py
 # oppure
-bash scripts/gui/run_streamlit.sh
+bash run_streamlit.sh
 
 # Usa l'interfaccia OCR specializzata
 # Seleziona la scheda "OCR & Correction" nell'interfaccia GUI
 ```
+
+### Nota importante per l'OCR di documenti multi-pagina
+
+Per elaborare correttamente documenti PDF con molte pagine:
+1. Nella scheda "OCR & Correction", assicurati che "Max Pages to Process" sia impostato a 0 (elabora tutte le pagine)
+2. Aumenta "Batch Size" (20-30) per migliorare le prestazioni
+3. Il parametro "Process Every N Pages" può essere usato per elaborare solo alcune pagine (1 = tutte le pagine)
 
 ### Novità
 
