@@ -161,6 +161,23 @@ class Exporter:
             document: Processed document dictionary
             output_path: Output file path
         """
+        # Access Unicode normalizer for consistent character handling
+        try:
+            from ..utils.unicode_normalizer import UnicodeNormalizer
+            UNICODE_NORMALIZER_AVAILABLE = True
+        except ImportError:
+            UNICODE_NORMALIZER_AVAILABLE = False
+            logger.warning("UnicodeNormalizer not available - Unicode handling may be inconsistent in exports")
+        
+        # Helper function to normalize text for display
+        def normalize_text(text):
+            if not text:
+                return ""
+                
+            if UNICODE_NORMALIZER_AVAILABLE:
+                return UnicodeNormalizer.clean_for_display(text)
+            return text
+        
         metadata = document.get("metadata", {})
         content = []
         
@@ -169,10 +186,12 @@ class Exporter:
             content.append("---")
             
             if "title" in metadata:
-                content.append(f"title: {metadata['title']}")
+                title = normalize_text(metadata['title'])
+                content.append(f"title: {title}")
                 
             if "author" in metadata:
-                content.append(f"author: {metadata['author']}")
+                author = normalize_text(metadata['author'])
+                content.append(f"author: {author}")
                 
             if "date" in metadata:
                 content.append(f"date: {metadata['date']}")
@@ -181,18 +200,21 @@ class Exporter:
                 content.append(f"language: {metadata['language']}")
                 
             if "topics" in metadata and metadata["topics"]:
-                topics_str = ", ".join(metadata["topics"])
+                topics = [normalize_text(topic) for topic in metadata["topics"]]
+                topics_str = ", ".join(topics)
                 content.append(f"topics: {topics_str}")
                 
             if "file" in metadata:
-                content.append(f"source: {metadata.get('file', {}).get('path', '')}")
+                source_path = normalize_text(metadata.get('file', {}).get('path', ''))
+                content.append(f"source: {source_path}")
                 
             content.append("---")
             content.append("")
         
         # Add title
         if "title" in metadata and metadata["title"]:
-            content.append(f"# {metadata['title']}")
+            title = normalize_text(metadata['title'])
+            content.append(f"# {title}")
             content.append("")
         
         # Add metadata section
@@ -201,7 +223,8 @@ class Exporter:
             content.append("")
             
             if "author" in metadata and metadata["author"]:
-                content.append(f"**Author:** {metadata['author']}")
+                author = normalize_text(metadata['author'])
+                content.append(f"**Author:** {author}")
                 
             if "date" in metadata and metadata["date"]:
                 content.append(f"**Date:** {metadata['date']}")
@@ -210,7 +233,8 @@ class Exporter:
                 content.append(f"**Language:** {metadata['language']}")
                 
             if "topics" in metadata and metadata["topics"]:
-                content.append(f"**Topics:** {', '.join(metadata['topics'])}")
+                topics = [normalize_text(topic) for topic in metadata["topics"]]
+                content.append(f"**Topics:** {', '.join(topics)}")
                 
             if "word_count" in metadata:
                 content.append(f"**Word count:** {metadata['word_count']}")
@@ -233,27 +257,35 @@ class Exporter:
                     for header in headers:
                         level = header.get("level", 2)
                         header_markdown = "#" * min(level + 1, 6)  # Ensure header level is valid
-                        content.append(f"{header_markdown} {header.get('text', 'Section')}")
+                        header_text = normalize_text(header.get('text', 'Section'))
+                        content.append(f"{header_markdown} {header_text}")
                         content.append("")
                 else:
                     # If no headers, use a generic section title
                     content.append(f"## Content (Chunk {chunk.get('id', '')})")
                     content.append("")
                 
-                # Add the chunk text
-                content.append(chunk.get("text", ""))
+                # Add the chunk text with Unicode normalization
+                chunk_text = normalize_text(chunk.get("text", ""))
+                content.append(chunk_text)
                 content.append("")
                 content.append("---")
                 content.append("")
         else:
-            # If no chunks, add the full text
+            # If no chunks, add the full text with Unicode normalization
             content.append("## Content")
             content.append("")
-            content.append(document.get("text", ""))
+            full_text = normalize_text(document.get("text", ""))
+            content.append(full_text)
         
-        # Write to file
-        with open(output_path, "w", encoding="utf-8") as f:
-            f.write("\n".join(content))
+        # Write to file with UTF-8 encoding
+        try:
+            with open(output_path, "w", encoding="utf-8") as f:
+                f.write("\n".join(content))
+            logger.debug(f"Markdown export saved to {output_path}")
+        except Exception as e:
+            logger.error(f"Failed to write Markdown file: {str(e)}", exc_info=True)
+            raise
     
     def _export_json(self, document: Dict, output_path: Path) -> None:
         """Export document as JSON.
@@ -262,6 +294,38 @@ class Exporter:
             document: Processed document dictionary
             output_path: Output file path
         """
+        # Access Unicode normalizer for consistent character handling
+        try:
+            from ..utils.unicode_normalizer import UnicodeNormalizer
+            UNICODE_NORMALIZER_AVAILABLE = True
+        except ImportError:
+            UNICODE_NORMALIZER_AVAILABLE = False
+            logger.warning("UnicodeNormalizer not available - Unicode handling may be inconsistent in JSON exports")
+        
+        # Helper function to normalize text fields in JSON data
+        def normalize_text_fields(data):
+            """Recursively normalize text fields in dictionaries and lists."""
+            if not UNICODE_NORMALIZER_AVAILABLE:
+                return data
+                
+            if isinstance(data, dict):
+                result = {}
+                for key, value in data.items():
+                    # Skip normalization for specific fields like IDs, counts, etc.
+                    if key in ["id", "page_num", "word_count", "char_count", "processing_time", "date"]:
+                        result[key] = value
+                    # Apply normalization for text fields
+                    elif isinstance(value, str) and ("text" in key or key in ["title", "author"]):
+                        result[key] = UnicodeNormalizer.clean_for_display(value)
+                    # Recursively process nested dictionaries and lists
+                    else:
+                        result[key] = normalize_text_fields(value)
+                return result
+            elif isinstance(data, list):
+                return [normalize_text_fields(item) for item in data]
+            else:
+                return data
+                
         # Create a clean JSON export with basic fields
         export_data = {
             "metadata": document.get("metadata", {}),
@@ -325,9 +389,18 @@ class Exporter:
         if "chunks" in document:
             export_data["chunks"] = document["chunks"]
         
-        # Write to file with pretty printing
-        with open(output_path, "w", encoding="utf-8") as f:
-            json.dump(export_data, f, indent=self.json_indent, ensure_ascii=False)
+        # Apply Unicode normalization to text fields if available
+        if UNICODE_NORMALIZER_AVAILABLE:
+            export_data = normalize_text_fields(export_data)
+        
+        # Write to file with pretty printing, ensuring proper Unicode handling
+        try:
+            with open(output_path, "w", encoding="utf-8") as f:
+                json.dump(export_data, f, indent=self.json_indent, ensure_ascii=False)
+            logger.debug(f"JSON export saved to {output_path}")
+        except Exception as e:
+            logger.error(f"Failed to write JSON file: {str(e)}", exc_info=True)
+            raise
     
     def _export_text(self, document: Dict, output_path: Path) -> None:
         """Export document as plain text.
@@ -336,36 +409,65 @@ class Exporter:
             document: Processed document dictionary
             output_path: Output file path
         """
+        # Access Unicode normalizer for consistent character handling
+        try:
+            from ..utils.unicode_normalizer import UnicodeNormalizer
+            UNICODE_NORMALIZER_AVAILABLE = True
+        except ImportError:
+            UNICODE_NORMALIZER_AVAILABLE = False
+            logger.warning("UnicodeNormalizer not available - Unicode handling may be inconsistent in text exports")
+        
+        # Helper function to normalize text for display
+        def normalize_text(text):
+            if not text:
+                return ""
+                
+            if UNICODE_NORMALIZER_AVAILABLE:
+                return UnicodeNormalizer.clean_for_display(text)
+            return text
+        
         content = []
         
         # Add a simple header
         metadata = document.get("metadata", {})
         if "title" in metadata and metadata["title"]:
-            content.append(metadata["title"].upper())
-            content.append("=" * len(metadata["title"]))
+            title = normalize_text(metadata["title"])
+            content.append(title.upper())
+            content.append("=" * len(title))
             content.append("")
         
         # Add basic metadata
         if self.include_metadata:
             if "author" in metadata and metadata["author"]:
-                content.append(f"Author: {metadata['author']}")
+                author = normalize_text(metadata["author"])
+                content.append(f"Author: {author}")
                 
             if "date" in metadata and metadata["date"]:
                 content.append(f"Date: {metadata['date']}")
                 
+            if "language" in metadata and metadata["language"]:
+                content.append(f"Language: {metadata['language']}")
+                
             if "topics" in metadata and metadata["topics"]:
-                content.append(f"Topics: {', '.join(metadata['topics'])}")
+                topics = [normalize_text(topic) for topic in metadata["topics"]]
+                content.append(f"Topics: {', '.join(topics)}")
                 
             content.append("")
             content.append("-" * 80)
             content.append("")
         
-        # Add the text content
-        content.append(document.get("text", ""))
+        # Add the text content with Unicode normalization
+        document_text = normalize_text(document.get("text", ""))
+        content.append(document_text)
         
-        # Write to file
-        with open(output_path, "w", encoding="utf-8") as f:
-            f.write("\n".join(content))
+        # Write to file with UTF-8 encoding
+        try:
+            with open(output_path, "w", encoding="utf-8") as f:
+                f.write("\n".join(content))
+            logger.debug(f"Text export saved to {output_path}")
+        except Exception as e:
+            logger.error(f"Failed to write text file: {str(e)}", exc_info=True)
+            raise
             
     def _export_corrected_pdf(self, document: Dict, output_path: Path) -> None:
         """Export a PDF with corrected text.
@@ -376,6 +478,14 @@ class Exporter:
         """
         if not HAS_FITZ:
             raise ImportError("PyMuPDF (fitz) is required to create PDF files")
+            
+        # Access Unicode normalizer for consistent character handling
+        try:
+            from ..utils.unicode_normalizer import UnicodeNormalizer
+            UNICODE_NORMALIZER_AVAILABLE = True
+        except ImportError:
+            UNICODE_NORMALIZER_AVAILABLE = False
+            logger.warning("UnicodeNormalizer not available - Unicode handling may be inconsistent")
             
         # List of built-in PDF fonts we can use safely
         BUILTIN_FONTS = ["helv", "times", "courier", "symbol", "zapf"]
@@ -392,54 +502,105 @@ class Exporter:
         # Get document metadata
         metadata = document.get("metadata", {})
         
+        # Normalize metadata strings for PDF to avoid encoding issues
+        if UNICODE_NORMALIZER_AVAILABLE:
+            title = UnicodeNormalizer.clean_for_display(metadata.get("title", ""))
+            author = UnicodeNormalizer.clean_for_display(metadata.get("author", ""))
+        else:
+            # Fallback to basic normalization if utility is not available
+            title = metadata.get("title", "")
+            author = metadata.get("author", "")
+        
         # Set document metadata
         doc.set_metadata({
-            "title": metadata.get("title", ""),
-            "author": metadata.get("author", ""),
+            "title": title,
+            "author": author,
             "subject": "Corrected document from OCR",
             "creator": "Raggiro OCR Correction",
             "producer": "Raggiro",
             "creationDate": fitz.get_pdf_now(),
         })
         
+        # Helper function to normalize text for PDF display
+        def normalize_for_pdf(text):
+            if not text:
+                return ""
+                
+            if UNICODE_NORMALIZER_AVAILABLE:
+                return UnicodeNormalizer.clean_for_display(text)
+            else:
+                # Basic fallback normalization for problematic characters
+                replacements = {
+                    '"': '"', '"': '"', '„': '"', ''': "'", ''': "'",
+                    '–': '-', '—': '-', '…': '...', '•': '*'
+                }
+                for old, new in replacements.items():
+                    text = text.replace(old, new)
+                return text
+        
+        # Track whether we have at least one valid page with content
+        has_valid_content = False
+        
         # Process each page separately if available
         pages = document.get("pages", [])
         if pages:
             for i, page_data in enumerate(pages):
                 page_text = page_data.get("text", "")
-                if page_text:
-                    # Create a new page in the PDF
-                    page = doc.new_page(width=595, height=842)  # A4 size
+                if not page_text:
+                    logger.warning(f"Skipping page {i+1} as text content is empty")
+                    continue
                     
-                    # Add a header to indicate this is a corrected version with char count
-                    char_count = page_data.get("char_count", len(page_text))
-                    header_text = f"Corrected Text - Page {i+1}/{len(pages)} ({char_count} chars)"
-                    # Use 'helv' (Helvetica) font which is built-in to PDF
-                    page.insert_text((50, 50), header_text, fontsize=12, fontname="helv", color=(0, 0, 0.8))
-                    
-                    # Add a divider line
-                    page.draw_line((50, 70), (545, 70), color=(0, 0, 0.5), width=1)
-                    
-                    # Add the text content
-                    rect = fitz.Rect(50, 80, 545, 792)  # Leave margins
-                    try:
-                        # Truncate text if it's too long to avoid memory issues
-                        if len(page_text) > MAX_TEXT_SIZE:
-                            truncated_text = page_text[:MAX_TEXT_SIZE] + "\n\n[... Text truncated due to size limits. See JSON for full content ...]"
-                            logger.warning(f"Truncating page {i+1} text from {len(page_text)} to {len(truncated_text)} characters")
-                            page_text = truncated_text
-                            
-                        page.insert_textbox(rect, page_text, fontsize=10, fontname="helv",
-                                          align=0, color=(0, 0, 0))
-                    except Exception as e:
-                        # If textbox fails, try simpler text insertion with fallback
-                        logger.warning(f"Failed to insert text box, using simpler method: {str(e)}", exc_info=True)
-                        page.insert_text((50, 100), "Error rendering text. See JSON output for content.", 
-                                       fontsize=10, fontname="helv", color=(0.8, 0, 0))
+                # Normalize text for PDF display
+                page_text = normalize_for_pdf(page_text)
+                
+                # Mark that we have valid content
+                has_valid_content = True
+                
+                # Create a new page in the PDF
+                page = doc.new_page(width=595, height=842)  # A4 size
+                
+                # Add a header to indicate this is a corrected version with char count
+                char_count = page_data.get("char_count", len(page_text))
+                header_text = f"Corrected Text - Page {i+1}/{len(pages)} ({char_count} chars)"
+                # Use 'helv' (Helvetica) font which is built-in to PDF
+                page.insert_text((50, 50), header_text, fontsize=12, fontname="helv", color=(0, 0, 0.8))
+                
+                # Add a divider line
+                page.draw_line((50, 70), (545, 70), color=(0, 0, 0.5), width=1)
+                
+                # Add the text content
+                rect = fitz.Rect(50, 80, 545, 792)  # Leave margins
+                try:
+                    # Truncate text if it's too long to avoid memory issues
+                    if len(page_text) > MAX_TEXT_SIZE:
+                        truncated_text = page_text[:MAX_TEXT_SIZE] + "\n\n[... Text truncated due to size limits. See JSON for full content ...]"
+                        logger.warning(f"Truncating page {i+1} text from {len(page_text)} to {len(truncated_text)} characters")
+                        page_text = truncated_text
+                        
+                    page.insert_textbox(rect, page_text, fontsize=10, fontname="helv",
+                                      align=0, color=(0, 0, 0))
+                except Exception as e:
+                    # If textbox fails, try simpler text insertion with fallback
+                    logger.error(f"Failed to insert text box: {str(e)}", exc_info=True)
+                    page.insert_text((50, 100), "Error rendering text. See JSON output for content.", 
+                                   fontsize=10, fontname="helv", color=(0.8, 0, 0))
         else:
             # If no individual pages, use the full text
             full_text = document.get("text", "")
-            if full_text:
+            if not full_text:
+                logger.warning("Document text is empty, creating error page")
+                page = doc.new_page(width=595, height=842)  # A4 size
+                page.insert_text((50, 50), "Empty Document Error", fontsize=16, fontname="helv", color=(0.8, 0, 0))
+                page.insert_text((50, 90), "No text content available for this document.", fontsize=12, fontname="helv")
+                page.insert_text((50, 120), "Please check the document extraction process.", fontsize=12, fontname="helv")
+                has_valid_content = True
+            else:
+                # Normalize text for PDF display
+                full_text = normalize_for_pdf(full_text)
+                
+                # Mark that we have valid content
+                has_valid_content = True
+                
                 # Create a new page in the PDF
                 page = doc.new_page(width=595, height=842)  # A4 size
                 
@@ -456,39 +617,35 @@ class Exporter:
                     # Split into multiple pages if text is very long
                     if len(full_text) > MAX_PAGE_LENGTH:
                         # Create a multi-page document
-                        current_text = full_text
-                        page_number = 1
-                        
-                        while current_text:
-                            # Take a chunk of text for this page
-                            page_chunk = current_text[:MAX_PAGE_LENGTH]
-                            current_text = current_text[MAX_PAGE_LENGTH:]
-                            
-                            if page_number > 1:
-                                # Create a new page for the next chunk
-                                page = doc.new_page(width=595, height=842)  # A4 size
-                                header_text = f"Corrected Text - Page {page_number}"
-                                page.insert_text((50, 50), header_text, fontsize=12, fontname="helv", color=(0, 0, 0.8))
-                                page.draw_line((50, 70), (545, 70), color=(0, 0, 0.5), width=1)
-                                
-                            # Insert this chunk
-                            page.insert_textbox(rect, page_chunk, fontsize=10, fontname="helv",
-                                              align=0, color=(0, 0, 0))
-                            
-                            page_number += 1
+                        logger.info(f"Breaking long text ({len(full_text)} chars) into multiple pages")
+                        self._handle_long_text(doc, full_text, "Corrected Text", MAX_PAGE_LENGTH)
                     else:
                         # Short enough for a single page
                         page.insert_textbox(rect, full_text, fontsize=10, fontname="helv",
                                           align=0, color=(0, 0, 0))
                 except Exception as e:
                     # If textbox fails, try simpler text insertion with fallback
-                    print(f"Warning: Failed to insert text box, using simpler method: {str(e)}")
+                    logger.error(f"Failed to insert text box: {str(e)}", exc_info=True)
                     page.insert_text((50, 100), "Error rendering text. See JSON output for content.", 
                                    fontsize=10, fontname="helv", color=(0.8, 0, 0))
+        
+        # If we have no content, create an information page
+        if not has_valid_content:
+            logger.warning("No valid content found for PDF generation - creating error page")
+            page = doc.new_page(width=595, height=842)  # A4 portrait
+            page.insert_text((50, 50), "Document Error", fontsize=16, fontname="helv", color=(0.8, 0, 0))
+            page.insert_text((50, 90), "No text content available for this document.", fontsize=12, fontname="helv")
+            page.insert_text((50, 120), "Please check the document extraction process.", fontsize=12, fontname="helv")
+            page.insert_text((50, 150), f"Document ID: {metadata.get('id', 'Unknown')}", fontsize=10, fontname="helv")
+            page.insert_text((50, 170), f"Filename: {metadata.get('filename', 'Unknown')}", fontsize=10, fontname="helv")
+            page.insert_text((50, 190), f"Extraction method: {document.get('extraction_method', 'Unknown')}", fontsize=10, fontname="helv")
         
         # Save the PDF
         doc.save(output_path)
         doc.close()
+        
+        # Log success message
+        logger.info(f"Corrected PDF saved to {output_path}")
         
     def _export_comparison_pdf(self, document: Dict, output_path: Path) -> None:
         """Export a PDF with side-by-side comparison of original and corrected text.
@@ -504,16 +661,33 @@ class Exporter:
         MAX_TEXT_SIZE = 50000  # Maximum character count for a single textbox in comparison
         MAX_PAGE_LENGTH = 3000  # Maximum length of text per page in comparison
         
+        # Access Unicode normalizer for consistent character handling
+        try:
+            from ..utils.unicode_normalizer import UnicodeNormalizer
+            UNICODE_NORMALIZER_AVAILABLE = True
+        except ImportError:
+            UNICODE_NORMALIZER_AVAILABLE = False
+            logger.warning("UnicodeNormalizer not available - Unicode handling may be inconsistent")
+        
         # Create a new PDF document
         doc = fitz.open()
         
         # Get document metadata
         metadata = document.get("metadata", {})
         
+        # Normalize metadata strings for PDF to avoid encoding issues
+        if UNICODE_NORMALIZER_AVAILABLE:
+            title = UnicodeNormalizer.clean_for_display(metadata.get("title", ""))
+            author = UnicodeNormalizer.clean_for_display(metadata.get("author", ""))
+        else:
+            # Fallback to basic normalization if utility is not available
+            title = metadata.get("title", "")
+            author = metadata.get("author", "")
+        
         # Set document metadata
         doc.set_metadata({
-            "title": metadata.get("title", ""),
-            "author": metadata.get("author", ""),
+            "title": title,
+            "author": author,
             "subject": "Text comparison document",
             "creator": "Raggiro OCR Correction",
             "producer": "Raggiro",
@@ -531,101 +705,135 @@ class Exporter:
         # If we don't have explicit original text, check if the extraction method is OCR
         is_ocr = document.get("extraction_method", "") in ["pdf_ocr", "image_ocr"]
         
+        # Helper function to normalize text for PDF display
+        def normalize_for_pdf(text):
+            if not text:
+                return ""
+                
+            if UNICODE_NORMALIZER_AVAILABLE:
+                return UnicodeNormalizer.clean_for_display(text)
+            else:
+                # Basic fallback normalization for problematic characters
+                replacements = {
+                    '"': '"', '"': '"', '„': '"', ''': "'", ''': "'",
+                    '–': '-', '—': '-', '…': '...', '•': '*'
+                }
+                for old, new in replacements.items():
+                    text = text.replace(old, new)
+                return text
+        
+        # Track whether we have at least one valid page with content
+        has_valid_content = False
+        
         if pages:
             # Create a page for each text page
             for i, page_data in enumerate(pages):
+                # Get corrected text and normalize for PDF
                 corrected_text = page_data.get("text", "")
+                if corrected_text:
+                    corrected_text = normalize_for_pdf(corrected_text)
                 
                 # Get original text if available - use multiple fallback approaches
                 original_text = ""
                 
-                # Debug avanzato per diagnosticare problemi con i testi
+                # Debug information for text retrieval
                 logger.debug("-" * 80)
                 logger.debug(f"DIAGNOSTICA PAGINA {i+1}:")
                 logger.debug(f"Chiavi disponibili: {list(page_data.keys())}")
                 
-                # Verifica di tutte le possibili fonti di testo originale
+                # Check all possible sources of original text
                 if has_original and i < len(original_pages):
                     original_keys = list(original_pages[i].keys())
                     logger.debug(f"Chiavi in original_pages[{i}]: {original_keys}")
-                    # Recupero sicuro dei testi con verifica di validità
+                    # Safe text retrieval with validation
                     try:
                         original_page_text = original_pages[i].get("text", "")
-                        # Assicuriamoci che sia una stringa valida
+                        # Ensure it's a valid string
                         if original_page_text is None:
                             original_page_text = ""
                         if not isinstance(original_page_text, str):
                             original_page_text = str(original_page_text)
                     except Exception as e:
-                        logger.warning(f"Errore nel recupero del testo originale text: {e}", exc_info=True)
+                        logger.warning(f"Error retrieving original text: {e}", exc_info=True)
                         original_page_text = ""
                         
                     try:
                         original_page_raw = original_pages[i].get("raw_text", "")
-                        # Assicuriamoci che sia una stringa valida
+                        # Ensure it's a valid string
                         if original_page_raw is None:
                             original_page_raw = ""
                         if not isinstance(original_page_raw, str):
                             original_page_raw = str(original_page_raw)
                     except Exception as e:
-                        logger.warning(f"Errore nel recupero del testo originale raw_text: {e}", exc_info=True)
+                        logger.warning(f"Error retrieving raw_text: {e}", exc_info=True)
                         original_page_raw = ""
                     
-                    # Aggiungi statistiche sui contenuti
-                    logger.debug(f"Lunghezza original_pages[{i}]['text']: {len(original_page_text)}")
-                    logger.debug(f"Lunghezza original_pages[{i}]['raw_text']: {len(original_page_raw)}")
+                    # Debug content length
+                    logger.debug(f"Length of original_pages[{i}]['text']: {len(original_page_text)}")
+                    logger.debug(f"Length of original_pages[{i}]['raw_text']: {len(original_page_raw)}")
                 
-                # Verifica contenuto in page_data
-                # Gestione sicura per evitare errori di stringa non terminata
+                # Check content in page_data with safe handling
                 try:
                     if "raw_text" in page_data:
                         raw_len = len(page_data.get("raw_text", ""))
-                        logger.debug(f"Lunghezza page_data['raw_text']: {raw_len}")
+                        logger.debug(f"Length of page_data['raw_text']: {raw_len}")
                 except Exception as e:
-                    logger.warning(f"Errore nel calcolo lunghezza raw_text: {e}", exc_info=True)
+                    logger.warning(f"Error calculating raw_text length: {e}", exc_info=True)
                     
                 try:
                     if "original_text" in page_data:
                         orig_len = len(page_data.get("original_text", ""))
-                        logger.debug(f"Lunghezza page_data['original_text']: {orig_len}")
+                        logger.debug(f"Length of page_data['original_text']: {orig_len}")
                 except Exception as e:
-                    logger.warning(f"Errore nel calcolo lunghezza original_text: {e}", exc_info=True)
+                    logger.warning(f"Error calculating original_text length: {e}", exc_info=True)
                     
                 try:
                     if "text" in page_data:
                         text_len = len(page_data.get("text", ""))
-                        logger.debug(f"Lunghezza page_data['text']: {text_len}")
+                        logger.debug(f"Length of page_data['text']: {text_len}")
                 except Exception as e:
-                    logger.warning(f"Errore nel calcolo lunghezza text: {e}", exc_info=True)
+                    logger.warning(f"Error calculating text length: {e}", exc_info=True)
                 logger.debug("-" * 80)
                 
-                # Approccio prioritizzato per ottenere il testo originale - più affidabile e con log dettagliati
+                # Prioritized approach to get original text with detailed logging
                 
-                # Priorità 1: Usa original_text da page_data (aggiunto nelle modifiche recenti)
+                # Priority 1: Use original_text from page_data (added in recent changes)
                 if "original_text" in page_data and page_data.get("original_text", "").strip():
-                    logger.info(f"✓ USANDO original_text da page_data (priorità 1) per pagina {i+1}")
+                    logger.info(f"✓ USING original_text from page_data (priority 1) for page {i+1}")
                     original_text = page_data.get("original_text", "")
                 
-                # Priorità 2: Usa raw_text da page_data (opzione più comune)
+                # Priority 2: Use raw_text from page_data (most common option)
                 elif "raw_text" in page_data and page_data.get("raw_text", "").strip():
-                    logger.info(f"✓ USANDO raw_text da page_data (priorità 2) per pagina {i+1}")
+                    logger.info(f"✓ USING raw_text from page_data (priority 2) for page {i+1}")
                     original_text = page_data.get("raw_text", "")
                 
-                # Priorità 3: Usa text da original_pages
+                # Priority 3: Use text from original_pages
                 elif has_original and i < len(original_pages) and original_pages[i].get("text", "").strip():
-                    logger.info(f"✓ USANDO text da original_pages (priorità 3) per pagina {i+1}")
+                    logger.info(f"✓ USING text from original_pages (priority 3) for page {i+1}")
                     original_text = original_pages[i].get("text", "")
                 
-                # Priorità 4: Usa raw_text da original_pages
+                # Priority 4: Use raw_text from original_pages
                 elif has_original and i < len(original_pages) and original_pages[i].get("raw_text", "").strip():
-                    logger.info(f"✓ USANDO raw_text da original_pages (priorità 4) per pagina {i+1}")
+                    logger.info(f"✓ USING raw_text from original_pages (priority 4) for page {i+1}")
                     original_text = original_pages[i].get("raw_text", "")
+                
+                # Normalize original text for PDF display
+                if original_text:
+                    original_text = normalize_for_pdf(original_text)
                 
                 # Log which approach worked
                 if original_text.strip():
                     logger.debug(f"Successfully retrieved original text for page {i+1} ({len(original_text)} chars)")
                 else:
                     logger.warning(f"Could not find original text for page {i+1}")
+                
+                # Skip pages where both texts are empty to avoid empty pages in PDF
+                if not original_text.strip() and not corrected_text.strip():
+                    logger.warning(f"Skipping page {i+1} as both original and corrected texts are empty")
+                    continue
+                
+                # At this point we have at least one page with content
+                has_valid_content = True
                 
                 # Create a new page for side-by-side comparison
                 page = doc.new_page(width=842, height=595)  # A4 landscape
@@ -653,56 +861,58 @@ class Exporter:
                 
                 # Insert original text with error handling and size management
                 try:
-                    # Verifica che il testo originale non sia vuoto
+                    # Handle empty original text
                     if not original_text.strip():
-                        original_text = "ATTENZIONE: Testo originale non disponibile.\nPotrebbe esserci un problema con l'estrazione del testo originale."
-                        print(f"Warning: Original text is empty for page {i+1}")
+                        original_text = "WARNING: Original text not available.\nThere may be an issue with text extraction."
+                        logger.warning(f"Original text is empty for page {i+1}")
                     
                     # Truncate text if it's too long to avoid memory issues
                     elif len(original_text) > MAX_TEXT_SIZE:
                         truncated_text = original_text[:MAX_TEXT_SIZE] + "\n\n[... Text truncated due to size limits ...]"
-                        print(f"Warning: Truncating original text from {len(original_text)} to {len(truncated_text)} characters")
+                        logger.warning(f"Truncating original text from {len(original_text)} to {len(truncated_text)} characters")
                         original_text = truncated_text
                     
-                    # Log di debug per verificare il contenuto
-                    print(f"Original text sample for page {i+1}: {original_text[:100]}...")
+                    # Debug to verify content
+                    logger.debug(f"Original text sample for page {i+1}: {original_text[:100]}...")
                         
                     page.insert_textbox(rect_orig, original_text, fontsize=10, fontname="helv",
                                        align=0, color=(0, 0, 0))
                 except Exception as e:
                     # If textbox fails, try simpler text insertion
-                    print(f"Warning: Failed to insert original text box: {str(e)}")
+                    logger.error(f"Failed to insert original text box: {str(e)}", exc_info=True)
                     page.insert_text((rect_orig.x0, rect_orig.y0 + 20), 
                                    "Error rendering text. See JSON output for content.", 
                                    fontsize=10, fontname="helv", color=(0.8, 0, 0))
                 
                 # Insert corrected text with error handling and size management
                 try:
-                    # Verifica che il testo corretto non sia vuoto
+                    # Handle empty corrected text
                     if not corrected_text.strip():
-                        corrected_text = "ATTENZIONE: Testo corretto non disponibile."
-                        print(f"Warning: Corrected text is empty for page {i+1}")
+                        corrected_text = "WARNING: Corrected text not available."
+                        logger.warning(f"Corrected text is empty for page {i+1}")
                     
                     # Truncate text if it's too long to avoid memory issues
                     elif len(corrected_text) > MAX_TEXT_SIZE:
                         truncated_text = corrected_text[:MAX_TEXT_SIZE] + "\n\n[... Text truncated due to size limits ...]"
-                        print(f"Warning: Truncating corrected text from {len(corrected_text)} to {len(truncated_text)} characters")
+                        logger.warning(f"Truncating corrected text from {len(corrected_text)} to {len(truncated_text)} characters")
                         corrected_text = truncated_text
                         
-                    # Log di debug per verificare il contenuto
-                    print(f"Corrected text sample for page {i+1}: {corrected_text[:100]}...")
+                    # Debug to verify content
+                    logger.debug(f"Corrected text sample for page {i+1}: {corrected_text[:100]}...")
                         
                     page.insert_textbox(rect_corr, corrected_text, fontsize=10, fontname="helv",
                                        align=0, color=(0, 0, 0))
                 except Exception as e:
                     # If textbox fails, try simpler text insertion
-                    print(f"Warning: Failed to insert corrected text box: {str(e)}")
+                    logger.error(f"Failed to insert corrected text box: {str(e)}", exc_info=True)
                     page.insert_text((rect_corr.x0, rect_corr.y0 + 20), 
                                    "Error rendering text. See JSON output for content.", 
                                    fontsize=10, fontname="helv", color=(0.8, 0, 0))
         else:
             # If no individual pages, use the full text
             corrected_text = document.get("text", "")
+            if corrected_text:
+                corrected_text = normalize_for_pdf(corrected_text)
             
             # Multiple approaches to get the original text for full document
             original_text = ""
@@ -720,70 +930,162 @@ class Exporter:
                 logger.info("Using raw_text approach for full document")
                 original_text = document.get("raw_text", "")
                 
+            # Normalize original text for PDF display
+            if original_text:
+                original_text = normalize_for_pdf(original_text)
+                
             # Log success or failure
             if original_text.strip():
                 logger.debug(f"Successfully retrieved original text for full document ({len(original_text)} chars)")
             else:
                 logger.warning("Could not find original text for full document")
             
-            # Create a new page for side-by-side comparison
-            page = doc.new_page(width=842, height=595)  # A4 landscape
-            
-            # Add a header with character counts
-            orig_len = len(original_text)
-            corr_len = len(corrected_text)
-            char_diff = corr_len - orig_len
-            diff_sign = "+" if char_diff >= 0 else ""
-            
-            header_text = f"Text Comparison (Original: {orig_len} chars, Corrected: {corr_len} chars, Diff: {diff_sign}{char_diff})"
-            page.insert_text((50, 40), header_text, fontsize=12, fontname="helv", color=(0, 0, 0.8))
-            
-            # Add section titles - use standard helvetica (helv) which is built into PDFs
-            page.insert_text((150, 70), "Original Text", fontsize=11, fontname="helv", color=(0, 0, 0))
-            page.insert_text((550, 70), "Corrected Text", fontsize=11, fontname="helv", color=(0, 0, 0))
-            
-            # Add divider lines
-            page.draw_line((50, 80), (792, 80), color=(0, 0, 0.5), width=1)  # Horizontal
-            page.draw_line((421, 80), (421, 545), color=(0, 0, 0.5), width=1)  # Vertical divider
-            
-            # Add text content in two columns
-            rect_orig = fitz.Rect(50, 90, 411, 545)  # Left column
-            rect_corr = fitz.Rect(431, 90, 792, 545)  # Right column
-            
-            # Insert original text with error handling and size management
-            try:
-                # Truncate text if it's too long to avoid memory issues
-                if len(original_text) > MAX_TEXT_SIZE:
-                    truncated_text = original_text[:MAX_TEXT_SIZE] + "\n\n[... Text truncated due to size limits ...]"
-                    print(f"Warning: Truncating original text from {len(original_text)} to {len(truncated_text)} characters")
-                    original_text = truncated_text
+            # Skip empty document case
+            if not original_text.strip() and not corrected_text.strip():
+                logger.warning("Both original and corrected texts are empty for the document")
+                # Create an information page instead of returning an empty PDF
+                page = doc.new_page(width=595, height=842)  # A4 portrait
+                page.insert_text((50, 50), "Document Comparison Error", fontsize=16, fontname="helv", color=(0.8, 0, 0))
+                page.insert_text((50, 90), "No text content available for comparison.", fontsize=12, fontname="helv")
+                page.insert_text((50, 120), "Please check the document extraction process.", fontsize=12, fontname="helv")
+                has_valid_content = True
+            else:
+                # We have at least some content
+                has_valid_content = True
+                
+                # Create a new page for side-by-side comparison
+                page = doc.new_page(width=842, height=595)  # A4 landscape
+                
+                # Add a header with character counts
+                orig_len = len(original_text)
+                corr_len = len(corrected_text)
+                char_diff = corr_len - orig_len
+                diff_sign = "+" if char_diff >= 0 else ""
+                
+                header_text = f"Text Comparison (Original: {orig_len} chars, Corrected: {corr_len} chars, Diff: {diff_sign}{char_diff})"
+                page.insert_text((50, 40), header_text, fontsize=12, fontname="helv", color=(0, 0, 0.8))
+                
+                # Add section titles - use standard helvetica (helv) which is built into PDFs
+                page.insert_text((150, 70), "Original Text", fontsize=11, fontname="helv", color=(0, 0, 0))
+                page.insert_text((550, 70), "Corrected Text", fontsize=11, fontname="helv", color=(0, 0, 0))
+                
+                # Add divider lines
+                page.draw_line((50, 80), (792, 80), color=(0, 0, 0.5), width=1)  # Horizontal
+                page.draw_line((421, 80), (421, 545), color=(0, 0, 0.5), width=1)  # Vertical divider
+                
+                # Add text content in two columns
+                rect_orig = fitz.Rect(50, 90, 411, 545)  # Left column
+                rect_corr = fitz.Rect(431, 90, 792, 545)  # Right column
+                
+                # Insert original text with error handling and size management
+                try:
+                    # Handle empty original text
+                    if not original_text.strip():
+                        original_text = "WARNING: Original text not available.\nThere may be an issue with text extraction."
+                        logger.warning("Original text is empty for full document")
                     
-                page.insert_textbox(rect_orig, original_text, fontsize=10, fontname="helv",
-                                   align=0, color=(0, 0, 0))
-            except Exception as e:
-                # If textbox fails, try simpler text insertion
-                print(f"Warning: Failed to insert original text box: {str(e)}")
-                page.insert_text((rect_orig.x0, rect_orig.y0 + 20), 
-                               "Error rendering text. See JSON output for content.", 
-                               fontsize=10, fontname="helv", color=(0.8, 0, 0))
-            
-            # Insert corrected text with error handling and size management
-            try:
-                # Truncate text if it's too long to avoid memory issues
-                if len(corrected_text) > MAX_TEXT_SIZE:
-                    truncated_text = corrected_text[:MAX_TEXT_SIZE] + "\n\n[... Text truncated due to size limits ...]"
-                    print(f"Warning: Truncating corrected text from {len(corrected_text)} to {len(truncated_text)} characters")
-                    corrected_text = truncated_text
+                    # Truncate text if it's too long to avoid memory issues
+                    elif len(original_text) > MAX_TEXT_SIZE:
+                        truncated_text = original_text[:MAX_TEXT_SIZE] + "\n\n[... Text truncated due to size limits ...]"
+                        logger.warning(f"Truncating original text from {len(original_text)} to {len(truncated_text)} characters")
+                        original_text = truncated_text
                     
-                page.insert_textbox(rect_corr, corrected_text, fontsize=10, fontname="helv",
-                                   align=0, color=(0, 0, 0))
-            except Exception as e:
-                # If textbox fails, try simpler text insertion
-                print(f"Warning: Failed to insert corrected text box: {str(e)}")
-                page.insert_text((rect_corr.x0, rect_corr.y0 + 20), 
-                               "Error rendering text. See JSON output for content.", 
-                               fontsize=10, fontname="helv", color=(0.8, 0, 0))
+                    # Limit text to max page length
+                    if len(original_text) > MAX_PAGE_LENGTH:
+                        # Handle long text by breaking it into multiple pages
+                        self._handle_long_text(doc, original_text, "Original Text", MAX_PAGE_LENGTH)
+                    else:
+                        # Short enough for single page
+                        page.insert_textbox(rect_orig, original_text, fontsize=10, fontname="helv",
+                                           align=0, color=(0, 0, 0))
+                except Exception as e:
+                    # If textbox fails, try simpler text insertion
+                    logger.error(f"Failed to insert original text box: {str(e)}", exc_info=True)
+                    page.insert_text((rect_orig.x0, rect_orig.y0 + 20), 
+                                   "Error rendering text. See JSON output for content.", 
+                                   fontsize=10, fontname="helv", color=(0.8, 0, 0))
+                
+                # Insert corrected text with error handling and size management
+                try:
+                    # Handle empty corrected text
+                    if not corrected_text.strip():
+                        corrected_text = "WARNING: Corrected text not available."
+                        logger.warning("Corrected text is empty for full document")
+                    
+                    # Truncate text if it's too long to avoid memory issues
+                    elif len(corrected_text) > MAX_TEXT_SIZE:
+                        truncated_text = corrected_text[:MAX_TEXT_SIZE] + "\n\n[... Text truncated due to size limits ...]"
+                        logger.warning(f"Truncating corrected text from {len(corrected_text)} to {len(truncated_text)} characters")
+                        corrected_text = truncated_text
+                    
+                    # Limit text to max page length
+                    if len(corrected_text) > MAX_PAGE_LENGTH:
+                        # Handle long text by breaking it into multiple pages
+                        self._handle_long_text(doc, corrected_text, "Corrected Text", MAX_PAGE_LENGTH)
+                    else:
+                        # Short enough for single page
+                        page.insert_textbox(rect_corr, corrected_text, fontsize=10, fontname="helv",
+                                           align=0, color=(0, 0, 0))
+                except Exception as e:
+                    # If textbox fails, try simpler text insertion
+                    logger.error(f"Failed to insert corrected text box: {str(e)}", exc_info=True)
+                    page.insert_text((rect_corr.x0, rect_corr.y0 + 20), 
+                                   "Error rendering text. See JSON output for content.", 
+                                   fontsize=10, fontname="helv", color=(0.8, 0, 0))
+        
+        # If we have no content, create an information page
+        if not has_valid_content:
+            logger.warning("No valid content found for PDF generation - creating error page")
+            page = doc.new_page(width=595, height=842)  # A4 portrait
+            page.insert_text((50, 50), "Document Comparison Error", fontsize=16, fontname="helv", color=(0.8, 0, 0))
+            page.insert_text((50, 90), "No text content available for comparison.", fontsize=12, fontname="helv")
+            page.insert_text((50, 120), "Please check the document extraction process.", fontsize=12, fontname="helv")
+            page.insert_text((50, 150), f"Document ID: {metadata.get('id', 'Unknown')}", fontsize=10, fontname="helv")
+            page.insert_text((50, 170), f"Filename: {metadata.get('filename', 'Unknown')}", fontsize=10, fontname="helv")
+            page.insert_text((50, 190), f"Extraction method: {document.get('extraction_method', 'Unknown')}", fontsize=10, fontname="helv")
         
         # Save the PDF
         doc.save(output_path)
         doc.close()
+        
+        # Log success message
+        logger.info(f"Comparison PDF saved to {output_path}")
+        
+    def _handle_long_text(self, doc: 'fitz.Document', text: str, text_type: str, max_length: int) -> None:
+        """Helper method to handle very long text by breaking it into multiple pages.
+        
+        Args:
+            doc: The PDF document to add pages to
+            text: The long text to break up
+            text_type: Type of text (for header display)
+            max_length: Maximum length per page
+        """
+        current_text = text
+        page_number = 1
+        
+        while current_text:
+            # Take a chunk of text for this page
+            page_chunk = current_text[:max_length]
+            current_text = current_text[max_length:]
+            
+            # Create a new page
+            page = doc.new_page(width=595, height=842)  # A4 portrait
+            
+            # Add header
+            header_text = f"{text_type} - Page {page_number}"
+            page.insert_text((50, 50), header_text, fontsize=12, fontname="helv", color=(0, 0, 0.8))
+            
+            # Add divider
+            page.draw_line((50, 70), (545, 70), color=(0, 0, 0.5), width=1)
+            
+            # Add text content
+            rect = fitz.Rect(50, 80, 545, 792)  # Margins
+            try:
+                page.insert_textbox(rect, page_chunk, fontsize=10, fontname="helv",
+                                  align=0, color=(0, 0, 0))
+            except Exception as e:
+                logger.error(f"Failed to insert text on page {page_number}: {str(e)}", exc_info=True)
+                page.insert_text((50, 100), f"Error rendering text (page {page_number}).", 
+                                fontsize=10, fontname="helv", color=(0.8, 0, 0))
+            
+            page_number += 1
