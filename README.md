@@ -15,7 +15,7 @@ Raggiro è un framework completo per l'elaborazione di documenti progettato per 
 - **Supporto documenti completo**: PDF (nativi e scansionati), DOCX, TXT, HTML, RTF, XLSX, immagini con testo
 - **Preprocessing avanzato**: Estrazione, pulizia, normalizzazione e segmentazione logica
 - **Estrazione OCR ottimizzata**: Supporto batch per documenti grandi con rilevamento automatico della lingua
-- **Correzione ortografica intelligente**: Miglioramento automatico della qualità del testo OCR con supporto multilingua
+- **Correzione ortografica intelligente**: Miglioramento automatico della qualità del testo OCR con dizionari standard multilingua (italiano, inglese, francese, tedesco, spagnolo)
 - **Chunking semantico adattivo**: Divisione intelligente del contenuto basata sul significato con ottimizzazioni per documenti OCR
 - **Estrazione metadata**: Titolo, autore, data, lingua, tipo di documento, rilevamento categoria
 - **Output strutturato**: Formati Markdown e JSON con tutti i metadata
@@ -56,9 +56,10 @@ Il progetto richiede Python 3.8 o superiore con le seguenti librerie principali:
    - **macOS**: `brew install libmagic`
    - **Windows**: Installato automaticamente con python-magic-bin
 
-4. **Modelli linguistici Spacy**:
+4. **Modelli linguistici Spacy e pacchetti di correzione ortografica**:
    - `python -m spacy download en_core_web_sm`
    - `python -m spacy download it_core_news_sm` (per supporto italiano)
+   - `pip install pyspellchecker` (per dizionari di correzione ortografica standard)
 
 ## Documentazione
 
@@ -140,11 +141,13 @@ Per elaborare correttamente documenti PDF con molte pagine:
 
 ### Novità
 
-- **Sezione OCR e Correzione Ortografica**: Nuova scheda dedicata nell'interfaccia GUI
+- **Sincronizzazione OCR-Spelling**: Sincronizzazione automatica tra lingua OCR e correzione ortografica
+- **Dizionari standard italiani**: Supporto completo per la correzione ortografica in italiano
+- **Elaborazione PDF multipagina**: Miglioramenti nell'estrazione di tutte le pagine dei documenti PDF
+- **Sezione OCR e Correzione Ortografica**: Interfaccia dedicata con opzioni avanzate
 - **Rilevamento automatico lingua OCR**: Ottimizza l'estrazione di testo dalle immagini
 - **Miglioramenti al chunking semantico**: Algoritmi avanzati per documenti OCR
 - **Visualizzazione analisi chunk**: Metriche dettagliate sulla qualità della segmentazione
-- **Installazione semplificata PromptFoo**: Strumenti migliorati per l'installazione dei componenti di test
 
 ## Contribuire
 
