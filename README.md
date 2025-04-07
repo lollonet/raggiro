@@ -57,8 +57,16 @@ Il progetto richiede Python 3.8 o superiore con le seguenti librerie principali:
    - **Windows**: Installato automaticamente con python-magic-bin
 
 4. **Modelli linguistici Spacy e pacchetti di correzione ortografica**:
-   - `python -m spacy download en_core_web_sm`
-   - `python -m spacy download it_core_news_sm` (per supporto italiano)
+   - Modello multilingue (supporta più lingue contemporaneamente):
+     - `python -m spacy download xx_sent_ud_sm`
+   - Modelli linguistici specifici per singole lingue:
+     - `python -m spacy download it_core_news_sm` (italiano)
+     - `python -m spacy download en_core_web_sm` (inglese)
+     - `python -m spacy download fr_core_news_sm` (francese)
+     - `python -m spacy download de_core_news_sm` (tedesco)
+     - `python -m spacy download es_core_news_sm` (spagnolo)
+     - `python -m spacy download pt_core_news_sm` (portoghese)
+     - `python -m spacy download nl_core_news_sm` (olandese)
    - `pip install pyspellchecker` (per dizionari di correzione ortografica standard)
 
 ## Documentazione
@@ -101,8 +109,18 @@ pip install -e .
 pip install -r requirements.txt
 
 # Installare i modelli linguistici richiesti
-python -m spacy download en_core_web_sm
-python -m spacy download it_core_news_sm  # Opzionale per supporto italiano
+# Modello multilingue base (raccomandato per supporto multi-lingua)
+python -m spacy download xx_sent_ud_sm
+
+# Per prestazioni migliori con lingue specifiche, installiamo anche i modelli dedicati
+python -m spacy download it_core_news_sm  # Italiano
+python -m spacy download en_core_web_sm  # Inglese
+# Altri modelli linguistici opzionali:
+# python -m spacy download fr_core_news_sm  # Francese
+# python -m spacy download de_core_news_sm  # Tedesco
+# python -m spacy download es_core_news_sm  # Spagnolo
+# python -m spacy download pt_core_news_sm  # Portoghese
+# python -m spacy download nl_core_news_sm  # Olandese
 ```
 
 ### 3. Verifica installazione Tesseract

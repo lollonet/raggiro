@@ -38,7 +38,15 @@ always_correct = true  # When true, apply correction to all documents, not just 
 # Segmentation settings
 [segmentation]
 use_spacy = true
-spacy_model = "en_core_web_sm"  # You may want to use "xx_sent_ud_sm" for multilingual support
+spacy_model = "xx_sent_ud_sm"  # Modello multilingue che supporta diverse lingue europee
+# Modelli linguistici alternativi per lingue specifiche:
+# - "it_core_news_sm" per italiano
+# - "en_core_web_sm" per inglese
+# - "fr_core_news_sm" per francese
+# - "de_core_news_sm" per tedesco
+# - "es_core_news_sm" per spagnolo
+# - "pt_core_news_sm" per portoghese
+# - "nl_core_news_sm" per olandese
 min_section_length = 100
 max_chunk_size = 1500  # Increased from 500 for better OCR document chunking
 chunk_overlap = 200   # Adjusted for the new chunk size

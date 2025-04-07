@@ -544,20 +544,55 @@ class Exporter:
                 if has_original and i < len(original_pages):
                     original_keys = list(original_pages[i].keys())
                     print(f"Chiavi in original_pages[{i}]: {original_keys}")
-                    original_page_text = original_pages[i].get("text", "")
-                    original_page_raw = original_pages[i].get("raw_text", "")
+                    # Recupero sicuro dei testi con verifica di validità
+                    try:
+                        original_page_text = original_pages[i].get("text", "")
+                        # Assicuriamoci che sia una stringa valida
+                        if original_page_text is None:
+                            original_page_text = ""
+                        if not isinstance(original_page_text, str):
+                            original_page_text = str(original_page_text)
+                    except Exception as e:
+                        print(f"Errore nel recupero del testo originale text: {e}")
+                        original_page_text = ""
+                        
+                    try:
+                        original_page_raw = original_pages[i].get("raw_text", "")
+                        # Assicuriamoci che sia una stringa valida
+                        if original_page_raw is None:
+                            original_page_raw = ""
+                        if not isinstance(original_page_raw, str):
+                            original_page_raw = str(original_page_raw)
+                    except Exception as e:
+                        print(f"Errore nel recupero del testo originale raw_text: {e}")
+                        original_page_raw = ""
                     
                     # Aggiungi statistiche sui contenuti
                     print(f"Lunghezza original_pages[{i}]['text']: {len(original_page_text)}")
                     print(f"Lunghezza original_pages[{i}]['raw_text']: {len(original_page_raw)}")
                 
                 # Verifica contenuto in page_data
-                if "raw_text" in page_data:
-                    print(f"Lunghezza page_data['raw_text']: {len(page_data['raw_text'])}")
-                if "original_text" in page_data:
-                    print(f"Lunghezza page_data['original_text']: {len(page_data['original_text'])}")
-                if "text" in page_data:
-                    print(f"Lunghezza page_data['text']: {len(page_data['text'])}")
+                # Gestione sicura per evitare errori di stringa non terminata
+                try:
+                    if "raw_text" in page_data:
+                        raw_len = len(page_data.get("raw_text", ""))
+                        print(f"Lunghezza page_data['raw_text']: {raw_len}")
+                except Exception as e:
+                    print(f"Errore nel calcolo lunghezza raw_text: {e}")
+                    
+                try:
+                    if "original_text" in page_data:
+                        orig_len = len(page_data.get("original_text", ""))
+                        print(f"Lunghezza page_data['original_text']: {orig_len}")
+                except Exception as e:
+                    print(f"Errore nel calcolo lunghezza original_text: {e}")
+                    
+                try:
+                    if "text" in page_data:
+                        text_len = len(page_data.get("text", ""))
+                        print(f"Lunghezza page_data['text']: {text_len}")
+                except Exception as e:
+                    print(f"Errore nel calcolo lunghezza text: {e}")
                 print("-" * 80)
                 
                 # Approccio prioritizzato per ottenere il testo originale - più affidabile e con log dettagliati
