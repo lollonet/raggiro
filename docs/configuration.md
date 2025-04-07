@@ -67,13 +67,23 @@ Raggiro supporta l'elaborazione di documenti in più lingue:
 # Impostazioni di segmentazione
 [segmentation]
 use_spacy = true
-spacy_model = "en_core_web_sm"  # Usa "xx_sent_ud_sm" per supporto multilingua
+spacy_model = "xx_sent_ud_sm"  # Modello multilingue per supporto a più lingue
+# Modelli linguistici alternativi per lingue specifiche:
+# - "it_core_news_sm" per italiano
+# - "en_core_web_sm" per inglese
+# - "fr_core_news_sm" per francese
+# - "de_core_news_sm" per tedesco
+# - "es_core_news_sm" per spagnolo
+# - "pt_core_news_sm" per portoghese
+# - "nl_core_news_sm" per olandese
 ```
 
 Per documenti multilingua, è consigliabile:
 1. Installare il modello spaCy multilingua: `python -m spacy download xx_sent_ud_sm`
 2. Aggiornare la configurazione per utilizzare questo modello
 3. Assicurarsi che le lingue appropriate siano installate per Tesseract OCR
+
+Per informazioni più dettagliate sull'uso di spaCy e sui relativi comandi, vedere la [documentazione spaCy](spacy.md).
 
 ## Esempio di configurazione completa
 
