@@ -106,29 +106,78 @@ class SpellingCorrector:
         try:
             from symspellpy import SymSpell, Verbosity
             import pkg_resources
+            import os
             
             sym_spell = SymSpell(max_dictionary_edit_distance=self.max_edit_distance, prefix_length=7)
             
             # Get appropriate dictionary based on language
             lang_code = self._get_language_code()
-            dictionary_path = pkg_resources.resource_filename(
-                "symspellpy", f"frequency_dictionary_{lang_code}_82_765.txt"
-            )
             
-            # If specific language not available, fall back to English
-            if not pkg_resources.resource_exists("symspellpy", f"frequency_dictionary_{lang_code}_82_765.txt"):
-                dictionary_path = pkg_resources.resource_filename(
-                    "symspellpy", "frequency_dictionary_en_82_765.txt"
-                )
+            # Define all possible dictionary file patterns we might use
+            dictionary_names = [
+                f"frequency_dictionary_{lang_code}_82_765.txt",  # Standard name
+                f"frequency_dictionary_{lang_code}.txt",         # Generic name
+                "frequency_dictionary_en_82_765.txt"             # English fallback
+            ]
+            
+            # Try to load language-specific dictionary first
+            dictionary_loaded = False
+            used_dictionary = None
+            
+            for dict_name in dictionary_names:
+                try:
+                    # Check if the dictionary exists in symspellpy package
+                    if pkg_resources.resource_exists("symspellpy", dict_name):
+                        dictionary_path = pkg_resources.resource_filename("symspellpy", dict_name)
+                        
+                        # Try to load the dictionary
+                        if sym_spell.load_dictionary(dictionary_path, term_index=0, count_index=1):
+                            dictionary_loaded = True
+                            used_dictionary = dict_name
+                            break
+                except Exception as dict_err:
+                    print(f"Error with dictionary {dict_name}: {str(dict_err)}")
+            
+            # If standard dictionaries failed, try to look for custom dictionaries
+            if not dictionary_loaded:
+                # Check for dictionaries in a custom directory
+                custom_dict_dir = os.path.join(os.path.dirname(__file__), "..", "data", "dictionaries")
+                if not os.path.exists(custom_dict_dir):
+                    try:
+                        # Try to create the directory
+                        os.makedirs(custom_dict_dir, exist_ok=True)
+                    except:
+                        pass
                 
-            # Load dictionary
-            if not sym_spell.load_dictionary(dictionary_path, term_index=0, count_index=1):
-                print(f"Warning: Failed to load SymSpellPy dictionary for {lang_code}")
+                # Look for custom dictionaries matching the language
+                custom_dict_path = None
+                for file in os.listdir(custom_dict_dir) if os.path.exists(custom_dict_dir) else []:
+                    if file.startswith(f"frequency_dictionary_{lang_code}") and file.endswith(".txt"):
+                        custom_dict_path = os.path.join(custom_dict_dir, file)
+                        break
+                
+                # If a custom dictionary was found, try to load it
+                if custom_dict_path and os.path.exists(custom_dict_path):
+                    try:
+                        if sym_spell.load_dictionary(custom_dict_path, term_index=0, count_index=1):
+                            dictionary_loaded = True
+                            used_dictionary = os.path.basename(custom_dict_path)
+                    except Exception as custom_err:
+                        print(f"Error loading custom dictionary: {str(custom_err)}")
+            
+            # If no dictionary was loaded, return False
+            if not dictionary_loaded:
+                print(f"Warning: Failed to load any dictionary for language '{lang_code}'")
+                print("Available dictionaries in symspellpy package:")
+                for resource in pkg_resources.resource_listdir("symspellpy", ""):
+                    if resource.startswith("frequency_dictionary_"):
+                        print(f"  - {resource}")
                 return False
                 
             self.spellchecker = sym_spell
             self.verbosity = Verbosity.CLOSEST  # Use the closest match
-            print(f"Initialized SymSpellPy with {lang_code} dictionary")
+            self.used_dictionary = used_dictionary
+            print(f"Initialized SymSpellPy with dictionary: {used_dictionary} for language '{lang_code}'")
             return True
             
         except ImportError:
@@ -211,13 +260,42 @@ class SpellingCorrector:
     
     def _detect_language(self, text):
         """Detect the language of the text."""
+        # If not auto or detector not available, use configured language
         if not self.language_detector or self.language != "auto":
             return self._get_language_code()
             
         try:
             # Use a sample of the text for faster detection
-            sample = text[:5000]
-            self.detected_language = self.language_detector.detect(sample)
+            # Use a larger sample for better accuracy
+            sample = text[:8000]
+            
+            # Skip if sample is too short
+            if len(sample.strip()) < 50:
+                print("Text sample too short for reliable language detection")
+                return self._get_language_code()
+            
+            # Use langdetect with more reliable detection
+            try:
+                # Try to get language probabilities for more confidence
+                from langdetect import detect_langs
+                lang_probs = detect_langs(sample)
+                
+                # Log the detected language probabilities
+                print(f"Language detection results: {lang_probs}")
+                
+                # Use the highest probability language
+                if lang_probs:
+                    highest_prob = lang_probs[0]
+                    self.detected_language = highest_prob.lang
+                    print(f"Detected language: {self.detected_language} with probability {highest_prob.prob:.2f}")
+                else:
+                    # Fallback to simple detection
+                    self.detected_language = self.language_detector.detect(sample)
+                    print(f"Detected language (simple method): {self.detected_language}")
+            except:
+                # Fallback to simple detection if detect_langs fails
+                self.detected_language = self.language_detector.detect(sample)
+                print(f"Detected language (fallback method): {self.detected_language}")
             
             # Map to language codes supported by spelling backends
             lang_map = {
@@ -240,10 +318,14 @@ class SpellingCorrector:
             
             # Default to English if language not supported
             if self.detected_language not in lang_map:
+                print(f"Detected language '{self.detected_language}' not supported for spelling correction. Using English.")
                 return "en"
                 
-            return lang_map[self.detected_language]
-        except:
+            detected_code = lang_map[self.detected_language]
+            print(f"Using language code '{detected_code}' for spelling correction")
+            return detected_code
+        except Exception as e:
+            print(f"Error in language detection: {str(e)}. Using default language.")
             return "en"  # Default to English on error
     
     def _generate_candidates(self, word):
@@ -341,19 +423,46 @@ class SpellingCorrector:
         # Save the original text for comparison purposes
         result["original_text"] = document["text"]
         
+        # Log spelling correction settings
+        print("-"*50)
+        print(f"SPELLING CORRECTION SETTINGS:")
+        print(f"Language: {self.language}")
+        print(f"Backend: {self.backend}")
+        print(f"Max edit distance: {self.max_edit_distance}")
+        if hasattr(self, 'used_dictionary'):
+            print(f"Dictionary: {self.used_dictionary}")
+        print("-"*50)
+        
         # Detect language from the full document text
-        detected_lang = None
         if self.language == "auto":
-            detected_lang = self._detect_language(document["text"])
-            print(f"Detected language for spelling correction: {detected_lang}")
+            # Only detect if we have significant text
+            if len(document["text"].strip()) > 500:
+                detected_lang = self._detect_language(document["text"])
+                print(f"Detected language for spelling correction: {detected_lang}")
+            else:
+                print("Document text too short for reliable language detection")
         
         # Correct the full text
         print(f"Applying spelling correction to document text ({len(document['text'])} chars)...")
+        
+        # Time the correction process
+        import time
+        start_time = time.time()
+        
+        # Make sure language is correctly applied before correction
+        if hasattr(self, 'detected_language'):
+            print(f"Using detected language: {self.detected_language}")
+            
         result["text"] = self.correct_text(document["text"])
+        
+        correction_time = time.time() - start_time
+        print(f"Full text corrected in {correction_time:.2f} seconds")
         
         # Correct each page and preserve original text
         corrected_pages = []
         original_pages = []
+        
+        print(f"Correcting {len(document.get('pages', []))} individual pages...")
         
         for i, page in enumerate(document.get("pages", [])):
             print(f"Applying spelling correction to page {i+1}...")
@@ -364,11 +473,23 @@ class SpellingCorrector:
             # Create corrected page
             page_copy = page.copy()
             original_text = page["text"]
-            corrected_text = self.correct_text(original_text)
+            
+            # If the page text is too short, skip correction
+            if len(original_text.strip()) < 20:
+                print(f"Page {i+1} has very little text, skipping correction")
+                corrected_text = original_text
+            else:
+                corrected_text = self.correct_text(original_text)
             
             # Save both versions
             page_copy["raw_text"] = original_text
             page_copy["text"] = corrected_text
+            
+            # Calculate correction statistics
+            if len(original_text) > 0:
+                diff_count = sum(1 for a, b in zip(original_text, corrected_text) if a != b)
+                diff_percentage = (diff_count / len(original_text)) * 100
+                print(f"Page {i+1}: {diff_count} characters corrected ({diff_percentage:.2f}%)")
             
             corrected_pages.append(page_copy)
         
@@ -380,6 +501,18 @@ class SpellingCorrector:
         result["metadata"]["spelling_corrected"] = True
         result["metadata"]["spelling_language"] = self._get_language_code()
         result["metadata"]["spelling_backend"] = self.backend
+        if hasattr(self, 'used_dictionary'):
+            result["metadata"]["spelling_dictionary"] = self.used_dictionary
+        
+        # Calculate overall correction statistics
+        if len(document["text"]) > 0 and len(result["text"]) > 0:
+            total_diff_count = sum(1 for a, b in zip(document["text"], result["text"]) if a != b)
+            total_diff_percentage = (total_diff_count / len(document["text"])) * 100
+            result["metadata"]["spelling_corrections"] = total_diff_count
+            result["metadata"]["spelling_correction_percentage"] = round(total_diff_percentage, 2)
+            print(f"Total: {total_diff_count} characters corrected ({total_diff_percentage:.2f}%)")
         
         print(f"Spelling correction completed using {self.backend} backend in {self._get_language_code()} language")
+        if hasattr(self, 'used_dictionary'):
+            print(f"Using dictionary: {self.used_dictionary}")
         return result

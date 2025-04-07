@@ -491,8 +491,17 @@ def ocr_correction_ui():
             "Correction Language",
             options=list(spelling_languages.keys()),
             format_func=lambda x: spelling_languages.get(x, x),
-            key="spelling_language"
+            key="spelling_language",
+            help="Select the language to use for spelling correction. 'Auto-detect' will attempt to identify the document language automatically."
         )
+        
+        # Display more information about language selection
+        if spelling_language == "auto":
+            st.info("Auto-detection will analyze text content to determine the language. For Italian documents, ensure they contain sufficient text for reliable detection.")
+        elif spelling_language == "it":
+            st.success("Italian language selected for spelling correction.")
+        elif spelling_language == "en":
+            st.info("English language selected for spelling correction.")
     
     with col2:
         max_edit_distance = st.slider(
