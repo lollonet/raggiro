@@ -545,7 +545,7 @@ class SpellingCorrector:
         # Skip very short words and non-words
         # Improved pattern for Italian words with accented characters and apostrophes
         # Full set of Italian accented characters: àèéìíîòóùú and their capitals
-        if len(word) < 3 or not re.match(r'^[a-zA-ZàèéìíîòóùúÀÈÉÌÍÎÒÓÙÚ\']+$', word):$', word):
+        if len(word) < 3 or not re.match(r'^[a-zA-ZàèéìíîòóùúÀÈÉÌÍÎÒÓÙÚ]+$', word):
             return candidates
         
         # Generate candidates by replacing potential OCR errors
@@ -575,7 +575,7 @@ class SpellingCorrector:
         # Improved pattern to recognize accented characters and apostrophes in Italian words
         # This allows words like "perché", "c'è", "più", etc. to be properly handled
         # Full set of Italian accented characters: àèéìíîòóùú and their capitals
-        if len(word) < 3 or not re.match(r'^[a-zA-ZàèéìíîòóùúÀÈÉÌÍÎÒÓÙÚ\']+$', word):$', word):
+        if len(word) < 3 or not re.match(r'^[a-zA-ZàèéìíîòóùúÀÈÉÌÍÎÒÓÙÚ]+$', word):
             return word
             
         # Cache for performance - avoid repeatedly correcting the same words
@@ -663,7 +663,7 @@ class SpellingCorrector:
         # Split text into words and non-words
         # Improved pattern to capture Italian words with accented characters and apostrophes
         # Full set of Italian accented characters: àèéìíîòóùú and their capitals
-        tokens = re.findall(r'[a-zA-ZàèéìíîòóùúÀÈÉÌÍÎÒÓÙÚ\']+|[^a-zA-ZàèéìíîòóùúÀÈÉÌÍÎÒÓÙÚ\']+', text)
+        tokens = re.findall(r'[a-zA-ZàèéìíîòóùúÀÈÉÌÍÎÒÓÙÚ]+|[^a-zA-ZàèéìíîòóùúÀÈÉÌÍÎÒÓÙÚ]+', text)
         
         # Correct only words
         corrected_tokens = []
@@ -680,7 +680,7 @@ class SpellingCorrector:
                 
             # Use improved pattern for Italian words with accented characters and apostrophes
             # Full set of Italian accented characters: àèéìíîòóùú and their capitals
-            if re.match(r'^[a-zA-ZàèéìíîòóùúÀÈÉÌÍÎÒÓÙÚ\']+$', token):$', token):
+            if re.match(r'^[a-zA-ZàèéìíîòóùúÀÈÉÌÍÎÒÓÙÚ]+$', token):
                 # Don't correct very short words
                 if len(token) < 3:
                     corrected_tokens.append(token)
