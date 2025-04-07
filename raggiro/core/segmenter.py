@@ -269,6 +269,49 @@ class Segmenter:
         
         return segments
     
+    def _custom_sentence_tokenize(self, text: str) -> List[str]:
+        """Custom sentence tokenization as fallback when NLTK fails.
+        
+        Args:
+            text: Input text to tokenize
+            
+        Returns:
+            List of sentences
+        """
+        if not text:
+            return []
+            
+        # Split on common sentence terminators with positive lookbehind
+        # This handles periods, question marks, and exclamation points
+        import re
+        
+        # Pattern looks for sentence terminators followed by spaces and capital letters
+        # Handles various end-of-sentence punctuations correctly
+        pattern = r'(?<=[.!?])\s+(?=[A-Z])'
+        sentences = re.split(pattern, text)
+        
+        # Further process to handle list items, headings, etc.
+        processed_sentences = []
+        for sentence in sentences:
+            # If very long, try to split further at newlines that appear to separate sentences
+            if len(sentence) > 200:
+                # Split on newlines that are followed by capital letters, numbers at the start of a line, etc.
+                newline_pattern = r'\n+(?=[A-Z]|\d+[\.\)]|\*\s|•\s)'
+                sub_sentences = re.split(newline_pattern, sentence)
+                processed_sentences.extend([s.strip() for s in sub_sentences if s.strip()])
+            else:
+                processed_sentences.append(sentence.strip())
+                
+        # Make sure each sentence appears to end with sentence-ending punctuation
+        final_sentences = []
+        for s in processed_sentences:
+            if s and not s[-1] in '.!?;:':
+                s += '.'
+            if s:
+                final_sentences.append(s)
+                
+        return final_sentences
+    
     def _estimate_header_level(self, header: str) -> int:
         """Estimate the level of a header based on its format.
         
@@ -338,18 +381,32 @@ class Segmenter:
             return chunk_text[:self.summary_max_length] if chunk_text else ""
         
         try:
-            # Use NLTK to tokenize sentences
-            from nltk.tokenize import sent_tokenize
-            
+            # Use NLTK to tokenize sentences with robust fallback
             try:
-                sentences = sent_tokenize(chunk_text)
-            except LookupError:
-                # Download punkt data if not available
-                logger.info("Downloading NLTK punkt tokenizer...")
-                import nltk
-                nltk.download('punkt', quiet=True)
-                sentences = sent_tokenize(chunk_text)
-            
+                # Try NLTK's sent_tokenize (preferred method)
+                from nltk.tokenize import sent_tokenize
+                try:
+                    sentences = sent_tokenize(chunk_text)
+                except LookupError as e:
+                    # If missing punkt data, try to download it
+                    logger.info(f"Downloading NLTK punkt tokenizer due to: {e}")
+                    import nltk
+                    # Download both punkt and punkt_tab resources
+                    nltk.download('punkt', quiet=True)
+                    try:
+                        nltk.download('punkt_tab', quiet=True)
+                    except:
+                        logger.warning("Could not download punkt_tab, continuing with punkt only")
+                    try:
+                        sentences = sent_tokenize(chunk_text)
+                    except Exception as e2:
+                        logger.warning(f"Still could not use sent_tokenize: {e2}")
+                        raise e2  # Will be caught by outer try/except
+            except Exception as ex:
+                # If any other error occurs, fallback to manual sentence splitting
+                logger.warning(f"Using custom sentence tokenization due to NLTK error: {ex}")
+                sentences = self._custom_sentence_tokenize(chunk_text)
+                
             if not sentences:
                 # Fallback if tokenization returns empty list
                 sentences = [s.strip() + "." for s in chunk_text.split('.') if s.strip()]

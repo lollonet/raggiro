@@ -31,7 +31,8 @@ except Exception as e:
 packages = [
     'punkt',         # For sentence tokenization
     'stopwords',     # Common stopwords (optional, for improved summarization)
-    'averaged_perceptron_tagger'  # For POS tagging (optional, for improved summarization)
+    'averaged_perceptron_tagger',  # For POS tagging (optional, for improved summarization)
+    'punkt_tab'      # Additional punkt data for specific languages
 ]
 
 # Download each package
