@@ -2,8 +2,9 @@
 
 import io
 import os
+import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union, Any
 
 # PDF extraction
 import fitz  # PyMuPDF
@@ -21,6 +22,9 @@ from PIL import Image
 
 # Character encoding detection
 import chardet
+
+# Set up logger
+logger = logging.getLogger("raggiro.extractor")
 
 class Extractor:
     """Extracts text content from various document formats."""
@@ -44,9 +48,9 @@ class Extractor:
             try:
                 import langdetect
                 self.language_detector = langdetect
-                print("Language auto-detection enabled for OCR")
+                logger.info("Language auto-detection enabled for OCR")
             except ImportError:
-                print("Warning: langdetect not installed. Using default OCR language 'eng+ita'")
+                logger.warning("langdetect not installed. Using default OCR language 'eng+ita'")
                 self.ocr_language = "eng+ita"
         
         # Advanced OCR settings
@@ -63,12 +67,12 @@ class Extractor:
         
         # Log the page selection settings
         if self.ocr_max_pages == 0:
-            print("OCR configured to process ALL pages in the document")
+            logger.info("OCR configured to process ALL pages in the document")
         else:
-            print(f"OCR configured to process first {self.ocr_max_pages} pages")
+            logger.info(f"OCR configured to process first {self.ocr_max_pages} pages")
             
         if self.ocr_page_step > 1:
-            print(f"OCR configured to process every {self.ocr_page_step}th page")
+            logger.info(f"OCR configured to process every {self.ocr_page_step}th page")
         
         # Configure pytesseract path if provided
         tesseract_path = extraction_config.get("tesseract_path")
@@ -105,15 +109,15 @@ class Extractor:
             for path in common_tessdata_paths:
                 if os.path.exists(path):
                     os.environ["TESSDATA_PREFIX"] = path
-                    print(f"Setting TESSDATA_PREFIX to {path}")
+                    logger.info(f"Setting TESSDATA_PREFIX to {path}")
                     break
             
             if not os.environ.get("TESSDATA_PREFIX"):
-                print("WARNING: Could not find tessdata directory. OCR might not work correctly.")
+                logger.warning("Could not find tessdata directory. OCR might not work correctly.")
         
         # Log configuration
-        print(f"OCR Configuration: language={self.actual_ocr_language} (from {self.ocr_language}), dpi={self.ocr_dpi}, " +
-              f"max_image_size={self.ocr_max_image_size}, batch_size={self.ocr_batch_size}")
+        logger.info(f"OCR Configuration: language={self.actual_ocr_language} (from {self.ocr_language}), dpi={self.ocr_dpi}, " +
+                 f"max_image_size={self.ocr_max_image_size}, batch_size={self.ocr_batch_size}")
     
     def extract(self, file_path: Union[str, Path], file_type_info: Dict) -> Dict:
         """Extract text from a file based on its type.
@@ -223,7 +227,7 @@ class Extractor:
             # ALWAYS perform OCR if OCR is enabled, regardless of existing text layer
             # This ensures we process all pages with OCR and don't rely on PDF text layer
             if self.ocr_enabled:
-                print("Forcing OCR processing even if PDF has text layer")
+                logger.info("Forcing OCR processing even if PDF has text layer")
                 ocr_result = self._extract_pdf_with_ocr(file_path)
                 if ocr_result["success"]:
                     # If OCR was successful, use its results
@@ -247,7 +251,10 @@ class Extractor:
             result["success"] = True
             
         except Exception as e:
-            result["error"] = str(e)
+            error_msg = f"Errore durante l'estrazione: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            result["error"] = error_msg
+            result["error_type"] = type(e).__name__
             
         return result
     
@@ -308,17 +315,17 @@ class Extractor:
                             self.actual_ocr_language = "ita+eng"
                         else:
                             self.actual_ocr_language = f"{lang_map[detected_lang]}+eng"
-                        print(f"Auto-detected document language: {detected_lang}, using OCR language: {self.actual_ocr_language}")
+                        logger.info(f"Auto-detected document language: {detected_lang}, using OCR language: {self.actual_ocr_language}")
                     else:
                         # Fallback to multiple common languages with Italian prioritized
                         self.actual_ocr_language = "ita+eng+fra+deu+spa"
-                        print(f"Unable to definitively detect language ({detected_lang}), using multiple languages: {self.actual_ocr_language}")
+                        logger.info(f"Unable to definitively detect language ({detected_lang}), using multiple languages: {self.actual_ocr_language}")
                 else:
                     # No text detected, use multiple languages with Italian prioritized
                     self.actual_ocr_language = "ita+eng+fra+deu+spa"
-                    print(f"No text available for language detection, using multiple languages: {self.actual_ocr_language}")
+                    logger.info(f"No text available for language detection, using multiple languages: {self.actual_ocr_language}")
             except Exception as e:
-                print(f"Error in language detection: {str(e)}. Using default languages with Italian prioritized.")
+                logger.warning(f"Error in language detection: {str(e)}. Using default languages with Italian prioritized.", exc_info=True)
                 self.actual_ocr_language = "ita+eng+fra+deu+spa"
         
         try:
@@ -345,23 +352,23 @@ class Extractor:
             # Apply max_pages limitation if specified
             if self.ocr_max_pages > 0 and self.ocr_max_pages < total_doc_pages:
                 max_pages = self.ocr_max_pages
-                print(f"Limiting OCR to first {max_pages} pages (document has {total_doc_pages} pages)")
+                logger.info(f"Limiting OCR to first {max_pages} pages (document has {total_doc_pages} pages)")
             else:
                 max_pages = total_doc_pages
-                print(f"Processing all {total_doc_pages} pages of the document")
+                logger.info(f"Processing all {total_doc_pages} pages of the document")
                 
             # Apply page step (process every Nth page)
             if self.ocr_page_step > 1:
                 page_indices = list(range(0, max_pages, self.ocr_page_step))
-                print(f"Processing every {self.ocr_page_step} page ({len(page_indices)} of {max_pages} pages)")
+                logger.info(f"Processing every {self.ocr_page_step} page ({len(page_indices)} of {max_pages} pages)")
             else:
                 page_indices = list(range(max_pages))
                 
             batch_size = self.ocr_batch_size
             
             # Log the OCR processing settings
-            print(f"OCR processing {len(page_indices)} pages with batch size {batch_size}")
-            print(f"Settings: DPI={self.ocr_dpi}, Language={self.actual_ocr_language} (selected: {self.ocr_language}), Max image size={self.ocr_max_image_size}px")
+            logger.info(f"OCR processing {len(page_indices)} pages with batch size {batch_size}")
+            logger.info(f"Settings: DPI={self.ocr_dpi}, Language={self.actual_ocr_language} (selected: {self.ocr_language}), Max image size={self.ocr_max_image_size}px")
             start_time = time.time()
             
             # Process pages in batches to manage memory
@@ -370,7 +377,7 @@ class Extractor:
             for batch_num, batch_page_indices in enumerate(batch_indices):
                 batch_start = batch_page_indices[0] + 1  # 1-based for display
                 batch_end = batch_page_indices[-1] + 1   # 1-based for display
-                print(f"Processing batch {batch_num+1}/{len(batch_indices)}: pages {batch_start}-{batch_end} of {max_pages}")
+                logger.info(f"Processing batch {batch_num+1}/{len(batch_indices)}: pages {batch_start}-{batch_end} of {max_pages}")
                 batch_start_time = time.time()
                 
                 # Process each page in the current batch
@@ -381,7 +388,7 @@ class Extractor:
                         page_start_time = time.time()
                         
                         # Log progress for debugging (use 1-based page numbers for display)
-                        print(f"OCR processing page {page_idx+1}/{total_doc_pages}")
+                        logger.info(f"OCR processing page {page_idx+1}/{total_doc_pages}")
                         
                         # Calculate zoom factor based on page dimensions and max image size
                         rect = page.rect
@@ -392,7 +399,7 @@ class Extractor:
                         zoom = 1.0
                         if max_dim > self.ocr_max_image_size:
                             zoom = self.ocr_max_image_size / max_dim
-                            print(f"Scaling page {page_idx+1} ({width}x{height}) to fit {self.ocr_max_image_size}px, zoom={zoom:.2f}")
+                            logger.info(f"Scaling page {page_idx+1} ({width}x{height}) to fit {self.ocr_max_image_size}px, zoom={zoom:.2f}")
                         
                         # Create the matrix for scaling to the target DPI
                         # PyMuPDF uses 72 dpi as base, so we calculate relative scaling
@@ -403,11 +410,11 @@ class Extractor:
                         try:
                             pix = page.get_pixmap(matrix=matrix)
                         except Exception as pix_error:
-                            print(f"Error creating pixmap for page {page_idx+1}: {str(pix_error)}")
+                            logger.warning(f"Error creating pixmap for page {page_idx+1}: {str(pix_error)}", exc_info=True)
                             # Try with lower resolution as fallback
                             fallback_matrix = fitz.Matrix(0.5, 0.5)
                             pix = page.get_pixmap(matrix=fallback_matrix)
-                            print(f"Using fallback matrix for page {page_idx+1} due to pixmap error")
+                            logger.info(f"Using fallback matrix for page {page_idx+1} due to pixmap error")
                         
                         # Convert to PIL Image
                         try:
@@ -415,7 +422,7 @@ class Extractor:
                             img = Image.open(io.BytesIO(img_data))
                             
                             # Log successful conversion
-                            print(f"Successfully converted page {page_idx+1} to image format for OCR")
+                            logger.debug(f"Successfully converted page {page_idx+1} to image format for OCR")
                             
                             # Store pix reference for error message access
                             pix_ref = pix
@@ -439,7 +446,7 @@ class Extractor:
                             del img
                             
                         except Exception as img_error:
-                            print(f"Image conversion error on page {page_idx+1}: {str(img_error)}")
+                            logger.warning(f"Image conversion error on page {page_idx+1}: {str(img_error)}", exc_info=True)
                             # Try with direct PNG output as fallback
                             output_path = f"/tmp/ocr_page_{page_idx+1}.png"
                             pix.save(output_path)
@@ -480,12 +487,13 @@ class Extractor:
                         }
                         pages.append(page_data)
                         
-                        print(f"Page {page_idx+1} OCR extracted {char_count} characters")
+                        logger.info(f"Page {page_idx+1} OCR extracted {char_count} characters")
                         
-                        print(f"Page {page_idx+1} OCR completed in {time.time() - page_start_time:.2f} seconds")
+                        logger.debug(f"Page {page_idx+1} OCR completed in {time.time() - page_start_time:.2f} seconds")
                         
                     except Exception as page_error:
-                        print(f"Error processing page {page_idx+1}: {str(page_error)}")
+                        error_msg = f"Error processing page {page_idx+1}: {str(page_error)}"
+                        logger.error(error_msg, exc_info=True)
                         # Add placeholder for failed page with safer error message that doesn't reference deleted variables
                         error_text = f"[ERROR: Failed to process page {page_idx+1} - {str(page_error).replace('cannot access local variable', 'error accessing variable')}]"
                         full_text.append(error_text)
@@ -495,11 +503,12 @@ class Extractor:
                             "raw_text": error_text,  # Same for raw text in case of error
                             "original_text": error_text,  # Add original_text for comparison view
                             "has_text": False,
+                            "error_type": type(page_error).__name__,
                         })
                 
                 # After each batch, explicitly run garbage collection
                 gc.collect()
-                print(f"Batch {batch_start+1}-{batch_end} completed in {time.time() - batch_start_time:.2f} seconds")
+                logger.info(f"Batch {batch_start+1}-{batch_end} completed in {time.time() - batch_start_time:.2f} seconds")
             
             # Save the combined result
             combined_text = "\n\n".join(full_text)
@@ -518,12 +527,15 @@ class Extractor:
             result["metadata"]["ocr_chars_per_page"] = round(chars_per_page, 1)
             
             total_time = time.time() - start_time
-            print(f"OCR processing completed for all {max_pages} pages in {total_time:.2f} seconds")
-            print(f"Total characters recognized: {total_chars} (avg: {chars_per_page:.1f} chars/page)")
+            logger.info(f"OCR processing completed for all {max_pages} pages in {total_time:.2f} seconds")
+            logger.info(f"Total characters recognized: {total_chars} (avg: {chars_per_page:.1f} chars/page)")
             result["metadata"]["ocr_processing_time"] = total_time
             
         except Exception as e:
-            result["error"] = str(e)
+            error_msg = f"Errore durante l'estrazione PDF: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            result["error"] = error_msg
+            result["error_type"] = type(e).__name__
             
         return result
     
@@ -583,7 +595,10 @@ class Extractor:
             }]
             
         except Exception as e:
-            result["error"] = str(e)
+            error_msg = f"Errore durante l'estrazione: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            result["error"] = error_msg
+            result["error_type"] = type(e).__name__
             
         return result
     
@@ -658,7 +673,10 @@ class Extractor:
             result["success"] = True
             
         except Exception as e:
-            result["error"] = str(e)
+            error_msg = f"Errore durante l'estrazione: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            result["error"] = error_msg
+            result["error_type"] = type(e).__name__
             
         return result
     
@@ -723,7 +741,10 @@ class Extractor:
             result["success"] = True
             
         except Exception as e:
-            result["error"] = str(e)
+            error_msg = f"Errore durante l'estrazione: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            result["error"] = error_msg
+            result["error_type"] = type(e).__name__
             
         return result
     
@@ -770,7 +791,10 @@ class Extractor:
             result["success"] = True
             
         except Exception as e:
-            result["error"] = str(e)
+            error_msg = f"Errore durante l'estrazione: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            result["error"] = error_msg
+            result["error_type"] = type(e).__name__
             
         return result
     
@@ -848,7 +872,10 @@ class Extractor:
             result["success"] = True
             
         except Exception as e:
-            result["error"] = str(e)
+            error_msg = f"Errore durante l'estrazione: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            result["error"] = error_msg
+            result["error_type"] = type(e).__name__
             
         return result
     
@@ -910,6 +937,9 @@ class Extractor:
             result["success"] = True
             
         except Exception as e:
-            result["error"] = str(e)
+            error_msg = f"Errore durante l'estrazione: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            result["error"] = error_msg
+            result["error_type"] = type(e).__name__
             
         return result

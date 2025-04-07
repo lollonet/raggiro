@@ -2,9 +2,10 @@
 
 import json
 import os
+import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Any
 
 # For PDF creation
 try:
@@ -12,6 +13,9 @@ try:
     HAS_FITZ = True
 except ImportError:
     HAS_FITZ = False
+    
+# Set up logger
+logger = logging.getLogger("raggiro.exporter")
 
 class Exporter:
     """Exports processed documents in various formats."""
@@ -89,7 +93,7 @@ class Exporter:
                             self._export_corrected_pdf(document, corrected_pdf_path)
                             result["formats"]["corrected_pdf"] = str(corrected_pdf_path)
                         except Exception as e:
-                            print(f"Warning: Failed to create corrected PDF: {str(e)}")
+                            logger.warning(f"Failed to create corrected PDF: {str(e)}", exc_info=True)
                     
                     # Generate side-by-side comparison if configured
                     if (is_ocr_document or has_spell_correction) and self.generate_comparison:
@@ -98,7 +102,7 @@ class Exporter:
                             self._export_comparison_pdf(document, comparison_pdf_path)
                             result["formats"]["comparison_pdf"] = str(comparison_pdf_path)
                         except Exception as e:
-                            print(f"Warning: Failed to create comparison PDF: {str(e)}")
+                            logger.warning(f"Failed to create comparison PDF: {str(e)}", exc_info=True)
             
             result["success"] = True
             
@@ -276,8 +280,8 @@ class Exporter:
             
         # Log what we're storing
         keys_with_text = [k for k in document.keys() if "text" in k]
-        print(f"Document text fields: {keys_with_text}")
-        print(f"Exporting text fields: {[k for k in export_data.keys() if 'text' in k]}")
+        logger.debug(f"Document text fields: {keys_with_text}")
+        logger.debug(f"Exporting text fields: {[k for k in export_data.keys() if 'text' in k]}")
         
         # Add page-level original and raw text if available
         if "pages" in document:
@@ -308,7 +312,7 @@ class Exporter:
                 
             # Log what fields we have in the first page
             if export_data["pages"]:
-                print(f"First page data fields: {list(export_data['pages'][0].keys())}")
+                logger.debug(f"First page data fields: {list(export_data['pages'][0].keys())}")
                 
         # Add original pages if they exist
         if "original_pages" in document:
@@ -422,14 +426,14 @@ class Exporter:
                         # Truncate text if it's too long to avoid memory issues
                         if len(page_text) > MAX_TEXT_SIZE:
                             truncated_text = page_text[:MAX_TEXT_SIZE] + "\n\n[... Text truncated due to size limits. See JSON for full content ...]"
-                            print(f"Warning: Truncating page {i+1} text from {len(page_text)} to {len(truncated_text)} characters")
+                            logger.warning(f"Truncating page {i+1} text from {len(page_text)} to {len(truncated_text)} characters")
                             page_text = truncated_text
                             
                         page.insert_textbox(rect, page_text, fontsize=10, fontname="helv",
                                           align=0, color=(0, 0, 0))
                     except Exception as e:
                         # If textbox fails, try simpler text insertion with fallback
-                        print(f"Warning: Failed to insert text box, using simpler method: {str(e)}")
+                        logger.warning(f"Failed to insert text box, using simpler method: {str(e)}", exc_info=True)
                         page.insert_text((50, 100), "Error rendering text. See JSON output for content.", 
                                        fontsize=10, fontname="helv", color=(0.8, 0, 0))
         else:
@@ -536,14 +540,14 @@ class Exporter:
                 original_text = ""
                 
                 # Debug avanzato per diagnosticare problemi con i testi
-                print("-" * 80)
-                print(f"DIAGNOSTICA PAGINA {i+1}:")
-                print(f"Chiavi disponibili: {list(page_data.keys())}")
+                logger.debug("-" * 80)
+                logger.debug(f"DIAGNOSTICA PAGINA {i+1}:")
+                logger.debug(f"Chiavi disponibili: {list(page_data.keys())}")
                 
                 # Verifica di tutte le possibili fonti di testo originale
                 if has_original and i < len(original_pages):
                     original_keys = list(original_pages[i].keys())
-                    print(f"Chiavi in original_pages[{i}]: {original_keys}")
+                    logger.debug(f"Chiavi in original_pages[{i}]: {original_keys}")
                     # Recupero sicuro dei testi con verifica di validità
                     try:
                         original_page_text = original_pages[i].get("text", "")
@@ -553,7 +557,7 @@ class Exporter:
                         if not isinstance(original_page_text, str):
                             original_page_text = str(original_page_text)
                     except Exception as e:
-                        print(f"Errore nel recupero del testo originale text: {e}")
+                        logger.warning(f"Errore nel recupero del testo originale text: {e}", exc_info=True)
                         original_page_text = ""
                         
                     try:
@@ -564,64 +568,64 @@ class Exporter:
                         if not isinstance(original_page_raw, str):
                             original_page_raw = str(original_page_raw)
                     except Exception as e:
-                        print(f"Errore nel recupero del testo originale raw_text: {e}")
+                        logger.warning(f"Errore nel recupero del testo originale raw_text: {e}", exc_info=True)
                         original_page_raw = ""
                     
                     # Aggiungi statistiche sui contenuti
-                    print(f"Lunghezza original_pages[{i}]['text']: {len(original_page_text)}")
-                    print(f"Lunghezza original_pages[{i}]['raw_text']: {len(original_page_raw)}")
+                    logger.debug(f"Lunghezza original_pages[{i}]['text']: {len(original_page_text)}")
+                    logger.debug(f"Lunghezza original_pages[{i}]['raw_text']: {len(original_page_raw)}")
                 
                 # Verifica contenuto in page_data
                 # Gestione sicura per evitare errori di stringa non terminata
                 try:
                     if "raw_text" in page_data:
                         raw_len = len(page_data.get("raw_text", ""))
-                        print(f"Lunghezza page_data['raw_text']: {raw_len}")
+                        logger.debug(f"Lunghezza page_data['raw_text']: {raw_len}")
                 except Exception as e:
-                    print(f"Errore nel calcolo lunghezza raw_text: {e}")
+                    logger.warning(f"Errore nel calcolo lunghezza raw_text: {e}", exc_info=True)
                     
                 try:
                     if "original_text" in page_data:
                         orig_len = len(page_data.get("original_text", ""))
-                        print(f"Lunghezza page_data['original_text']: {orig_len}")
+                        logger.debug(f"Lunghezza page_data['original_text']: {orig_len}")
                 except Exception as e:
-                    print(f"Errore nel calcolo lunghezza original_text: {e}")
+                    logger.warning(f"Errore nel calcolo lunghezza original_text: {e}", exc_info=True)
                     
                 try:
                     if "text" in page_data:
                         text_len = len(page_data.get("text", ""))
-                        print(f"Lunghezza page_data['text']: {text_len}")
+                        logger.debug(f"Lunghezza page_data['text']: {text_len}")
                 except Exception as e:
-                    print(f"Errore nel calcolo lunghezza text: {e}")
-                print("-" * 80)
+                    logger.warning(f"Errore nel calcolo lunghezza text: {e}", exc_info=True)
+                logger.debug("-" * 80)
                 
                 # Approccio prioritizzato per ottenere il testo originale - più affidabile e con log dettagliati
                 
                 # Priorità 1: Usa original_text da page_data (aggiunto nelle modifiche recenti)
                 if "original_text" in page_data and page_data.get("original_text", "").strip():
-                    print(f"✓ USANDO original_text da page_data (priorità 1) per pagina {i+1}")
+                    logger.info(f"✓ USANDO original_text da page_data (priorità 1) per pagina {i+1}")
                     original_text = page_data.get("original_text", "")
                 
                 # Priorità 2: Usa raw_text da page_data (opzione più comune)
                 elif "raw_text" in page_data and page_data.get("raw_text", "").strip():
-                    print(f"✓ USANDO raw_text da page_data (priorità 2) per pagina {i+1}")
+                    logger.info(f"✓ USANDO raw_text da page_data (priorità 2) per pagina {i+1}")
                     original_text = page_data.get("raw_text", "")
                 
                 # Priorità 3: Usa text da original_pages
                 elif has_original and i < len(original_pages) and original_pages[i].get("text", "").strip():
-                    print(f"✓ USANDO text da original_pages (priorità 3) per pagina {i+1}")
+                    logger.info(f"✓ USANDO text da original_pages (priorità 3) per pagina {i+1}")
                     original_text = original_pages[i].get("text", "")
                 
                 # Priorità 4: Usa raw_text da original_pages
                 elif has_original and i < len(original_pages) and original_pages[i].get("raw_text", "").strip():
-                    print(f"✓ USANDO raw_text da original_pages (priorità 4) per pagina {i+1}")
+                    logger.info(f"✓ USANDO raw_text da original_pages (priorità 4) per pagina {i+1}")
                     original_text = original_pages[i].get("raw_text", "")
                 
                 # Log which approach worked
                 if original_text.strip():
-                    print(f"Successfully retrieved original text for page {i+1} ({len(original_text)} chars)")
+                    logger.debug(f"Successfully retrieved original text for page {i+1} ({len(original_text)} chars)")
                 else:
-                    print(f"WARNING: Could not find original text for page {i+1}")
+                    logger.warning(f"Could not find original text for page {i+1}")
                 
                 # Create a new page for side-by-side comparison
                 page = doc.new_page(width=842, height=595)  # A4 landscape
@@ -704,23 +708,23 @@ class Exporter:
             original_text = ""
             
             # Debug logging to understand what fields are available
-            print(f"Full document keys: {[k for k in document.keys() if k not in ['pages', 'original_pages']]}")
+            logger.debug(f"Full document keys: {[k for k in document.keys() if k not in ['pages', 'original_pages']]}")
             
             # Approach 1: Use original_text field
             if "original_text" in document:
-                print("Using original_text approach for full document")
+                logger.info("Using original_text approach for full document")
                 original_text = document.get("original_text", "")
             
             # Approach 2: Use raw_text field
             if not original_text.strip() and "raw_text" in document:
-                print("Using raw_text approach for full document")
+                logger.info("Using raw_text approach for full document")
                 original_text = document.get("raw_text", "")
                 
             # Log success or failure
             if original_text.strip():
-                print(f"Successfully retrieved original text for full document ({len(original_text)} chars)")
+                logger.debug(f"Successfully retrieved original text for full document ({len(original_text)} chars)")
             else:
-                print(f"WARNING: Could not find original text for full document")
+                logger.warning("Could not find original text for full document")
             
             # Create a new page for side-by-side comparison
             page = doc.new_page(width=842, height=595)  # A4 landscape
