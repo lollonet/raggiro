@@ -68,7 +68,7 @@ class UnicodeNormalizer:
         '\u3008': '?',  # Left angle bracket as question mark substitute
         '\u3009': '?',  # Right angle bracket as question mark substitute
         '\u2026\u2047': '...?', # Ellipsis followed by double question
-        '\u2026\u3F': '...?',   # Ellipsis followed by question mark
+        '\u2026\u003F': '...?',   # Ellipsis followed by question mark
         
         # Currency symbols
         '€': 'EUR',    # Euro
