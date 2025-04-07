@@ -466,53 +466,7 @@ class MetadataExtractor:
                 
             # Look for author name at start of content
             if line.strip() and len(line.strip()) < 60:  # Not too long
-                if re.match(r'^([A-Z][a-z]+ [A-Z][a-z]+)$', line.strip()):  # Matches "First Last" pattern
-                    return line.strip()
-        
-        # Main extraction patterns
-        for pattern in self.author_regex:
-            matches = pattern.findall(text)
-            if matches:
-                author = matches[0].strip()
-                if len(author) > 2 and len(author) < 100:  # Reasonable author name length
-                    # Clean it up - remove phrases that aren't part of the author name
-                    author = re.sub(r'(?:quarta di copertina|back cover|introduzione|introduction)\s+', '', author, flags=re.IGNORECASE)
-                    return author.strip()
-        
-        # Special case for common book format "TITLE by AUTHOR"
-        title_author_match = re.search(r"^\s*([A-Z][A-Za-z0-9\s'\":]+)(?:\n\s*|\s+)(?:by|di|BY|DI)\s+([A-Z][A-Za-z\s.]+)", text, re.MULTILINE)
-        if title_author_match:
-            author = title_author_match.group(2).strip()
-            if len(author) > 2 and len(author) < 100:
-                return author
-        
-        # Try to find an author line
-        lines = text.split("\n")
-        for i, line in enumerate(lines[:30]):  # Check first 30 lines (increased from 20)
-            line = line.strip().lower()
-            if line.startswith("author:") or line.startswith("by:") or line.startswith("prepared by:") or line.startswith("written by:"):
-                parts = line.split(":", 1)
-                if len(parts) > 1:
-                    author = parts[1].strip()
-                    if len(author) > 2:
-                        return author.title()  # Convert to title case
-            
-            # Check for standalone author name after title
-            if line.startswith("by ") and len(line) > 3:
-                author = line[3:].strip()
-                if len(author) > 2:
-                    return author.title()
-                    
-            # Common pattern in PDFs where author name appears at start
-            if "kenny werner" in line and i < 5:  # In first 5 lines
-                return "Kenny Werner"
-        
-        # Last resort: check filename for author name
-        filename = document.get("metadata", {}).get("file", {}).get("filename", "")
-        if filename:
-            # Check if Kenny Werner's book
-            if "werner" in filename.lower() or "kenny" in filename.lower():
-                return "Kenny Werner"$', line.strip()):  # Matches "First Last" pattern
+                if re.match(r'^([A-Z][a-z]+ [A-Z][a-z]+)', line.strip()):  # Matches "First Last" pattern
                     return line.strip()
         
         # Main extraction patterns
@@ -559,6 +513,10 @@ class MetadataExtractor:
             # Check if Kenny Werner's book
             if "werner" in filename.lower() or "kenny" in filename.lower():
                 return "Kenny Werner"
+                
+            # Check if name follows the "First Last" pattern
+            if re.match(r'^([A-Z][a-z]+ [A-Z][a-z]+)', filename):
+                return filename.split('.')[0]  # Remove file extension
         
         return None
         

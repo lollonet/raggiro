@@ -39,7 +39,7 @@ class UnicodeNormalizer:
         '‒': '-',       # Figure dash
         '―': '-',       # Horizontal bar
         
-        # Other problematic characters
+        # Punctuation marks and special characters
         '…': '...',     # Ellipsis
         '•': '*',       # Bullet
         '·': '.',       # Middle dot
@@ -51,11 +51,33 @@ class UnicodeNormalizer:
         '§': 'Section', # Section sign
         '¶': 'Para',    # Pilcrow sign
         
+        # Question and exclamation marks - Enhanced handling
+        '¿': '?',       # Inverted question mark
+        '？': '?',       # Full-width question mark
+        '⁇': '??',      # Double question mark
+        '‽': '?!',      # Interrobang
+        '⁈': '?!',      # Question exclamation mark
+        '⁉': '!?',      # Exclamation question mark
+        '¡': '!',       # Inverted exclamation mark
+        '！': '!',       # Full-width exclamation mark
+        '\u037E': '?',  # Greek question mark
+        '\u061F': '?',  # Arabic question mark
+        '\u2047': '??', # Double question mark
+        '\u2048': '?!', # Question exclamation mark
+        '\u2049': '!?', # Exclamation question mark
+        '\u3008': '?',  # Left angle bracket as question mark substitute
+        '\u3009': '?',  # Right angle bracket as question mark substitute
+        '\u2026\u2047': '...?', # Ellipsis followed by double question
+        '\u2026\u3F': '...?',   # Ellipsis followed by question mark
+        
         # Currency symbols
         '€': 'EUR',    # Euro
         '£': 'GBP',    # Pound sterling
         '¥': 'JPY',    # Yen
         '₹': 'INR',    # Indian Rupee
+        '₽': 'RUB',    # Ruble
+        '₴': 'UAH',    # Hryvnia
+        '₩': 'KRW',    # Won
         
         # Mathematical and technical symbols
         '±': '+/-',    # Plus-minus sign
@@ -68,6 +90,10 @@ class UnicodeNormalizer:
         '∏': 'prod',   # Product
         '∂': 'd',      # Partial differential
         '∫': 'int',    # Integral
+        '≈': '~=',     # Almost equal to
+        '≡': '===',    # Identical to
+        '≜': '=def',   # Equal by definition
+        '∝': 'prop',   # Proportional to
         
         # Arrows and direction indicators
         '←': '<-',     # Left arrow
@@ -75,6 +101,31 @@ class UnicodeNormalizer:
         '↑': '^',      # Up arrow
         '↓': 'v',      # Down arrow
         '↔': '<->',    # Left-right arrow
+        '⇒': '=>',     # Right double arrow
+        '⇐': '<=',     # Left double arrow
+        '⇔': '<=>',    # Left-right double arrow
+        
+        # Special spaces
+        '\u00A0': ' ',  # Non-breaking space
+        '\u200B': '',   # Zero-width space
+        '\u200C': '',   # Zero-width non-joiner
+        '\u200D': '',   # Zero-width joiner
+        '\u2060': '',   # Word joiner
+        '\u2007': ' ',  # Figure space
+        '\u2008': ' ',  # Punctuation space
+        '\u2009': ' ',  # Thin space
+        '\u200A': ' ',  # Hair space
+        '\u202F': ' ',  # Narrow no-break space
+        '\u205F': ' ',  # Medium mathematical space
+        '\u3000': ' ',  # Ideographic space (CJK)
+        
+        # UTF-8 replacement character and unknown character
+        '\uFFFD': '?',  # Replacement character
+        '\u2BD1': '?',  # Uncertainty sign
+        '\u2370': '?',  # APL Question Mark
+        '\u003F': '?',  # Standard question mark (included for consistency)
+        '\u0294': '?',  # Glottal stop that can look like a question mark in some fonts
+        '\u0241': '?',  # Glottal stop letter that resembles question mark
     }
     
     @classmethod
@@ -90,22 +141,61 @@ class UnicodeNormalizer:
         """
         if not text:
             return ""
-            
-        # Replace known problematic characters
-        normalized_text = text
-        for old_char, new_char in cls.CHAR_MAP.items():
-            normalized_text = normalized_text.replace(old_char, new_char)
-            
-        # Normalize remaining Unicode characters using NFKD
-        # (Compatibility Decomposition - this decomposes characters like é into e + ´)
-        normalized_text = unicodedata.normalize('NFKD', normalized_text)
         
-        # Remove combining characters to convert accented letters to ASCII equivalents
-        # (e.g., convert 'é' to 'e' by removing the combining acute accent)
-        normalized_text = ''.join(c for c in normalized_text 
-                                if not unicodedata.combining(c))
-        
-        return normalized_text
+        try:
+            # Handle non-string inputs gracefully
+            if not isinstance(text, str):
+                text = str(text)
+                
+            # First, pre-normalize with NFC to ensure composed characters
+            # (important for consistent replacement)
+            text = unicodedata.normalize('NFC', text)
+            
+            # Special pre-processing for known problematic question mark sequences
+            # This helps with handling question marks in various combinations
+            text = re.sub(r'[\u2026\u2047]', '...?', text)  # Ellipsis + question mark
+            text = re.sub(r'[\u2026]\s*[\?]', '...?', text)  # Ellipsis followed by question mark
+            
+            # Replace known problematic characters
+            normalized_text = text
+            for old_char, new_char in cls.CHAR_MAP.items():
+                normalized_text = normalized_text.replace(old_char, new_char)
+                
+            # Additional handling for question marks and other punctuation
+            # that might appear as replacement characters
+            normalized_text = normalized_text.replace('\uFFFD', '?')  # Explicit replacement character
+            
+            # Special handling for any remaining question mark-like characters
+            # that might not be covered in the CHAR_MAP
+            normalized_text = re.sub(r'[\u037E\u061F\u2047\u2048\u2049\u3008\u3009\u0294\u0241]', '?', normalized_text)
+            
+            # Normalize remaining Unicode characters using NFKD
+            # (Compatibility Decomposition - this decomposes characters like é into e + ´)
+            normalized_text = unicodedata.normalize('NFKD', normalized_text)
+            
+            # Remove combining characters to convert accented letters to ASCII equivalents
+            # (e.g., convert 'é' to 'e' by removing the combining acute accent)
+            normalized_text = ''.join(c for c in normalized_text 
+                                    if not unicodedata.combining(c))
+            
+            # Additional custom handling for question marks within combined characters
+            # This ensures consistent representation of question marks
+            normalized_text = re.sub(r'[^\x00-\x7F]+[\?]', '?', normalized_text)
+            normalized_text = re.sub(r'[\?][^\x00-\x7F]+', '?', normalized_text)
+            
+            # Final safety check: replace any remaining non-ASCII with '?'
+            normalized_text = ''.join(c if ord(c) < 128 else '?' for c in normalized_text)
+            
+            return normalized_text
+        except Exception as e:
+            # Failsafe: if any errors occur, try a simpler approach
+            try:
+                # Even in the failsafe, try to handle question marks properly
+                text = re.sub(r'[^\x00-\x7F]+[\?]', '?', text)
+                text = re.sub(r'[\?][^\x00-\x7F]+', '?', text)
+                return ''.join(c if ord(c) < 128 else '?' for c in text)
+            except:
+                return str(text)
     
     @classmethod
     def clean_for_display(cls, text: str) -> str:
@@ -121,13 +211,50 @@ class UnicodeNormalizer:
         """
         if not text:
             return ""
+        
+        try:
+            # Handle non-string inputs gracefully
+            if not isinstance(text, str):
+                text = str(text)
+                
+            # First, pre-normalize with NFC to ensure composed characters
+            text = unicodedata.normalize('NFC', text)
             
-        # Only replace the definitely problematic characters for display
-        normalized_text = text
-        for old_char, new_char in cls.CHAR_MAP.items():
-            normalized_text = normalized_text.replace(old_char, new_char)
+            # Special pre-processing for problematic question mark sequences
+            text = re.sub(r'[\u2026\u2047]', '...?', text)  # Ellipsis + question mark
+            text = re.sub(r'[\u2026]\s*[\?]', '...?', text)  # Ellipsis followed by question mark
+                
+            # Replace known problematic characters for display
+            normalized_text = text
+            for old_char, new_char in cls.CHAR_MAP.items():
+                normalized_text = normalized_text.replace(old_char, new_char)
             
-        return normalized_text
+            # Special handling for question marks - ensure proper display
+            # These are specific conversions for display contexts
+            normalized_text = normalized_text.replace('\uFFFD', '?')  # Replacement character
+            
+            # Specific handling for any remaining question mark-like characters
+            normalized_text = re.sub(r'[\u037E\u061F\u2047\u2048\u2049\u3008\u3009\u0294\u0241]', '?', normalized_text)
+            
+            # Ensure question marks appear correctly with adjacent characters
+            normalized_text = re.sub(r'[^\x00-\x7F]+[\?]', '?', normalized_text)
+            normalized_text = re.sub(r'[\?][^\x00-\x7F]+', '?', normalized_text)
+            
+            # For display, we generally want to keep accented characters
+            # but normalize any remaining problematic Unicode
+            
+            # Remove any zero-width characters and control characters that may affect display
+            normalized_text = re.sub(r'[\u200B-\u200F\u2060-\u206F]', '', normalized_text)
+            
+            return normalized_text
+        except Exception as e:
+            # Failsafe: if normalization fails, return original or best effort
+            try:
+                # Even in failsafe, ensure question marks display correctly
+                text = re.sub(r'[\uFFFD\u037E\u061F\u2047\u2048\u2049]', '?', text)
+                return text
+            except:
+                return str(text)
     
     @classmethod
     def normalize_filename(cls, filename: str) -> str:
@@ -183,20 +310,51 @@ class UnicodeNormalizer:
             text: The text to analyze
             
         Returns:
-            List of problematic characters found
+            List of problematic characters found with category information
         """
         if not text:
             return []
-            
-        # Check for known problematic chars
+        
+        # Prepare result structure
         problematic = []
+        
+        # Pre-normalize with NFC for consistent detection
+        if isinstance(text, str):
+            text = unicodedata.normalize('NFC', text)
+        else:
+            try:
+                text = str(text)
+                text = unicodedata.normalize('NFC', text)
+            except:
+                return [('<non-string-input>', 'conversion-error')]
+        
+        # Special check for potential question mark issues
+        question_mark_pattern = r'[\u037E\u061F\u2047\u2048\u2049\u3008\u3009\u0294\u0241\uFFFD\u2BD1\u2370]'
+        question_mark_matches = re.findall(question_mark_pattern, text)
+        for char in question_mark_matches:
+            if char not in problematic:
+                problematic.append(char)
+        
+        # Check for known problematic chars
         for char in cls.CHAR_MAP.keys():
-            if char in text:
+            if char in text and char not in problematic:
                 problematic.append(char)
         
         # Check for other non-ASCII characters
+        # Add exception for common accented characters that are usually fine
+        acceptable_accented = 'àèéìòùÀÈÉÌÒÙáéíóúÁÉÍÓÚäëïöüÄËÏÖÜâêîôûÂÊÎÔÛçÇñÑ'
         for char in text:
-            if ord(char) > 127 and char not in problematic and char not in 'àèéìòùÀÈÉÌÒÙ':
-                problematic.append(char)
-                
+            if ord(char) > 127 and char not in problematic and char not in acceptable_accented:
+                # Get Unicode category for better diagnosis
+                try:
+                    category = unicodedata.category(char)
+                    name = unicodedata.name(char, 'UNKNOWN')
+                    if 'QUESTION' in name or 'MARK' in name:
+                        # Prioritize question mark-related characters
+                        problematic.insert(0, char)
+                    else:
+                        problematic.append(char)
+                except:
+                    problematic.append(char)
+        
         return problematic
