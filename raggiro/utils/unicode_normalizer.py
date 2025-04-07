@@ -18,115 +18,119 @@ class UnicodeNormalizer:
     # Map of problematic characters to their normalized versions
     CHAR_MAP = {
         # Quotes and apostrophes
-        '"': '"',       # Left double quote
-        '"': '"',       # Right double quote
-        '„': '"',       # Double low-9 quotation mark
-        '″': '"',       # Double prime
-        '‟': '"',       # Double reversed comma quotation mark
-        '«': '"',       # Left-pointing double angle quotation mark
-        '»': '"',       # Right-pointing double angle quotation mark
-        ''': "'",       # Left single quote
-        ''': "'",       # Right single quote
-        '‚': "'",       # Single low-9 quotation mark
-        '‛': "'",       # Single reversed comma quotation mark
-        '′': "'",       # Prime
-        '‹': "'",       # Left-pointing single angle quotation mark
-        '›': "'",       # Right-pointing single angle quotation mark
+        '\u201C': '"',       # Left double quote
+        '\u201D': '"',       # Right double quote
+        '\u201E': '"',       # Double low-9 quotation mark
+        '\u2033': '"',       # Double prime
+        '\u201F': '"',       # Double reversed comma quotation mark
+        '\u00AB': '"',       # Left-pointing double angle quotation mark
+        '\u00BB': '"',       # Right-pointing double angle quotation mark
+        '\u2018': "'",       # Left single quote
+        '\u2019': "'",       # Right single quote
+        '\u201A': "'",       # Single low-9 quotation mark
+        '\u201B': "'",       # Single reversed comma quotation mark
+        '\u2032': "'",       # Prime
+        '\u2039': "'",       # Left-pointing single angle quotation mark
+        '\u203A': "'",       # Right-pointing single angle quotation mark
         
         # Dashes and hyphens
-        '—': '-',       # Em dash
-        '–': '-',       # En dash
-        '‒': '-',       # Figure dash
-        '―': '-',       # Horizontal bar
+        '\u2014': '-',       # Em dash
+        '\u2013': '-',       # En dash
+        '\u2012': '-',       # Figure dash
+        '\u2015': '-',       # Horizontal bar
         
         # Punctuation marks and special characters
-        '…': '...',     # Ellipsis
-        '•': '*',       # Bullet
-        '·': '.',       # Middle dot
-        '®': '(R)',     # Registered trademark
-        '™': '(TM)',    # Trademark
-        '©': '(c)',     # Copyright
-        '†': '+',       # Dagger
-        '‡': '++',      # Double dagger
-        '§': 'Section', # Section sign
-        '¶': 'Para',    # Pilcrow sign
+        '\u2026': '...',     # Ellipsis
+        '\u2022': '*',       # Bullet
+        '\u00B7': '.',       # Middle dot
+        '\u00AE': '(R)',     # Registered trademark
+        '\u2122': '(TM)',    # Trademark
+        '\u00A9': '(c)',     # Copyright
+        '\u2020': '+',       # Dagger
+        '\u2021': '++',      # Double dagger
+        '\u00A7': 'Section', # Section sign
+        '\u00B6': 'Para',    # Pilcrow sign
         
         # Question and exclamation marks - Enhanced handling
-        '¿': '?',       # Inverted question mark
-        '？': '?',       # Full-width question mark
-        '⁇': '??',      # Double question mark
-        '‽': '?!',      # Interrobang
-        '⁈': '?!',      # Question exclamation mark
-        '⁉': '!?',      # Exclamation question mark
-        '¡': '!',       # Inverted exclamation mark
-        '！': '!',       # Full-width exclamation mark
-        '\u037E': '?',  # Greek question mark
-        '\u061F': '?',  # Arabic question mark
-        '\u2047': '??', # Double question mark
-        '\u2048': '?!', # Question exclamation mark
-        '\u2049': '!?', # Exclamation question mark
-        '\u3008': '?',  # Left angle bracket as question mark substitute
-        '\u3009': '?',  # Right angle bracket as question mark substitute
-        '\u2026\u2047': '...?', # Ellipsis followed by double question
-        '\u2026\u003F': '...?',   # Ellipsis followed by question mark
+        '\u00BF': '?',       # Inverted question mark
+        '\uFF1F': '?',       # Full-width question mark
+        '\u2047': '??',      # Double question mark
+        '\u203D': '?!',      # Interrobang
+        '\u2048': '?!',      # Question exclamation mark
+        '\u2049': '!?',      # Exclamation question mark
+        '\u00A1': '!',       # Inverted exclamation mark
+        '\uFF01': '!',       # Full-width exclamation mark
+        '\u037E': '?',       # Greek question mark
+        '\u061F': '?',       # Arabic question mark
+        '\u2370': '?',       # APL Question Mark
+        '\u0294': '?',       # Glottal stop that can look like a question mark in some fonts
+        '\u0241': '?',       # Glottal stop letter that resembles question mark
+        '\u003F': '?',       # Standard question mark (included for consistency)
         
         # Currency symbols
-        '€': 'EUR',    # Euro
-        '£': 'GBP',    # Pound sterling
-        '¥': 'JPY',    # Yen
-        '₹': 'INR',    # Indian Rupee
-        '₽': 'RUB',    # Ruble
-        '₴': 'UAH',    # Hryvnia
-        '₩': 'KRW',    # Won
+        '\u20AC': 'EUR',    # Euro
+        '\u00A3': 'GBP',    # Pound sterling
+        '\u00A5': 'JPY',    # Yen
+        '\u20B9': 'INR',    # Indian Rupee
+        '\u20BD': 'RUB',    # Ruble
+        '\u20B4': 'UAH',    # Hryvnia
+        '\u20A9': 'KRW',    # Won
         
         # Mathematical and technical symbols
-        '±': '+/-',    # Plus-minus sign
-        '≤': '<=',     # Less than or equal to
-        '≥': '>=',     # Greater than or equal to
-        '≠': '!=',     # Not equal to
-        '∞': 'inf',    # Infinity
-        '√': 'sqrt',   # Square root
-        '∑': 'sum',    # Summation
-        '∏': 'prod',   # Product
-        '∂': 'd',      # Partial differential
-        '∫': 'int',    # Integral
-        '≈': '~=',     # Almost equal to
-        '≡': '===',    # Identical to
-        '≜': '=def',   # Equal by definition
-        '∝': 'prop',   # Proportional to
+        '\u00B1': '+/-',    # Plus-minus sign
+        '\u2264': '<=',     # Less than or equal to
+        '\u2265': '>=',     # Greater than or equal to
+        '\u2260': '!=',     # Not equal to
+        '\u221E': 'inf',    # Infinity
+        '\u221A': 'sqrt',   # Square root
+        '\u2211': 'sum',    # Summation
+        '\u220F': 'prod',   # Product
+        '\u2202': 'd',      # Partial differential
+        '\u222B': 'int',    # Integral
+        '\u2248': '~=',     # Almost equal to
+        '\u2261': '===',    # Identical to
+        '\u225C': '=def',   # Equal by definition
+        '\u221D': 'prop',   # Proportional to
         
         # Arrows and direction indicators
-        '←': '<-',     # Left arrow
-        '→': '->',     # Right arrow
-        '↑': '^',      # Up arrow
-        '↓': 'v',      # Down arrow
-        '↔': '<->',    # Left-right arrow
-        '⇒': '=>',     # Right double arrow
-        '⇐': '<=',     # Left double arrow
-        '⇔': '<=>',    # Left-right double arrow
+        '\u2190': '<-',     # Left arrow
+        '\u2192': '->',     # Right arrow
+        '\u2191': '^',      # Up arrow
+        '\u2193': 'v',      # Down arrow
+        '\u2194': '<->',    # Left-right arrow
+        '\u21D2': '=>',     # Right double arrow
+        '\u21D0': '<=',     # Left double arrow
+        '\u21D4': '<=>',    # Left-right double arrow
         
         # Special spaces
-        '\u00A0': ' ',  # Non-breaking space
-        '\u200B': '',   # Zero-width space
-        '\u200C': '',   # Zero-width non-joiner
-        '\u200D': '',   # Zero-width joiner
-        '\u2060': '',   # Word joiner
-        '\u2007': ' ',  # Figure space
-        '\u2008': ' ',  # Punctuation space
-        '\u2009': ' ',  # Thin space
-        '\u200A': ' ',  # Hair space
-        '\u202F': ' ',  # Narrow no-break space
-        '\u205F': ' ',  # Medium mathematical space
-        '\u3000': ' ',  # Ideographic space (CJK)
+        '\u00A0': ' ',      # Non-breaking space
+        '\u200B': '',       # Zero-width space
+        '\u200C': '',       # Zero-width non-joiner
+        '\u200D': '',       # Zero-width joiner
+        '\u2060': '',       # Word joiner
+        '\u2007': ' ',      # Figure space
+        '\u2008': ' ',      # Punctuation space
+        '\u2009': ' ',      # Thin space
+        '\u200A': ' ',      # Hair space
+        '\u202F': ' ',      # Narrow no-break space
+        '\u205F': ' ',      # Medium mathematical space
+        '\u3000': ' ',      # Ideographic space (CJK)
         
         # UTF-8 replacement character and unknown character
-        '\uFFFD': '?',  # Replacement character
-        '\u2BD1': '?',  # Uncertainty sign
-        '\u2370': '?',  # APL Question Mark
-        '\u003F': '?',  # Standard question mark (included for consistency)
-        '\u0294': '?',  # Glottal stop that can look like a question mark in some fonts
-        '\u0241': '?',  # Glottal stop letter that resembles question mark
+        '\uFFFD': '?',      # Replacement character
+        '\u2BD1': '?',      # Uncertainty sign
     }
+    
+    # Additional Unicode blocks to check for question mark sequences
+    QUESTION_MARK_PATTERNS = [
+        # Ellipsis + question mark combinations
+        ['\u2026', '\u003F'],  # HORIZONTAL ELLIPSIS + QUESTION MARK
+        ['\u2026', '\u003F', '\u003F'],  # HORIZONTAL ELLIPSIS + QUESTION MARK + QUESTION MARK
+        
+        # Other problematic combinations
+        ['\uFFFD', '\u003F'],  # REPLACEMENT CHARACTER + QUESTION MARK
+        ['\u003F', '\uFFFD'],  # QUESTION MARK + REPLACEMENT CHARACTER
+    ]
     
     @classmethod
     def normalize_text(cls, text: str) -> str:
@@ -152,12 +156,19 @@ class UnicodeNormalizer:
             text = unicodedata.normalize('NFC', text)
             
             # Special pre-processing for known problematic question mark sequences
-            # This helps with handling question marks in various combinations
-            text = re.sub(r'[\u2026\u2047]', '...?', text)  # Ellipsis + question mark
-            text = re.sub(r'[\u2026]\s*[\?]', '...?', text)  # Ellipsis followed by question mark
+            # Replace known problematic character combinations
+            normalized_text = text
+            for pattern in cls.QUESTION_MARK_PATTERNS:
+                pattern_str = ''.join(pattern)
+                replacement = '?' * len([c for c in pattern if c in ['\u003F', '\uFFFD', '\u037E', '\u061F']])
+                if not replacement:
+                    replacement = '?'  # Default to single question mark
+                normalized_text = normalized_text.replace(pattern_str, replacement)
+            
+            # Replace ellipsis followed by question mark with the standard sequence
+            normalized_text = re.sub(r'\u2026\s*\?', '...?', normalized_text)
             
             # Replace known problematic characters
-            normalized_text = text
             for old_char, new_char in cls.CHAR_MAP.items():
                 normalized_text = normalized_text.replace(old_char, new_char)
                 
@@ -166,7 +177,6 @@ class UnicodeNormalizer:
             normalized_text = normalized_text.replace('\uFFFD', '?')  # Explicit replacement character
             
             # Special handling for any remaining question mark-like characters
-            # that might not be covered in the CHAR_MAP
             normalized_text = re.sub(r'[\u037E\u061F\u2047\u2048\u2049\u3008\u3009\u0294\u0241]', '?', normalized_text)
             
             # Normalize remaining Unicode characters using NFKD
@@ -219,11 +229,18 @@ class UnicodeNormalizer:
                 
             # First, pre-normalize with NFC to ensure composed characters
             text = unicodedata.normalize('NFC', text)
-            
-            # Special pre-processing for problematic question mark sequences
-            text = re.sub(r'[\u2026\u2047]', '...?', text)  # Ellipsis + question mark
-            text = re.sub(r'[\u2026]\s*[\?]', '...?', text)  # Ellipsis followed by question mark
                 
+            # Special pre-processing for problematic question mark sequences
+            for pattern in cls.QUESTION_MARK_PATTERNS:
+                pattern_str = ''.join(pattern)
+                replacement = '?' * len([c for c in pattern if c in ['\u003F', '\uFFFD', '\u037E', '\u061F']])
+                if not replacement:
+                    replacement = '?'  # Default to single question mark
+                text = text.replace(pattern_str, replacement)
+                
+            # Also handle ellipsis + question mark combinations
+            text = re.sub(r'\u2026\s*\?', '...?', text)
+            
             # Replace known problematic characters for display
             normalized_text = text
             for old_char, new_char in cls.CHAR_MAP.items():
@@ -358,3 +375,49 @@ class UnicodeNormalizer:
                     problematic.append(char)
         
         return problematic
+        
+    @classmethod
+    def escape_unicode(cls, text: str) -> str:
+        """
+        Escape all non-ASCII characters as Python Unicode escape sequences.
+        This is useful for debugging Unicode issues.
+        
+        Args:
+            text: The text to escape
+            
+        Returns:
+            Text with all non-ASCII chars as escape sequences
+        """
+        if not text:
+            return ""
+        
+        result = ""
+        for char in text:
+            if ord(char) < 128:
+                result += char
+            else:
+                # Convert to Python unicode escape sequence
+                result += f"\\u{ord(char):04x}"
+                
+        return result
+        
+    @classmethod
+    def unescape_unicode(cls, text: str) -> str:
+        """
+        Unescape Unicode escape sequences like \\uXXXX back to characters.
+        
+        Args:
+            text: The text with escape sequences
+            
+        Returns:
+            Text with escape sequences converted to characters
+        """
+        if not text:
+            return ""
+            
+        try:
+            # This handles \uXXXX escape sequences
+            return text.encode('utf-8').decode('unicode_escape')
+        except Exception as e:
+            # If there's any error, return the original text
+            return text
