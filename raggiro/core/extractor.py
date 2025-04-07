@@ -417,6 +417,8 @@ class Extractor:
                             # Log successful conversion
                             print(f"Successfully converted page {page_idx+1} to image format for OCR")
                             
+                            # Store pix reference for error message access
+                            pix_ref = pix
                             # Free memory immediately after use
                             del pix
                             del img_data
@@ -471,6 +473,7 @@ class Extractor:
                             "page_num": page_idx + 1,
                             "text": text,  # This will be potentially corrected later in the pipeline
                             "raw_text": text,  # Keep the original OCR text for comparison
+                            "original_text": text,  # Explicitly add original_text for better compatibility
                             "has_text": bool(text.strip()),
                             "char_count": char_count,
                             "processing_time": time.time() - page_start_time
@@ -483,13 +486,14 @@ class Extractor:
                         
                     except Exception as page_error:
                         print(f"Error processing page {page_idx+1}: {str(page_error)}")
-                        # Add placeholder for failed page
-                        error_text = f"[ERROR: Failed to process page {page_idx+1} - {str(page_error)}]"
+                        # Add placeholder for failed page with safer error message that doesn't reference deleted variables
+                        error_text = f"[ERROR: Failed to process page {page_idx+1} - {str(page_error).replace('cannot access local variable', 'error accessing variable')}]"
                         full_text.append(error_text)
                         pages.append({
                             "page_num": page_idx + 1,
                             "text": error_text,
                             "raw_text": error_text,  # Same for raw text in case of error
+                            "original_text": error_text,  # Add original_text for comparison view
                             "has_text": False,
                         })
                 
@@ -501,6 +505,7 @@ class Extractor:
             combined_text = "\n\n".join(full_text)
             result["text"] = combined_text
             result["raw_text"] = combined_text  # Store the raw OCR text for comparison
+            result["original_text"] = combined_text  # Explicitly add original_text for better compatibility
             result["pages"] = pages
             result["success"] = True
             
@@ -894,10 +899,12 @@ class Extractor:
             
             result["text"] = text
             result["raw_text"] = text  # Store raw OCR text for comparison
+            result["original_text"] = text  # Explicitly add original_text for better compatibility
             result["pages"] = [{
                 "page_num": 1,
                 "text": text,
                 "raw_text": text,  # Store raw OCR text for comparison
+                "original_text": text,  # Explicitly add original_text for comparison view
                 "has_text": bool(text.strip()),
             }]
             result["success"] = True
