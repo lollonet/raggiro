@@ -258,29 +258,57 @@ class Exporter:
             document: Processed document dictionary
             output_path: Output file path
         """
-        # Create a clean JSON export
+        # Create a clean JSON export with basic fields
         export_data = {
             "metadata": document.get("metadata", {}),
             "text": document.get("text", ""),
+            "extraction_method": document.get("extraction_method", ""),
         }
         
-        # Add original text data for comparison views
+        # Ensure original text is available for comparisons
+        # Use a consistent naming convention: original_text instead of raw_text
         if "original_text" in document:
             export_data["original_text"] = document["original_text"]
         elif "raw_text" in document:
             export_data["original_text"] = document["raw_text"]
+            # Also keep raw_text for backward compatibility
+            export_data["raw_text"] = document["raw_text"]
             
+        # Log what we're storing
+        keys_with_text = [k for k in document.keys() if "text" in k]
+        print(f"Document text fields: {keys_with_text}")
+        print(f"Exporting text fields: {[k for k in export_data.keys() if 'text' in k]}")
+        
         # Add page-level original and raw text if available
         if "pages" in document:
             export_data["pages"] = []
-            for page in document["pages"]:
-                page_data = {"page_num": page.get("page_num"), "text": page.get("text", "")}
+            for page_idx, page in enumerate(document["pages"]):
+                # Basic page data
+                page_data = {
+                    "page_num": page.get("page_num", page_idx + 1),
+                    "text": page.get("text", "")
+                }
                 
-                # Preserve raw/original text at page level
+                # Ensure both original_text and raw_text are available
+                # This ensures maximum compatibility
+                if "original_text" in page:
+                    page_data["original_text"] = page["original_text"]
                 if "raw_text" in page:
-                    page_data["original_text"] = page["raw_text"]
+                    # Keep raw_text but ensure original_text also exists
+                    page_data["raw_text"] = page["raw_text"]
+                    if "original_text" not in page_data:
+                        page_data["original_text"] = page["raw_text"]
                 
+                # Include other useful page metadata
+                for key in ["has_text", "char_count", "processing_time"]:
+                    if key in page:
+                        page_data[key] = page[key]
+                        
                 export_data["pages"].append(page_data)
+                
+            # Log what fields we have in the first page
+            if export_data["pages"]:
+                print(f"First page data fields: {list(export_data['pages'][0].keys())}")
                 
         # Add original pages if they exist
         if "original_pages" in document:
@@ -293,7 +321,7 @@ class Exporter:
         if "chunks" in document:
             export_data["chunks"] = document["chunks"]
         
-        # Write to file
+        # Write to file with pretty printing
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(export_data, f, indent=self.json_indent, ensure_ascii=False)
     
@@ -504,13 +532,34 @@ class Exporter:
             for i, page_data in enumerate(pages):
                 corrected_text = page_data.get("text", "")
                 
-                # Get original text if available
+                # Get original text if available - use multiple fallback approaches
                 original_text = ""
+                
+                # Debug logging to understand what fields are available
+                print(f"Page {i+1} data keys: {list(page_data.keys())}")
+                
+                # Approach 1: Use original_pages if available
                 if has_original and i < len(original_pages):
+                    print(f"Using original_pages approach for page {i+1}")
                     original_text = original_pages[i].get("text", "")
-                elif is_ocr and "raw_text" in page_data:
-                    # For OCR documents, we might have the raw text before correction
+                    if not original_text.strip():
+                        print(f"Warning: original_pages[{i}] has empty text")
+                
+                # Approach 2: Use raw_text field in the current page_data
+                if not original_text.strip() and "raw_text" in page_data:
+                    print(f"Using raw_text approach for page {i+1}")
                     original_text = page_data.get("raw_text", "")
+                
+                # Approach 3: Try original_text field in the current page_data
+                if not original_text.strip() and "original_text" in page_data:
+                    print(f"Using original_text approach for page {i+1}")
+                    original_text = page_data.get("original_text", "")
+                
+                # Log which approach worked
+                if original_text.strip():
+                    print(f"Successfully retrieved original text for page {i+1} ({len(original_text)} chars)")
+                else:
+                    print(f"WARNING: Could not find original text for page {i+1}")
                 
                 # Create a new page for side-by-side comparison
                 page = doc.new_page(width=842, height=595)  # A4 landscape
@@ -572,10 +621,28 @@ class Exporter:
         else:
             # If no individual pages, use the full text
             corrected_text = document.get("text", "")
-            original_text = document.get("original_text", "")
             
-            if not original_text and is_ocr and "raw_text" in document:
+            # Multiple approaches to get the original text for full document
+            original_text = ""
+            
+            # Debug logging to understand what fields are available
+            print(f"Full document keys: {[k for k in document.keys() if k not in ['pages', 'original_pages']]}")
+            
+            # Approach 1: Use original_text field
+            if "original_text" in document:
+                print("Using original_text approach for full document")
+                original_text = document.get("original_text", "")
+            
+            # Approach 2: Use raw_text field
+            if not original_text.strip() and "raw_text" in document:
+                print("Using raw_text approach for full document")
                 original_text = document.get("raw_text", "")
+                
+            # Log success or failure
+            if original_text.strip():
+                print(f"Successfully retrieved original text for full document ({len(original_text)} chars)")
+            else:
+                print(f"WARNING: Could not find original text for full document")
             
             # Create a new page for side-by-side comparison
             page = doc.new_page(width=842, height=595)  # A4 landscape
