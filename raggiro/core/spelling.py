@@ -34,11 +34,18 @@ class SpellingCorrector:
             # Map Tesseract language codes to spelling language codes
             ocr_to_spell_map = {
                 "eng": "en",
-                "ita": "it",
+                "ita": "it",  # Italian
                 "fra": "fr",
                 "deu": "de",
                 "spa": "es",
-                "por": "pt"
+                "por": "pt",
+                # More direct mappings for better language matching
+                "en": "en",  # Sometimes the code might be already shortened
+                "it": "it",  # Italian
+                "fr": "fr",
+                "de": "de",
+                "es": "es",
+                "pt": "pt"
             }
             
             # Extract primary language from Tesseract language string
@@ -84,6 +91,22 @@ class SpellingCorrector:
             "O": ["0", "D"],  # 'O' mistaken as '0' or 'D'
             "S": ["5"],  # 'S' mistaken as '5'
             "Z": ["2"],  # 'Z' mistaken as '2'
+            
+            # Italian-specific OCR errors
+            "à": ["a", "a'", "a`"],  # Common accented 'a' errors
+            "è": ["e", "e'", "e`"],  # Common accented 'e' errors
+            "é": ["e", "e'"],        # Common accented 'e' errors
+            "ì": ["i", "i'", "i`"],  # Common accented 'i' errors
+            "ò": ["o", "o'", "o`"],  # Common accented 'o' errors
+            "ù": ["u", "u'", "u`"],  # Common accented 'u' errors
+            "'": ["`", "´", "'"],    # Various apostrophe types
+            
+            # Add reverse mappings for better correction
+            "e": ["è", "é"],
+            "a": ["à"],
+            "i": ["ì", "í", "î"],
+            "o": ["ò", "ó"],
+            "u": ["ù", "ú"],
         }
         
         # Additional custom substitutions from config
@@ -486,7 +509,9 @@ class SpellingCorrector:
         candidates = set([word])
         
         # Skip very short words and non-words
-        if len(word) < 3 or not re.match(r'^[a-zA-Z]+$', word):
+        # Improved pattern for Italian words with accented characters and apostrophes
+        # Full set of Italian accented characters: àèéìíîòóùú and their capitals
+        if len(word) < 3 or not re.match(r'^[a-zA-ZàèéìíîòóùúÀÈÉÌÍÎÒÓÙÚ\']+$', word):$', word):
             return candidates
         
         # Generate candidates by replacing potential OCR errors
@@ -513,7 +538,10 @@ class SpellingCorrector:
             return word
             
         # Skip words that are too short, contain numbers, or special characters
-        if len(word) < 3 or not re.match(r'^[a-zA-Z]+$', word):
+        # Improved pattern to recognize accented characters and apostrophes in Italian words
+        # This allows words like "perché", "c'è", "più", etc. to be properly handled
+        # Full set of Italian accented characters: àèéìíîòóùú and their capitals
+        if len(word) < 3 or not re.match(r'^[a-zA-ZàèéìíîòóùúÀÈÉÌÍÎÒÓÙÚ\']+$', word):$', word):
             return word
             
         # Cache for performance - avoid repeatedly correcting the same words
@@ -599,7 +627,9 @@ class SpellingCorrector:
     def _correct_text_chunk(self, text):
         """Process a chunk of text for spelling correction"""
         # Split text into words and non-words
-        tokens = re.findall(r'[a-zA-Z]+|[^a-zA-Z]+', text)
+        # Improved pattern to capture Italian words with accented characters and apostrophes
+        # Full set of Italian accented characters: àèéìíîòóùú and their capitals
+        tokens = re.findall(r'[a-zA-ZàèéìíîòóùúÀÈÉÌÍÎÒÓÙÚ\']+|[^a-zA-ZàèéìíîòóùúÀÈÉÌÍÎÒÓÙÚ\']+', text)
         
         # Correct only words
         corrected_tokens = []
@@ -614,7 +644,9 @@ class SpellingCorrector:
             if total_tokens > 1000 and i % 1000 == 0:
                 print(f"Processed {i}/{total_tokens} tokens ({i*100/total_tokens:.1f}%)")
                 
-            if re.match(r'^[a-zA-Z]+$', token):
+            # Use improved pattern for Italian words with accented characters and apostrophes
+            # Full set of Italian accented characters: àèéìíîòóùú and their capitals
+            if re.match(r'^[a-zA-ZàèéìíîòóùúÀÈÉÌÍÎÒÓÙÚ\']+$', token):$', token):
                 # Don't correct very short words
                 if len(token) < 3:
                     corrected_tokens.append(token)

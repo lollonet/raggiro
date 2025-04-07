@@ -76,7 +76,8 @@ class Extractor:
             pytesseract.pytesseract.tesseract_cmd = tesseract_path
             
         # Configure tesseract parameters
-        self.tesseract_config = f'--dpi {self.ocr_dpi} --oem 1 --psm 3'
+        # Add config parameters to preserve special characters and improve accuracy with accented characters
+        self.tesseract_config = f'--dpi {self.ocr_dpi} --oem 1 --psm 3 -c preserve_interword_spaces=1 -c textonly_pdf=1'
         
         # Verify and fix language configuration
         # Handle special case when language is "auto" to ensure Tesseract doesn't fail
@@ -418,10 +419,13 @@ class Extractor:
                             
                             # Perform OCR with timeout protection and custom config
                             # Use the actual_ocr_language property which handles the "auto" case
+                            # Explicitly set output type as string with UTF-8 encoding
                             text = pytesseract.image_to_string(
                                 img, 
                                 lang=self.actual_ocr_language,
-                                config=self.tesseract_config
+                                config=self.tesseract_config,
+                                output_type=pytesseract.Output.STRING,
+                                encoding='utf-8'
                             )
                             
                             # Free memory
@@ -436,10 +440,13 @@ class Extractor:
                             
                             # Perform OCR on the saved file
                             # Use the actual_ocr_language property which handles the "auto" case
+                            # Explicitly set output type as string with UTF-8 encoding
                             text = pytesseract.image_to_string(
                                 img, 
                                 lang=self.actual_ocr_language,
-                                config=self.tesseract_config
+                                config=self.tesseract_config,
+                                output_type=pytesseract.Output.STRING,
+                                encoding='utf-8'
                             )
                             
                             # Cleanup
@@ -871,7 +878,14 @@ class Extractor:
             }
             
             # Perform OCR using the actual_ocr_language that handles the "auto" case
-            text = pytesseract.image_to_string(image, lang=self.actual_ocr_language)
+            # Explicitly set output type as string with UTF-8 encoding for better handling of accented characters
+            text = pytesseract.image_to_string(
+                image,
+                lang=self.actual_ocr_language,
+                config=self.tesseract_config,
+                output_type=pytesseract.Output.STRING,
+                encoding='utf-8'
+            )
             
             result["text"] = text
             result["raw_text"] = text  # Store raw OCR text for comparison
