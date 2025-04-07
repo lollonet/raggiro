@@ -44,6 +44,10 @@ class VectorIndexer:
         self.qdrant_url = indexing_config.get("qdrant_url", "http://localhost:6333")
         self.qdrant_collection = indexing_config.get("qdrant_collection", "raggiro")
         
+        # Summary/dual embedding settings
+        self.use_dual_embeddings = indexing_config.get("use_dual_embeddings", True)  # Whether to use both text and summary
+        self.summary_weight = indexing_config.get("summary_weight", 0.3)  # Weight for summary vs full text
+        
         # Initialize embedding model with error handling
         try:
             # Set torch config to avoid init_empty_weights error
@@ -122,7 +126,8 @@ class VectorIndexer:
         if self.chunk_level == "chunks" and "chunks" in document:
             # Use the pre-segmented chunks
             for i, chunk in enumerate(document["chunks"]):
-                chunks.append({
+                # Create basic chunk
+                chunk_data = {
                     "id": chunk.get("id", f"chunk_{i}"),
                     "text": chunk["text"],
                     "metadata": {
@@ -132,7 +137,15 @@ class VectorIndexer:
                         "chunk_id": chunk.get("id", f"chunk_{i}"),
                         "sections": [seg["text"] for seg in chunk.get("segments", []) if seg["type"] == "header"],
                     }
-                })
+                }
+                
+                # Add summary if available
+                if "summary" in chunk:
+                    chunk_data["summary"] = chunk["summary"]
+                    # Also add to metadata so it's stored in vector db payload
+                    chunk_data["metadata"]["summary"] = chunk["summary"]
+                    
+                chunks.append(chunk_data)
         elif self.chunk_level == "paragraphs" and "segments" in document:
             # Use paragraph segments
             for i, segment in enumerate(document["segments"]):
@@ -188,6 +201,48 @@ class VectorIndexer:
             })
         
         return chunks
+        
+    def _compute_enhanced_embeddings(self, chunks: List[Dict]) -> np.ndarray:
+        """Compute embeddings for chunks, optionally enhanced with summaries.
+        
+        This method creates embeddings that blend the full text with the summary
+        if available, giving more weight to the key concepts in the summary.
+        
+        Args:
+            chunks: List of chunks with text and optional summaries
+            
+        Returns:
+            NumPy array of embeddings
+        """
+        # First, get the regular text embeddings
+        texts = [chunk["text"] for chunk in chunks]
+        text_embeddings = self.model.encode(texts)
+        
+        # Check if we should use dual embeddings with summaries
+        if not self.use_dual_embeddings:
+            return text_embeddings
+            
+        # Check if any chunks have summaries
+        has_summaries = any("summary" in chunk and chunk["summary"] for chunk in chunks)
+        if not has_summaries:
+            return text_embeddings
+            
+        # Get summaries, use empty string for chunks without summary
+        summaries = [chunk.get("summary", "") if chunk.get("summary", "").strip() else chunk["text"][:200] 
+                     for chunk in chunks]
+                     
+        # Calculate summary embeddings
+        summary_embeddings = self.model.encode(summaries)
+        
+        # Blend the embeddings with configurable weights
+        text_weight = 1 - self.summary_weight
+        enhanced_embeddings = (text_weight * text_embeddings) + (self.summary_weight * summary_embeddings)
+        
+        # Normalize the blended embeddings to unit length
+        norms = np.linalg.norm(enhanced_embeddings, axis=1, keepdims=True)
+        normalized_embeddings = enhanced_embeddings / norms
+        
+        return normalized_embeddings
     
     def index_document(self, document_path: Union[str, Path]) -> Dict:
         """Index a processed document.
@@ -229,9 +284,8 @@ class VectorIndexer:
                 "error": "No chunks extracted from document",
             }
         
-        # Compute embeddings
-        texts = [chunk["text"] for chunk in chunks]
-        embeddings = self.model.encode(texts)
+        # Compute embeddings with optional summary enhancement
+        embeddings = self._compute_enhanced_embeddings(chunks)
         
         # Index the document
         result = {
@@ -377,8 +431,12 @@ class VectorIndexer:
                 }
                 
                 # Calculate embeddings for the chunk
-                text = document["chunks"][0]["text"]
-                embedding = self.model.encode([text])[0]
+                chunk_data = {
+                    "text": document["chunks"][0]["text"],
+                    # Add empty summary as we don't have one for direct markdown files
+                    "summary": ""
+                }
+                embedding = self._compute_enhanced_embeddings([chunk_data])[0]
                 
                 # Index the document
                 chunk = {

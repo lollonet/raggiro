@@ -43,6 +43,11 @@ class VectorRetriever:
         self.qdrant_collection = retrieval_config.get("qdrant_collection", "raggiro")
         self.top_k = retrieval_config.get("top_k", 5)
         
+        # Summary relevance filtering settings
+        self.use_summary_filtering = retrieval_config.get("use_summary_filtering", True)
+        self.summary_relevance_threshold = retrieval_config.get("summary_relevance_threshold", 0.4)
+        self.summary_boost_factor = retrieval_config.get("summary_boost_factor", 0.2)
+        
         # Initialize embedding model with error handling
         try:
             # Set torch config to avoid init_empty_weights error
@@ -73,6 +78,7 @@ class VectorRetriever:
                 try:
                     # Import a simple version without compatibility issues
                     from sentence_transformers import SentenceTransformer
+                    
                     # Try with an older stable model
                     backup_model = "paraphrase-MiniLM-L6-v2"
                     print(f"Trying backup model: {backup_model}")
@@ -98,40 +104,32 @@ class VectorRetriever:
         """Load a FAISS index and document lookup from disk.
         
         Args:
-            input_path: Path to the saved index and lookup
+            input_path: Path to the directory containing the index
             
         Returns:
-            Load result
+            Dictionary with loading status
         """
-        input_path = Path(input_path)
-        
-        # Only FAISS indices can be loaded
-        if self.vector_db != "faiss" or not FAISS_AVAILABLE:
+        if self.vector_db != "faiss":
             return {
                 "input_path": str(input_path),
                 "success": False,
-                "error": "Only FAISS indices can be loaded",
+                "error": "Loading from disk only supported for FAISS",
+            }
+        
+        input_path = Path(input_path)
+        
+        # Check if index exists
+        index_path = input_path / "index.faiss"
+        lookup_path = input_path / "document_lookup.json"
+        
+        if not index_path.exists() or not lookup_path.exists():
+            return {
+                "input_path": str(input_path),
+                "success": False,
+                "error": "Index or document lookup not found",
             }
         
         try:
-            # Check if the files exist
-            index_path = input_path / "index.faiss"
-            lookup_path = input_path / "lookup.json"
-            
-            if not index_path.exists():
-                return {
-                    "input_path": str(input_path),
-                    "success": False,
-                    "error": f"Index file not found: {index_path}",
-                }
-            
-            if not lookup_path.exists():
-                return {
-                    "input_path": str(input_path),
-                    "success": False,
-                    "error": f"Lookup file not found: {lookup_path}",
-                }
-            
             # Load FAISS index
             self.index = faiss.read_index(str(index_path))
             
@@ -192,6 +190,10 @@ class VectorRetriever:
             # Add query to the result
             result["query"] = query
             result["success"] = True
+            
+            # Apply summary-based filtering and reranking if enabled
+            if self.use_summary_filtering and result.get("chunks", []):
+                result = self._apply_summary_filtering(query, result)
             
             return result
         except Exception as e:
@@ -287,3 +289,96 @@ class VectorRetriever:
             "chunks": chunks,
             "total_chunks": len(chunks),
         }
+        
+    def _apply_summary_filtering(self, query: str, result: Dict) -> Dict:
+        """Apply filtering and reranking based on summary relevance.
+        
+        This method:
+        1. Calculates similarity between query and each chunk's summary
+        2. Filters out chunks with low summary relevance
+        3. Boosts scores of chunks with high summary relevance
+        
+        Args:
+            query: Original query string
+            result: Original retrieval result
+            
+        Returns:
+            Filtered and reranked result
+        """
+        chunks = result.get("chunks", [])
+        if not chunks:
+            return result
+            
+        # Extract chunks that have summaries
+        chunks_with_summaries = [chunk for chunk in chunks if "summary" in chunk and chunk["summary"]]
+        
+        # If no summaries, return original result
+        if not chunks_with_summaries:
+            return result
+            
+        # Encode query once
+        query_embedding = self.model.encode(query)
+        
+        # Compute similarity between query and each summary
+        enhanced_chunks = []
+        filtered_chunks = []
+        
+        for chunk in chunks:
+            # If no summary, keep the chunk as is
+            if "summary" not in chunk or not chunk["summary"]:
+                filtered_chunks.append(chunk)
+                continue
+                
+            # Compute summary relevance
+            summary_embedding = self.model.encode(chunk["summary"])
+            summary_similarity = self._compute_cosine_similarity(query_embedding, summary_embedding)
+            
+            # Add summary similarity to chunk for transparency
+            chunk["summary_relevance"] = float(summary_similarity)
+            
+            # Filter low-relevance chunks
+            if summary_similarity < self.summary_relevance_threshold:
+                continue
+                
+            # Boost score based on summary relevance
+            original_score = chunk["score"]
+            boost = summary_similarity * self.summary_boost_factor
+            boosted_score = min(1.0, original_score + boost)  # Cap at 1.0
+            
+            # Create enhanced chunk
+            enhanced_chunk = chunk.copy()
+            enhanced_chunk["original_score"] = original_score
+            enhanced_chunk["score"] = boosted_score
+            enhanced_chunk["score_boost"] = boost
+            
+            filtered_chunks.append(enhanced_chunk)
+            
+        # Sort by new scores
+        reranked_chunks = sorted(filtered_chunks, key=lambda x: x["score"], reverse=True)
+        
+        # Return with the same format as original
+        return {
+            "chunks": reranked_chunks,
+            "total_chunks": len(reranked_chunks),
+            "query": result.get("query", ""),
+            "success": result.get("success", True),
+            "filtering_applied": True,
+            "original_chunk_count": len(chunks)
+        }
+        
+    def _compute_cosine_similarity(self, v1: np.ndarray, v2: np.ndarray) -> float:
+        """Compute cosine similarity between two vectors.
+        
+        Args:
+            v1: First vector
+            v2: Second vector
+            
+        Returns:
+            Cosine similarity (0-1)
+        """
+        # Ensure vectors are normalized
+        v1_norm = v1 / np.linalg.norm(v1)
+        v2_norm = v2 / np.linalg.norm(v2)
+        
+        # Compute cosine similarity
+        return np.dot(v1_norm, v2_norm)

@@ -52,11 +52,12 @@ You are a helpful assistant that answers questions based on the provided context
 
 1. Read and understand the user's question
 2. Analyze the provided document chunks for relevant information
-3. Generate a comprehensive, accurate answer based ONLY on the provided chunks
-4. If the chunks don't contain enough information to answer the question, state this clearly
-5. Include specific citations in your answer referencing the source documents
-6. Format your response clearly with proper paragraphs, bullet points, or numbered lists as appropriate
-7. IMPORTANT: Your response MUST be in the same language as the document chunks and the user query
+3. Pay special attention to the summaries provided for each chunk, which highlight key information
+4. Generate a comprehensive, accurate answer based ONLY on the provided chunks
+5. If the chunks don't contain enough information to answer the question, state this clearly
+6. Include specific citations in your answer referencing the source documents
+7. Format your response clearly with proper paragraphs, bullet points, or numbered lists as appropriate
+8. IMPORTANT: Your response MUST be in the same language as the document chunks and the user query
 
 User Question: {query}
 
@@ -165,8 +166,13 @@ Your Answer (include citations to specific documents):
             # Format the chunk text
             chunk_text = chunk["text"].strip()
             
+            # Include summary if available
+            summary = ""
+            if "summary" in chunk and chunk["summary"]:
+                summary = f"Summary: {chunk['summary'].strip()}\n\n"
+            
             # Add to formatted chunks
-            formatted_chunks.append(f"--- {source} ---\n{chunk_text}\n")
+            formatted_chunks.append(f"--- {source} ---\n{summary}Content: {chunk_text}\n")
         
         return "\n".join(formatted_chunks)
     
@@ -367,7 +373,7 @@ Your Answer (include citations to specific documents):
             )
             
             # Create a system message with language instructions
-            system_content = "You are a helpful assistant that answers questions based on provided context."
+            system_content = "You are a helpful assistant that answers questions based on provided context. Pay special attention to the summaries provided for each chunk, which highlight key information."
             if document_language:
                 language_name = self._get_language_name(document_language)
                 system_content += f" IMPORTANT: Your response MUST be in {language_name}."

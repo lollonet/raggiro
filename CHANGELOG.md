@@ -2,8 +2,19 @@
 
 Questo documento riassume le principali modifiche funzionali apportate al progetto Raggiro, con focus su OCR, elaborazione del testo, supporto multilingua e miglioramenti delle prestazioni.
 
+## Sommari e Miglioramenti RAG (Ultima versione)
+
+- **Sommari estrattivi per chunk**: Implementata la generazione automatica di sommari per ciascun chunk utilizzando un algoritmo di estrazione basato su frequenza delle parole chiave e NLTK.
+- **Strategie di miglioramento ricerca con sommari**:
+  1. **Embedding duali**: Implementata tecnica di blending degli embedding di testo completo e sommario con peso configurabile.
+  2. **Filtri di rilevanza basati su sommari**: Aggiunto sistema di filtro e boost dei risultati basato sulla rilevanza del sommario rispetto alla query.
+  3. **Template di risposta arricchiti**: Migliorati i template di generazione per incorporare i sommari dei chunk nel contesto LLM.
+- **Esempio di utilizzo sommari**: Aggiunto script dimostrativo `summary_enhanced_search.py` che mostra l'uso delle tre strategie.
+- **Test rilevanza sommari**: Implementato script `test_summary_search.py` per valutare il miglioramento della precisione con sommari.
+
 ## Elaborazione e OCR dei Documenti
 
+- **Correzione problema encoding nell'OCR**: Rimosso il parametro `encoding` non supportato da Tesseract e migliorata la gestione UTF-8.
 - **Correzione problema di scope delle variabili nell'elaborazione OCR**: Risolto il problema di accesso a variabili eliminate che causava errori durante l'elaborazione delle pagine (`pix` variable).
 - **Elaborazione multi-pagina migliorata**: Implementato un sistema che assicura l'estrazione di tutte le pagine nei documenti PDF, risolvendo il problema dell'estrazione limitata a una singola pagina.
 - **OCR forzato per tutti i PDF**: Migliorato il sistema per applicare OCR a tutte le pagine PDF indipendentemente dalla presenza di un layer di testo, garantendo uniformità nei risultati.

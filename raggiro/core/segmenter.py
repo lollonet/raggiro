@@ -340,8 +340,23 @@ class Segmenter:
         try:
             # Use NLTK to tokenize sentences
             from nltk.tokenize import sent_tokenize
-            sentences = sent_tokenize(chunk_text)
             
+            try:
+                sentences = sent_tokenize(chunk_text)
+            except LookupError:
+                # Download punkt data if not available
+                logger.info("Downloading NLTK punkt tokenizer...")
+                import nltk
+                nltk.download('punkt', quiet=True)
+                sentences = sent_tokenize(chunk_text)
+            
+            if not sentences:
+                # Fallback if tokenization returns empty list
+                sentences = [s.strip() + "." for s in chunk_text.split('.') if s.strip()]
+                
+            if not sentences:
+                return chunk_text[:self.summary_max_length]
+                
             if len(sentences) <= self.summary_sentences:
                 # If we have fewer sentences than requested, use them all
                 return " ".join(sentences)
@@ -361,7 +376,11 @@ class Segmenter:
                 for word in sentence.lower().split():
                     # Only count words longer than 3 chars (implicit stopword filtering)
                     if len(word) > 3:
-                        word = word.strip('.,;:!?()[]{}""\'')
+                        # Clean punctuation and normalize quotes/apostrophes
+                        word = word.strip('.,;:!?()[]{}')
+                        # Normalize various quote and apostrophe characters
+                        word = word.replace('"', '').replace('"', '').replace('"', '')
+                        word = word.replace('\'', '').replace(''', '').replace(''', '')
                         if word:
                             word_freq[word] = word_freq.get(word, 0) + 1
             
@@ -373,7 +392,11 @@ class Segmenter:
                     
                 score = 0
                 for word in sentence.lower().split():
-                    word = word.strip('.,;:!?()[]{}""\'')
+                    # Clean and normalize in the same way as when building word_freq
+                    word = word.strip('.,;:!?()[]{}')
+                    # Normalize various quote and apostrophe characters
+                    word = word.replace('"', '').replace('"', '').replace('"', '')
+                    word = word.replace('\'', '').replace(''', '').replace(''', '')
                     if len(word) > 3 and word in word_freq:
                         score += word_freq[word]
                 

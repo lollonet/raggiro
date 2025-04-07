@@ -122,6 +122,11 @@ python -m spacy download en_core_web_sm  # Inglese
 # python -m spacy download es_core_news_sm  # Spagnolo
 # python -m spacy download pt_core_news_sm  # Portoghese
 # python -m spacy download nl_core_news_sm  # Olandese
+
+# Installare le risorse NLTK necessarie per la generazione dei sommari
+bash scripts/installation/install_nltk.sh
+# Oppure manualmente:
+# python -m nltk.downloader punkt stopwords averaged_perceptron_tagger
 ```
 
 ### 3. Verifica installazione Tesseract
@@ -160,6 +165,10 @@ Per elaborare correttamente documenti PDF con molte pagine:
 
 ### Novità
 
+- **Ricerca avanzata con sommari**: Tre nuove strategie per migliorare la precisione della ricerca:
+  1. **Embedding duali (testo + sommario)**: Indicizzazione vettoriale che combina il testo completo con il suo sommario estrattivo
+  2. **Filtri di rilevanza basati su sommari**: Boosting dei risultati di ricerca quando il sommario è particolarmente rilevante
+  3. **Template di risposta arricchiti**: Generazione di risposte che incorpora i sommari per un migliore contesto
 - **Generazione automatica di sommari per i chunk**: Ogni chunk include un sommario estrattivo che ne sintetizza il contenuto principale
 - **Sincronizzazione OCR-Spelling**: Sincronizzazione automatica tra lingua OCR e correzione ortografica
 - **Dizionari standard italiani**: Supporto completo per la correzione ortografica in italiano
