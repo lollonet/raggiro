@@ -828,8 +828,13 @@ class Exporter:
                     logger.warning(f"Could not find original text for page {i+1}")
                 
                 # Skip pages where both texts are empty to avoid empty pages in PDF
-                if not original_text.strip() and not corrected_text.strip():
-                    logger.warning(f"Skipping page {i+1} as both original and corrected texts are empty")
+                if (not original_text or not original_text.strip()) and (not corrected_text or not corrected_text.strip()):
+                    logger.warning(f"Skipping page {i+1} as both original and corrected texts are empty or whitespace only")
+                    continue
+                    
+                # Also check for extremely short content that might not be meaningful
+                if len(original_text.strip()) < 3 and len(corrected_text.strip()) < 3:
+                    logger.warning(f"Skipping page {i+1} as content is too short to be meaningful (< 3 chars)")
                     continue
                 
                 # At this point we have at least one page with content
@@ -875,8 +880,24 @@ class Exporter:
                     # Debug to verify content
                     logger.debug(f"Original text sample for page {i+1}: {original_text[:100]}...")
                         
-                    page.insert_textbox(rect_orig, original_text, fontsize=10, fontname="helv",
-                                       align=0, color=(0, 0, 0))
+                    # Safe textbox insertion with retry mechanism
+                    try:
+                        page.insert_textbox(rect_orig, original_text, fontsize=10, fontname="helv",
+                                          align=0, color=(0, 0, 0))
+                    except RuntimeError as e:
+                        # If the standard textbox insert fails, try with simplified formatting
+                        logger.warning(f"Standard textbox insertion failed, trying simplified format: {str(e)}")
+                        try:
+                            # Replace any problematic characters with simple ASCII
+                            safe_text = ''.join(c if ord(c) < 128 else '?' for c in original_text)
+                            page.insert_textbox(rect_orig, safe_text, fontsize=10, fontname="helv",
+                                              align=0, color=(0, 0, 0))
+                        except Exception as inner_e:
+                            # Last resort - just add a warning message
+                            logger.error(f"Simplified textbox insertion also failed: {str(inner_e)}")
+                            page.insert_text((rect_orig.x0, rect_orig.y0 + 20),
+                                          "Error rendering text. Content could not be displayed.",
+                                          fontsize=10, fontname="helv", color=(0.8, 0, 0))
                 except Exception as e:
                     # If textbox fails, try simpler text insertion
                     logger.error(f"Failed to insert original text box: {str(e)}", exc_info=True)
@@ -900,8 +921,24 @@ class Exporter:
                     # Debug to verify content
                     logger.debug(f"Corrected text sample for page {i+1}: {corrected_text[:100]}...")
                         
-                    page.insert_textbox(rect_corr, corrected_text, fontsize=10, fontname="helv",
-                                       align=0, color=(0, 0, 0))
+                    # Safe textbox insertion with retry mechanism
+                    try:
+                        page.insert_textbox(rect_corr, corrected_text, fontsize=10, fontname="helv",
+                                          align=0, color=(0, 0, 0))
+                    except RuntimeError as e:
+                        # If the standard textbox insert fails, try with simplified formatting
+                        logger.warning(f"Standard textbox insertion failed, trying simplified format: {str(e)}")
+                        try:
+                            # Replace any problematic characters with simple ASCII
+                            safe_text = ''.join(c if ord(c) < 128 else '?' for c in corrected_text)
+                            page.insert_textbox(rect_corr, safe_text, fontsize=10, fontname="helv",
+                                              align=0, color=(0, 0, 0))
+                        except Exception as inner_e:
+                            # Last resort - just add a warning message
+                            logger.error(f"Simplified textbox insertion also failed: {str(inner_e)}")
+                            page.insert_text((rect_corr.x0, rect_corr.y0 + 20),
+                                          "Error rendering text. Content could not be displayed.",
+                                          fontsize=10, fontname="helv", color=(0.8, 0, 0))
                 except Exception as e:
                     # If textbox fails, try simpler text insertion
                     logger.error(f"Failed to insert corrected text box: {str(e)}", exc_info=True)
@@ -940,14 +977,23 @@ class Exporter:
             else:
                 logger.warning("Could not find original text for full document")
             
-            # Skip empty document case
-            if not original_text.strip() and not corrected_text.strip():
-                logger.warning("Both original and corrected texts are empty for the document")
+            # Skip empty document case - more robust checking
+            if (not original_text or not original_text.strip()) and (not corrected_text or not corrected_text.strip()):
+                logger.warning("Both original and corrected texts are empty or whitespace only for the document")
                 # Create an information page instead of returning an empty PDF
                 page = doc.new_page(width=595, height=842)  # A4 portrait
                 page.insert_text((50, 50), "Document Comparison Error", fontsize=16, fontname="helv", color=(0.8, 0, 0))
                 page.insert_text((50, 90), "No text content available for comparison.", fontsize=12, fontname="helv")
                 page.insert_text((50, 120), "Please check the document extraction process.", fontsize=12, fontname="helv")
+                
+                # Add more debug info to help troubleshoot
+                extraction_method = document.get("extraction_method", "unknown")
+                page.insert_text((50, 150), f"Extraction method: {extraction_method}", fontsize=10, fontname="helv")
+                
+                # Add information about available fields
+                available_fields = ", ".join([k for k in document.keys() if k in ["text", "original_text", "raw_text"]])
+                page.insert_text((50, 170), f"Available text fields: {available_fields}", fontsize=10, fontname="helv")
+                
                 has_valid_content = True
             else:
                 # We have at least some content
@@ -995,9 +1041,24 @@ class Exporter:
                         # Handle long text by breaking it into multiple pages
                         self._handle_long_text(doc, original_text, "Original Text", MAX_PAGE_LENGTH)
                     else:
-                        # Short enough for single page
-                        page.insert_textbox(rect_orig, original_text, fontsize=10, fontname="helv",
-                                           align=0, color=(0, 0, 0))
+                        # Short enough for single page - use safe insertion
+                        try:
+                            page.insert_textbox(rect_orig, original_text, fontsize=10, fontname="helv",
+                                               align=0, color=(0, 0, 0))
+                        except RuntimeError as e:
+                            # If the standard textbox insert fails, try with simplified formatting
+                            logger.warning(f"Standard textbox insertion failed, trying simplified format: {str(e)}")
+                            try:
+                                # Replace any problematic characters with simple ASCII
+                                safe_text = ''.join(c if ord(c) < 128 else '?' for c in original_text)
+                                page.insert_textbox(rect_orig, safe_text, fontsize=10, fontname="helv",
+                                                  align=0, color=(0, 0, 0))
+                            except Exception as inner_e:
+                                # Last resort - just add a warning message
+                                logger.error(f"Simplified textbox insertion also failed: {str(inner_e)}")
+                                page.insert_text((rect_orig.x0, rect_orig.y0 + 20),
+                                              "Error rendering text. Content could not be displayed.",
+                                              fontsize=10, fontname="helv", color=(0.8, 0, 0))
                 except Exception as e:
                     # If textbox fails, try simpler text insertion
                     logger.error(f"Failed to insert original text box: {str(e)}", exc_info=True)
@@ -1023,9 +1084,24 @@ class Exporter:
                         # Handle long text by breaking it into multiple pages
                         self._handle_long_text(doc, corrected_text, "Corrected Text", MAX_PAGE_LENGTH)
                     else:
-                        # Short enough for single page
-                        page.insert_textbox(rect_corr, corrected_text, fontsize=10, fontname="helv",
-                                           align=0, color=(0, 0, 0))
+                        # Short enough for single page - use safe insertion
+                        try:
+                            page.insert_textbox(rect_corr, corrected_text, fontsize=10, fontname="helv",
+                                               align=0, color=(0, 0, 0))
+                        except RuntimeError as e:
+                            # If the standard textbox insert fails, try with simplified formatting
+                            logger.warning(f"Standard textbox insertion failed, trying simplified format: {str(e)}")
+                            try:
+                                # Replace any problematic characters with simple ASCII
+                                safe_text = ''.join(c if ord(c) < 128 else '?' for c in corrected_text)
+                                page.insert_textbox(rect_corr, safe_text, fontsize=10, fontname="helv",
+                                                  align=0, color=(0, 0, 0))
+                            except Exception as inner_e:
+                                # Last resort - just add a warning message
+                                logger.error(f"Simplified textbox insertion also failed: {str(inner_e)}")
+                                page.insert_text((rect_corr.x0, rect_corr.y0 + 20),
+                                              "Error rendering text. Content could not be displayed.",
+                                              fontsize=10, fontname="helv", color=(0.8, 0, 0))
                 except Exception as e:
                     # If textbox fails, try simpler text insertion
                     logger.error(f"Failed to insert corrected text box: {str(e)}", exc_info=True)
@@ -1081,11 +1157,22 @@ class Exporter:
             # Add text content
             rect = fitz.Rect(50, 80, 545, 792)  # Margins
             try:
-                page.insert_textbox(rect, page_chunk, fontsize=10, fontname="helv",
-                                  align=0, color=(0, 0, 0))
+                # First try with standard formatting
+                try:
+                    page.insert_textbox(rect, page_chunk, fontsize=10, fontname="helv",
+                                      align=0, color=(0, 0, 0))
+                except RuntimeError as e:
+                    # If standard formatting fails, try with simplified ASCII text
+                    logger.warning(f"Standard textbox insertion failed on page {page_number}, trying with ASCII only: {str(e)}")
+                    safe_text = ''.join(c if ord(c) < 128 else '?' for c in page_chunk)
+                    page.insert_textbox(rect, safe_text, fontsize=10, fontname="helv",
+                                      align=0, color=(0, 0, 0))
             except Exception as e:
                 logger.error(f"Failed to insert text on page {page_number}: {str(e)}", exc_info=True)
                 page.insert_text((50, 100), f"Error rendering text (page {page_number}).", 
                                 fontsize=10, fontname="helv", color=(0.8, 0, 0))
+                # Add more context to error page
+                page.insert_text((50, 130), f"Error details: {str(e)[:100]}...", 
+                                fontsize=8, fontname="helv", color=(0.8, 0, 0))
             
             page_number += 1
