@@ -81,6 +81,16 @@ class RagPipeline:
         # Step 3: Response generation
         chunks = retrieval_result["chunks"]
         
+        # Add chunks to result and extract summaries if available
+        result["chunks"] = chunks
+        
+        # Extract summaries if available for quick context overview
+        if any("summary" in chunk for chunk in chunks):
+            result["summaries"] = [
+                {"rank": chunk["rank"], "summary": chunk["summary"]} 
+                for chunk in chunks if "summary" in chunk
+            ]
+        
         if not chunks:
             result["steps"].append({
                 "step": "generate",

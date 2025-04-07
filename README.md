@@ -17,6 +17,7 @@ Raggiro è un framework completo per l'elaborazione di documenti progettato per 
 - **Estrazione OCR ottimizzata**: Supporto batch per documenti grandi con rilevamento automatico della lingua
 - **Correzione ortografica intelligente**: Miglioramento automatico della qualità del testo OCR con dizionari standard multilingua (italiano, inglese, francese, tedesco, spagnolo)
 - **Chunking semantico adattivo**: Divisione intelligente del contenuto basata sul significato con ottimizzazioni per documenti OCR
+- **Metadati arricchiti per i chunk**: Sommari automatici generati per ogni chunk che ne sintetizzano il contenuto in modo estrattivo
 - **Estrazione metadata**: Titolo, autore, data, lingua, tipo di documento, rilevamento categoria
 - **Output strutturato**: Formati Markdown e JSON con tutti i metadata
 - **Interfaccia GUI dedicata**: Sezioni specializzate per OCR e correzione ortografica/semantica
@@ -159,6 +160,7 @@ Per elaborare correttamente documenti PDF con molte pagine:
 
 ### Novità
 
+- **Generazione automatica di sommari per i chunk**: Ogni chunk include un sommario estrattivo che ne sintetizza il contenuto principale
 - **Sincronizzazione OCR-Spelling**: Sincronizzazione automatica tra lingua OCR e correzione ortografica
 - **Dizionari standard italiani**: Supporto completo per la correzione ortografica in italiano
 - **Elaborazione PDF multipagina**: Miglioramenti nell'estrazione di tutte le pagine dei documenti PDF

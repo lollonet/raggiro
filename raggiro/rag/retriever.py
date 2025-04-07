@@ -229,12 +229,19 @@ class VectorRetriever:
         for i, (distance, idx) in enumerate(zip(distances[0], indices[0])):
             if idx in self.document_lookup:
                 chunk_data = self.document_lookup[idx]
-                chunks.append({
+                # Create result chunk with basic info
+                result_chunk = {
                     "rank": i + 1,
                     "score": float(1.0 - distance / 2.0),  # Convert L2 distance to a similarity score
                     "text": chunk_data["text"],
                     "metadata": chunk_data["metadata"],
-                })
+                }
+                
+                # Add summary if available - useful for context explanation
+                if "summary" in chunk_data:
+                    result_chunk["summary"] = chunk_data["summary"]
+                    
+                chunks.append(result_chunk)
         
         return {
             "chunks": chunks,
@@ -262,12 +269,19 @@ class VectorRetriever:
         chunks = []
         
         for i, result in enumerate(search_result):
-            chunks.append({
+            # Create result chunk with basic info
+            result_chunk = {
                 "rank": i + 1,
                 "score": float(result.score),
                 "text": result.payload.get("text", ""),
-                "metadata": {k: v for k, v in result.payload.items() if k != "text"},
-            })
+                "metadata": {k: v for k, v in result.payload.items() if k not in ["text", "summary"]},
+            }
+            
+            # Add summary if available - useful for context explanation
+            if "summary" in result.payload:
+                result_chunk["summary"] = result.payload["summary"]
+                
+            chunks.append(result_chunk)
         
         return {
             "chunks": chunks,
