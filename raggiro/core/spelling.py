@@ -565,58 +565,6 @@ class SpellingCorrector:
         except Exception as e:
             print(f"Error correcting word '{word}': {str(e)}")
             self._word_cache[word] = word
-            return word$', word):
-            return word
-            
-        # Cache for performance - avoid repeatedly correcting the same words
-        if not hasattr(self, "_word_cache"):
-            self._word_cache = {}
-            
-        # Check cache first
-        if word in self._word_cache:
-            return self._word_cache[word]
-        
-        # Don't correct properly capitalized words (likely proper nouns)
-        # but still correct ALL CAPS or all lowercase
-        if word[0].isupper() and not word.isupper() and not word.islower():
-            self._word_cache[word] = word
-            return word
-        
-        try:
-            correction = word
-            
-            if self.backend == "standard":
-                # Standard spellchecker has optimized word correction
-                correction = self.spellchecker["correct_word"](word)
-                
-            elif self.backend == "symspellpy":
-                suggestions = self.spellchecker.lookup(word.lower(), self.verbosity, 
-                                                 max_edit_distance=self.max_edit_distance)
-                if suggestions:
-                    correction = suggestions[0].term
-                
-            elif self.backend == "textblob":
-                blob = self.spellchecker(word)
-                correction = str(blob.correct())
-                
-            else:  # wordfreq or custom backend
-                correction = self.spellchecker["correct_word"](word)
-                
-            # Check if the word changed
-            if correction != word.lower():
-                # Preserve original capitalization
-                if word.isupper():
-                    correction = correction.upper()
-                elif word[0].isupper():
-                    correction = correction.capitalize()
-                    
-            # Add to cache and return
-            self._word_cache[word] = correction
-            return correction
-                
-        except Exception as e:
-            print(f"Error correcting word '{word}': {str(e)}")
-            self._word_cache[word] = word
             return word
     
     def correct_text(self, text):
