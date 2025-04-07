@@ -535,25 +535,52 @@ class Exporter:
                 # Get original text if available - use multiple fallback approaches
                 original_text = ""
                 
-                # Debug logging to understand what fields are available
-                print(f"Page {i+1} data keys: {list(page_data.keys())}")
+                # Debug avanzato per diagnosticare problemi con i testi
+                print("-" * 80)
+                print(f"DIAGNOSTICA PAGINA {i+1}:")
+                print(f"Chiavi disponibili: {list(page_data.keys())}")
                 
-                # Approach 1: Use original_pages if available
+                # Verifica di tutte le possibili fonti di testo originale
                 if has_original and i < len(original_pages):
-                    print(f"Using original_pages approach for page {i+1}")
-                    original_text = original_pages[i].get("text", "")
-                    if not original_text.strip():
-                        print(f"Warning: original_pages[{i}] has empty text")
+                    original_keys = list(original_pages[i].keys())
+                    print(f"Chiavi in original_pages[{i}]: {original_keys}")
+                    original_page_text = original_pages[i].get("text", "")
+                    original_page_raw = original_pages[i].get("raw_text", "")
+                    
+                    # Aggiungi statistiche sui contenuti
+                    print(f"Lunghezza original_pages[{i}]['text']: {len(original_page_text)}")
+                    print(f"Lunghezza original_pages[{i}]['raw_text']: {len(original_page_raw)}")
                 
-                # Approach 2: Use raw_text field in the current page_data
-                if not original_text.strip() and "raw_text" in page_data:
-                    print(f"Using raw_text approach for page {i+1}")
+                # Verifica contenuto in page_data
+                if "raw_text" in page_data:
+                    print(f"Lunghezza page_data['raw_text']: {len(page_data['raw_text'])}")
+                if "original_text" in page_data:
+                    print(f"Lunghezza page_data['original_text']: {len(page_data['original_text'])}")
+                if "text" in page_data:
+                    print(f"Lunghezza page_data['text']: {len(page_data['text'])}")
+                print("-" * 80)
+                
+                # Approccio prioritizzato per ottenere il testo originale - più affidabile e con log dettagliati
+                
+                # Priorità 1: Usa original_text da page_data (aggiunto nelle modifiche recenti)
+                if "original_text" in page_data and page_data.get("original_text", "").strip():
+                    print(f"✓ USANDO original_text da page_data (priorità 1) per pagina {i+1}")
+                    original_text = page_data.get("original_text", "")
+                
+                # Priorità 2: Usa raw_text da page_data (opzione più comune)
+                elif "raw_text" in page_data and page_data.get("raw_text", "").strip():
+                    print(f"✓ USANDO raw_text da page_data (priorità 2) per pagina {i+1}")
                     original_text = page_data.get("raw_text", "")
                 
-                # Approach 3: Try original_text field in the current page_data
-                if not original_text.strip() and "original_text" in page_data:
-                    print(f"Using original_text approach for page {i+1}")
-                    original_text = page_data.get("original_text", "")
+                # Priorità 3: Usa text da original_pages
+                elif has_original and i < len(original_pages) and original_pages[i].get("text", "").strip():
+                    print(f"✓ USANDO text da original_pages (priorità 3) per pagina {i+1}")
+                    original_text = original_pages[i].get("text", "")
+                
+                # Priorità 4: Usa raw_text da original_pages
+                elif has_original and i < len(original_pages) and original_pages[i].get("raw_text", "").strip():
+                    print(f"✓ USANDO raw_text da original_pages (priorità 4) per pagina {i+1}")
+                    original_text = original_pages[i].get("raw_text", "")
                 
                 # Log which approach worked
                 if original_text.strip():
@@ -587,11 +614,19 @@ class Exporter:
                 
                 # Insert original text with error handling and size management
                 try:
+                    # Verifica che il testo originale non sia vuoto
+                    if not original_text.strip():
+                        original_text = "ATTENZIONE: Testo originale non disponibile.\nPotrebbe esserci un problema con l'estrazione del testo originale."
+                        print(f"Warning: Original text is empty for page {i+1}")
+                    
                     # Truncate text if it's too long to avoid memory issues
-                    if len(original_text) > MAX_TEXT_SIZE:
+                    elif len(original_text) > MAX_TEXT_SIZE:
                         truncated_text = original_text[:MAX_TEXT_SIZE] + "\n\n[... Text truncated due to size limits ...]"
                         print(f"Warning: Truncating original text from {len(original_text)} to {len(truncated_text)} characters")
                         original_text = truncated_text
+                    
+                    # Log di debug per verificare il contenuto
+                    print(f"Original text sample for page {i+1}: {original_text[:100]}...")
                         
                     page.insert_textbox(rect_orig, original_text, fontsize=10, fontname="helv",
                                        align=0, color=(0, 0, 0))
@@ -604,11 +639,19 @@ class Exporter:
                 
                 # Insert corrected text with error handling and size management
                 try:
+                    # Verifica che il testo corretto non sia vuoto
+                    if not corrected_text.strip():
+                        corrected_text = "ATTENZIONE: Testo corretto non disponibile."
+                        print(f"Warning: Corrected text is empty for page {i+1}")
+                    
                     # Truncate text if it's too long to avoid memory issues
-                    if len(corrected_text) > MAX_TEXT_SIZE:
+                    elif len(corrected_text) > MAX_TEXT_SIZE:
                         truncated_text = corrected_text[:MAX_TEXT_SIZE] + "\n\n[... Text truncated due to size limits ...]"
                         print(f"Warning: Truncating corrected text from {len(corrected_text)} to {len(truncated_text)} characters")
                         corrected_text = truncated_text
+                        
+                    # Log di debug per verificare il contenuto
+                    print(f"Corrected text sample for page {i+1}: {corrected_text[:100]}...")
                         
                     page.insert_textbox(rect_corr, corrected_text, fontsize=10, fontname="helv",
                                        align=0, color=(0, 0, 0))

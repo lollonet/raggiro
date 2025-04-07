@@ -23,8 +23,8 @@ class SpellingCorrector:
         extraction_config = self.config.get("extraction", {})
         ocr_language = extraction_config.get("ocr_language", "")
         
-        # Default language setting - auto or from config
-        self.language = spelling_config.get("language", "auto")
+        # Default language setting - per un'applicazione in italiano, impostiamo italiano come default
+        self.language = spelling_config.get("language", "it")
         
         # Sync with OCR language if:
         # 1. OCR language is set (not empty)
@@ -128,6 +128,7 @@ class SpellingCorrector:
         # Try each backend in order until one succeeds
         backends = []
         if self.backend == "standard":
+            # Per un'applicazione in italiano, prioritizziamo pyspellchecker che ha buon supporto per l'italiano
             backends = ["pyspellchecker", "symspellpy", "textblob", "wordfreq"]
         elif self.backend == "symspellpy":
             backends = ["symspellpy", "pyspellchecker", "textblob", "wordfreq"]
@@ -179,6 +180,12 @@ class SpellingCorrector:
                 "es": "es", 
                 "pt": "pt",
                 "ru": "ru",
+                # Map for direct passing from OCR language codes to spell check codes
+                "ita": "it",
+                "eng": "en",
+                "fra": "fr",
+                "deu": "de",
+                "spa": "es",
             }
             
             spell_lang = lang_map.get(lang_code, "en")
@@ -423,16 +430,18 @@ class SpellingCorrector:
         if self.language != "auto":
             return self.language
             
-        # Default to English if language detection is not available
+        # Default to Italian (not English) for an Italian application
         if not self.language_detector:
-            return "en"
+            print("Language detector not available, using Italian as default")
+            return "it"
             
         # Use previously detected language if available
         if hasattr(self, "detected_language") and self.detected_language:
             return self.detected_language
             
-        # Default to English
-        return "en"
+        # Default to Italian (not English) for Italian application
+        print("No detected language yet, using Italian as default")
+        return "it"
     
     def _detect_language(self, text):
         """Detect the language of the text."""
@@ -492,17 +501,42 @@ class SpellingCorrector:
                 "fi": "fi"
             }
             
-            # Default to English if language not supported
+            # Priorità all'italiano per documenti italiani
             if self.detected_language not in lang_map:
-                print(f"Detected language '{self.detected_language}' not supported for spelling correction. Using English.")
-                return "en"
+                # Se non è supportata, verifichiamo se potrebbe essere un documento italiano
+                # Cerchiamo parole comuni italiane come segnale (anche con OCR imperfetto)
+                italian_markers = ['della', 'delle', 'nella', 'questo', 'questa', 'sono', 'come', 'però', 'perché', 'quindi']
+                sample_lowercase = sample.lower()
+                italian_word_matches = sum(1 for word in italian_markers if word in sample_lowercase)
+                
+                # Se almeno 3 parole italiane sono presenti, assumiamo sia italiano
+                if italian_word_matches >= 3:
+                    print(f"Detected {italian_word_matches} Italian marker words. Assuming Italian document.")
+                    return "it"
+                else:
+                    print(f"Detected language '{self.detected_language}' not supported for spelling correction. Using English.")
+                    return "en"
                 
             detected_code = lang_map[self.detected_language]
             print(f"Using language code '{detected_code}' for spelling correction")
             return detected_code
         except Exception as e:
-            print(f"Error in language detection: {str(e)}. Using default language.")
-            return "en"  # Default to English on error
+            print(f"Error in language detection: {str(e)}. Trying to detect if it's Italian, otherwise using default.")
+            
+            # Anche in caso di errore, cerchiamo di capire se è un documento italiano
+            try:
+                italian_markers = ['della', 'delle', 'nella', 'questo', 'questa', 'sono', 'come', 'però', 'perché', 'quindi']
+                sample_lowercase = sample.lower()
+                italian_word_matches = sum(1 for word in italian_markers if word in sample_lowercase)
+                
+                if italian_word_matches >= 3:
+                    print(f"Detected {italian_word_matches} Italian marker words despite error. Assuming Italian document.")
+                    return "it"
+            except:
+                # Se tutto fallisce, usiamo l'italiano come default essendo un'app per utenti italiani
+                pass
+                
+            return "it"  # Per un'applicazione italiana, il default è italiano
     
     def _generate_candidates(self, word):
         """Generate spelling candidates for a word based on common OCR errors."""
@@ -758,8 +792,9 @@ class SpellingCorrector:
             else:
                 corrected_text = self.correct_text(original_text)
             
-            # Save both versions
+            # Save both versions in modo coerente
             page_copy["raw_text"] = original_text
+            page_copy["original_text"] = original_text  # Aggiungiamo anche questo campo per maggiore coerenza
             page_copy["text"] = corrected_text
             
             # Calculate correction statistics
