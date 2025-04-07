@@ -3,12 +3,20 @@
 import re
 import numpy as np
 import logging
+import unicodedata
 from typing import Dict, List, Optional, Set, Tuple, Union
 from sklearn.metrics.pairwise import cosine_similarity
 
 import spacy
 from spacy.language import Language
 import nltk
+
+# Import Unicode normalizer if available
+try:
+    from ..utils.unicode_normalizer import UnicodeNormalizer
+    UNICODE_NORMALIZER_AVAILABLE = True
+except ImportError:
+    UNICODE_NORMALIZER_AVAILABLE = False
 
 # Set up logger
 logger = logging.getLogger("raggiro.segmenter")
@@ -57,10 +65,39 @@ class Segmenter:
         self.sentence_transformer = None
         if self.semantic_chunking and SENTENCE_TRANSFORMERS_AVAILABLE:
             try:
-                self.sentence_transformer = SentenceTransformer('all-MiniLM-L6-v2')
+                # Fix for 'init_empty_weights' error: Import specific modules before loading the model
+                try:
+                    # Make sure to import torch and transformers directly
+                    import torch
+                    import transformers
+                    
+                    # Import specific modules that might be needed for initialization
+                    from transformers import AutoModel, AutoTokenizer
+                    from transformers.modeling_utils import PreTrainedModel
+                except ImportError as import_err:
+                    logger.warning(f"Could not import required dependencies for SentenceTransformer: {str(import_err)}")
+                
+                # Explicitly set the device to CPU to avoid CUDA related issues
+                self.sentence_transformer = SentenceTransformer('all-MiniLM-L6-v2', device='cpu')
+                logger.info(f"Successfully loaded sentence transformer model: all-MiniLM-L6-v2")
             except Exception as e:
                 logger.warning(f"Failed to load sentence transformer model: {e}")
-                self.semantic_chunking = False
+                
+                # Try loading a backup model with more minimal settings
+                try:
+                    backup_model = "paraphrase-MiniLM-L6-v2"
+                    logger.info(f"Trying backup model: {backup_model}")
+                    
+                    # Pre-import the required modules
+                    import torch
+                    import transformers
+                    
+                    # Explicit device setting to use CPU
+                    self.sentence_transformer = SentenceTransformer(backup_model, device='cpu')
+                    logger.info(f"Successfully loaded backup model: {backup_model}")
+                except Exception as e2:
+                    logger.error(f"Failed to load backup model: {e2}")
+                    self.semantic_chunking = False
         elif self.semantic_chunking and not SENTENCE_TRANSFORMERS_AVAILABLE:
             logger.warning("sentence-transformers package not available. Semantic chunking disabled.")
             self.semantic_chunking = False
@@ -377,48 +414,26 @@ class Segmenter:
         if not text:
             return ""
             
-        # Define mapping for problematic characters
-        char_map = {
-            # Quotes and apostrophes
-            '"': '"',       # Left double quote
-            '"': '"',       # Right double quote
-            '„': '"',       # Double low-9 quotation mark
-            '″': '"',       # Double prime
-            '‟': '"',       # Double reversed comma quotation mark
-            '«': '"',       # Left-pointing double angle quotation mark
-            '»': '"',       # Right-pointing double angle quotation mark
-            ''': "'",       # Left single quote
-            ''': "'",       # Right single quote
-            '‚': "'",       # Single low-9 quotation mark
-            '‛': "'",       # Single reversed comma quotation mark
-            '′': "'",       # Prime
-            '‹': "'",       # Left-pointing single angle quotation mark
-            '›': "'",       # Right-pointing single angle quotation mark
+        # Use the Unicode normalizer utility if available
+        if UNICODE_NORMALIZER_AVAILABLE:
+            return UnicodeNormalizer.clean_for_display(text)
             
-            # Dashes and hyphens
-            '—': '-',       # Em dash
-            '–': '-',       # En dash
-            '‒': '-',       # Figure dash
-            '―': '-',       # Horizontal bar
-            
-            # Other problematic characters
-            '…': '...',     # Ellipsis
-            '•': '*',       # Bullet
-            '·': '.',       # Middle dot
-            '®': '(R)',     # Registered trademark
-            '™': '(TM)',    # Trademark
-            '©': '(c)',     # Copyright
-            '†': '+',       # Dagger
-            '‡': '++',      # Double dagger
-            '§': 'Section', # Section sign
-            '¶': 'Paragraph', # Pilcrow sign
-        }
-        
-        # Replace each problematic character
+        # Fallback to basic normalization if the utility is not available
         normalized_text = text
-        for old_char, new_char in char_map.items():
-            normalized_text = normalized_text.replace(old_char, new_char)
-            
+        
+        # Normalize quotes
+        normalized_text = normalized_text.replace('"', '"').replace('"', '"')
+        normalized_text = normalized_text.replace(''', "'").replace(''', "'")
+        
+        # Normalize dashes
+        normalized_text = normalized_text.replace('—', '-').replace('–', '-')
+        
+        # Normalize ellipsis
+        normalized_text = normalized_text.replace('…', '...')
+        
+        # For more comprehensive normalization, use NFKD normalization
+        normalized_text = unicodedata.normalize('NFKD', normalized_text)
+        
         return normalized_text
     
     def _generate_chunk_summary(self, chunk_text: str) -> str:
