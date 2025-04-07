@@ -433,35 +433,55 @@ class Extractor:
                             
                             # Perform OCR with timeout protection and custom config
                             # Use the actual_ocr_language property which handles the "auto" case
-                            # Explicitly set output type as string with UTF-8 encoding
+                            # Note: pytesseract.image_to_string doesn't support encoding parameter
                             text = pytesseract.image_to_string(
                                 img, 
                                 lang=self.actual_ocr_language,
                                 config=self.tesseract_config,
-                                output_type=pytesseract.Output.STRING,
-                                encoding='utf-8'
+                                output_type=pytesseract.Output.STRING
                             )
+                            
+                            # Ensure text is UTF-8 encoded if needed
+                            if isinstance(text, bytes):
+                                text = text.decode('utf-8', errors='replace')
                             
                             # Free memory
                             del img
                             
                         except Exception as img_error:
                             logger.warning(f"Image conversion error on page {page_idx+1}: {str(img_error)}", exc_info=True)
-                            # Try with direct PNG output as fallback
-                            output_path = f"/tmp/ocr_page_{page_idx+1}.png"
-                            pix.save(output_path)
-                            img = Image.open(output_path)
+                            try:
+                                # Try with direct PNG output as fallback
+                                output_path = f"/tmp/ocr_page_{page_idx+1}.png"
+                                # Check if pix_ref is available
+                                if 'pix_ref' in locals():
+                                    pix_ref.save(output_path)
+                                    img = Image.open(output_path)
+                                else:
+                                    # If pix_ref is not available, we need an alternative approach
+                                    # Get a new pixmap with minimum settings
+                                    fallback_matrix = fitz.Matrix(0.5, 0.5)
+                                    fallback_pix = page.get_pixmap(matrix=fallback_matrix)
+                                    fallback_pix.save(output_path)
+                                    img = Image.open(output_path)
+                                    logger.info(f"Using emergency fallback for page {page_idx+1}")
+                            except Exception as emergency_error:
+                                # Critical failure, cannot process this page
+                                logger.error(f"Critical error on page {page_idx+1}: {str(emergency_error)}", exc_info=True)
+                                raise
                             
                             # Perform OCR on the saved file
                             # Use the actual_ocr_language property which handles the "auto" case
-                            # Explicitly set output type as string with UTF-8 encoding
                             text = pytesseract.image_to_string(
                                 img, 
                                 lang=self.actual_ocr_language,
                                 config=self.tesseract_config,
-                                output_type=pytesseract.Output.STRING,
-                                encoding='utf-8'
+                                output_type=pytesseract.Output.STRING
                             )
+                            
+                            # Ensure text is UTF-8 encoded if needed
+                            if isinstance(text, bytes):
+                                text = text.decode('utf-8', errors='replace')
                             
                             # Cleanup
                             del img
@@ -920,9 +940,12 @@ class Extractor:
                 image,
                 lang=self.actual_ocr_language,
                 config=self.tesseract_config,
-                output_type=pytesseract.Output.STRING,
-                encoding='utf-8'
+                output_type=pytesseract.Output.STRING
             )
+            
+            # Ensure text is UTF-8 encoded if needed
+            if isinstance(text, bytes):
+                text = text.decode('utf-8', errors='replace')
             
             result["text"] = text
             result["raw_text"] = text  # Store raw OCR text for comparison
