@@ -18,8 +18,39 @@ class SpellingCorrector:
         # Configure spelling settings
         spelling_config = self.config.get("spelling", {})
         self.enabled = spelling_config.get("enabled", True)
+        
+        # Synchronize with OCR language if available and auto is selected
+        extraction_config = self.config.get("extraction", {})
+        ocr_language = extraction_config.get("ocr_language", "")
+        
+        # Default language setting - auto or from config
         self.language = spelling_config.get("language", "auto")
-        self.backend = spelling_config.get("backend", "symspellpy")
+        
+        # Sync with OCR language if:
+        # 1. OCR language is set (not empty)
+        # 2. OCR language is not 'auto'
+        # 3. Spelling language is 'auto' (otherwise user explicitly chose spelling language)
+        if ocr_language and ocr_language != "auto" and self.language == "auto":
+            # Map Tesseract language codes to spelling language codes
+            ocr_to_spell_map = {
+                "eng": "en",
+                "ita": "it",
+                "fra": "fr",
+                "deu": "de",
+                "spa": "es",
+                "por": "pt"
+            }
+            
+            # Extract primary language from Tesseract language string
+            # (might be compound like "eng+ita", take first part)
+            primary_ocr_lang = ocr_language.split("+")[0]
+            
+            if primary_ocr_lang in ocr_to_spell_map:
+                # Use OCR language for spelling correction
+                self.language = ocr_to_spell_map[primary_ocr_lang]
+                print(f"Syncing spelling language with OCR: '{primary_ocr_lang}' → '{self.language}'")
+        
+        self.backend = spelling_config.get("backend", "standard")  # Changed default to 'standard'
         self.max_edit_distance = spelling_config.get("max_edit_distance", 2)
         
         # Initialize language detection
@@ -73,16 +104,23 @@ class SpellingCorrector:
         
         # Try each backend in order until one succeeds
         backends = []
-        if self.backend == "symspellpy":
-            backends = ["symspellpy", "textblob", "wordfreq"]
+        if self.backend == "standard":
+            backends = ["pyspellchecker", "symspellpy", "textblob", "wordfreq"]
+        elif self.backend == "symspellpy":
+            backends = ["symspellpy", "pyspellchecker", "textblob", "wordfreq"]
         elif self.backend == "textblob":
-            backends = ["textblob", "wordfreq", "symspellpy"]
+            backends = ["textblob", "pyspellchecker", "wordfreq", "symspellpy"]
         else:
-            backends = ["wordfreq", "symspellpy", "textblob"]
+            backends = ["wordfreq", "pyspellchecker", "symspellpy", "textblob"]
             
         # Try each backend in preferred order
         for backend in backends:
-            if backend == "symspellpy":
+            if backend == "pyspellchecker":
+                success = self._initialize_pyspellchecker()
+                if success:
+                    self.backend = "standard"  # User-friendly name
+                    return
+            elif backend == "symspellpy":
                 success = self._initialize_symspellpy()
                 if success:
                     self.backend = "symspellpy"
@@ -100,6 +138,87 @@ class SpellingCorrector:
                     
         # If we got here, no backend was successful
         print("WARNING: No spelling correction backend could be initialized. Spelling correction disabled.")
+        
+    def _initialize_pyspellchecker(self):
+        """Initialize pyspellchecker backend with standard dictionaries."""
+        try:
+            from spellchecker import SpellChecker
+            
+            # Get language code for pyspellchecker
+            lang_code = self._get_language_code()
+            
+            # Map 2-letter code to pyspellchecker language name if needed
+            lang_map = {
+                "en": "en",
+                "it": "it",
+                "fr": "fr",
+                "de": "de",
+                "es": "es", 
+                "pt": "pt",
+                "ru": "ru",
+            }
+            
+            spell_lang = lang_map.get(lang_code, "en")
+            
+            # Create spellchecker with the specific language
+            try:
+                spell = SpellChecker(language=spell_lang, distance=self.max_edit_distance)
+                print(f"Successfully initialized Standard Spellchecker with {spell_lang} dictionary")
+                
+                # Store language info
+                self.used_dictionary = f"standard-{spell_lang}"
+                
+                # Create wrapper for the API
+                def correct_word(word):
+                    # Skip very short words
+                    if len(word) < 3:
+                        return word
+                    
+                    # For words with numbers or special chars, skip correction
+                    if not word.isalpha():
+                        return word
+                        
+                    # Get the correction
+                    return spell.correction(word)
+                
+                self.spellchecker = {
+                    "correct_word": correct_word,
+                    "instance": spell,
+                }
+                return True
+                
+            except ValueError as e:
+                # This happens when the language is not supported
+                print(f"Language '{spell_lang}' not supported by pyspellchecker: {str(e)}")
+                # Try with English as fallback
+                if spell_lang != "en":
+                    try:
+                        spell = SpellChecker(language="en", distance=self.max_edit_distance)
+                        print(f"Falling back to English dictionary for pyspellchecker")
+                        
+                        self.used_dictionary = "standard-en"
+                        
+                        def correct_word(word):
+                            if len(word) < 3 or not word.isalpha():
+                                return word
+                            return spell.correction(word)
+                        
+                        self.spellchecker = {
+                            "correct_word": correct_word,
+                            "instance": spell,
+                        }
+                        return True
+                    except Exception as fallback_error:
+                        print(f"Error initializing fallback English dictionary: {str(fallback_error)}")
+                        return False
+                return False
+            except Exception as e:
+                print(f"Error initializing pyspellchecker: {str(e)}")
+                return False
+                
+        except ImportError:
+            print("Warning: pyspellchecker package not found. Trying alternative backends.")
+            return False
     
     def _initialize_symspellpy(self):
         """Initialize SymSpellPy backend."""
@@ -424,14 +543,38 @@ class SpellingCorrector:
         result["original_text"] = document["text"]
         
         # Log spelling correction settings
-        print("-"*50)
+        print("-"*80)
         print(f"SPELLING CORRECTION SETTINGS:")
         print(f"Language: {self.language}")
         print(f"Backend: {self.backend}")
         print(f"Max edit distance: {self.max_edit_distance}")
+        
+        # Show dictionary details
         if hasattr(self, 'used_dictionary'):
             print(f"Dictionary: {self.used_dictionary}")
-        print("-"*50)
+            
+        # Show specific backend details
+        if self.backend == "standard" and hasattr(self.spellchecker, "instance"):
+            spell = self.spellchecker["instance"]
+            try:
+                # Try to print word count to show dictionary size
+                dict_size = len(spell._words)
+                print(f"Standard dictionary loaded with {dict_size} words")
+                
+                # Show a sample of dictionary words (first 20)
+                sample_words = list(spell._words.keys())[:20]
+                print(f"Sample dictionary words: {', '.join(sample_words)}")
+            except:
+                pass
+                
+        # Show OCR language synchronization
+        extraction_config = self.config.get("extraction", {})
+        ocr_language = extraction_config.get("ocr_language", "")
+        if ocr_language:
+            print(f"OCR language setting: {ocr_language}")
+            print(f"Language sync: {'enabled' if self.language != 'auto' else 'using auto detection'}")
+            
+        print("-"*80)
         
         # Detect language from the full document text
         if self.language == "auto":

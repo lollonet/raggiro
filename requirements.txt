@@ -20,6 +20,7 @@ python-magic-bin>=0.4.14; platform_system=="Windows"
 symspellpy>=6.7.6
 textblob>=0.17.1
 wordfreq>=3.0.3
+pyspellchecker>=0.8.0   # Standard dictionaries for multiple languages
 
 # GUI dependencies
 streamlit>=1.30.0

@@ -465,7 +465,8 @@ def ocr_correction_ui():
     
     with col1:
         spelling_backends = {
-            "symspellpy": "SymSpellPy (Fast, recommended)",
+            "standard": "Standard Dictionaries (Recommended)",
+            "symspellpy": "SymSpellPy (Fast but limited)",
             "textblob": "TextBlob (Good multilingual support)",
             "wordfreq": "Wordfreq (Lightweight fallback)"
         }
@@ -474,8 +475,15 @@ def ocr_correction_ui():
             "Correction Engine",
             options=list(spelling_backends.keys()),
             format_func=lambda x: spelling_backends.get(x, x),
-            key="spelling_backend"
+            key="spelling_backend",
+            help="Select the spellchecker engine to use. 'Standard Dictionaries' provides complete dictionaries for all supported languages."
         )
+        
+        # Show more info about the selected engine
+        if spelling_backend == "standard":
+            st.success("Standard dictionaries provide comprehensive word lists for multiple languages including Italian.")
+        elif spelling_backend == "symspellpy":
+            st.info("SymSpellPy is fast but has limited dictionaries for non-English languages.")
         
         spelling_languages = {
             "auto": "Auto-detect (Recommended)",
