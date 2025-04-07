@@ -2,11 +2,21 @@
 
 import re
 import numpy as np
+import logging
 from typing import Dict, List, Optional, Set, Tuple, Union
 from sklearn.metrics.pairwise import cosine_similarity
 
 import spacy
 from spacy.language import Language
+import nltk
+
+# Set up logger
+logger = logging.getLogger("raggiro.segmenter")
+try:
+    nltk.data.find('tokenizers/punkt')
+except LookupError:
+    logger.info("Downloading nltk punkt tokenizer...")
+    nltk.download('punkt', quiet=True)
 
 try:
     from sentence_transformers import SentenceTransformer
@@ -38,16 +48,21 @@ class Segmenter:
         self.chunking_strategy = segmentation_config.get("chunking_strategy", "hybrid")
         self.semantic_similarity_threshold = segmentation_config.get("semantic_similarity_threshold", 0.65)
         
+        # Summary generation settings
+        self.generate_summaries = segmentation_config.get("generate_summaries", True)
+        self.summary_max_length = segmentation_config.get("summary_max_length", 150)
+        self.summary_sentences = segmentation_config.get("summary_sentences", 2)
+        
         # Initialize sentence transformer model for semantic chunking
         self.sentence_transformer = None
         if self.semantic_chunking and SENTENCE_TRANSFORMERS_AVAILABLE:
             try:
                 self.sentence_transformer = SentenceTransformer('all-MiniLM-L6-v2')
             except Exception as e:
-                print(f"Warning: Failed to load sentence transformer model: {e}")
+                logger.warning(f"Failed to load sentence transformer model: {e}")
                 self.semantic_chunking = False
         elif self.semantic_chunking and not SENTENCE_TRANSFORMERS_AVAILABLE:
-            print("Warning: sentence-transformers package not available. Semantic chunking disabled.")
+            logger.warning("sentence-transformers package not available. Semantic chunking disabled.")
             self.semantic_chunking = False
         
         # Common section header patterns
@@ -99,7 +114,7 @@ class Segmenter:
                 
             # Log info about OCR documents to help with debugging
             if extraction_method in ["pdf_ocr", "image_ocr"]:
-                print(f"Processing OCR document with {len(segments)} segments")
+                logger.info(f"Processing OCR document with {len(segments)} segments")
                 
         result["segments"] = segments
         
@@ -108,9 +123,14 @@ class Segmenter:
         result["chunks"] = chunks
         
         # Log chunking results
-        print(f"Document segmentation complete: {len(segments)} segments → {len(chunks)} chunks")
+        logger.info(f"Document segmentation complete: {len(segments)} segments → {len(chunks)} chunks")
         if len(chunks) <= 2 and len(document["text"]) > 1000:
-            print(f"WARNING: Document was segmented into only {len(chunks)} chunks despite having {len(document['text'])} characters")
+            logger.warning(f"Document was segmented into only {len(chunks)} chunks despite having {len(document['text'])} characters")
+            
+        # Log if summaries were generated
+        summaries_count = sum(1 for chunk in chunks if "summary" in chunk)
+        if summaries_count > 0:
+            logger.info(f"Generated {summaries_count} chunk summaries")
         
         return result
     
@@ -302,6 +322,92 @@ class Segmenter:
         else:
             return self._create_size_based_chunks(segments)
     
+    def _generate_chunk_summary(self, chunk_text: str) -> str:
+        """Generate a summary for a chunk of text.
+        
+        This uses a simple extractive summarization approach by selecting
+        the most representative sentences from the chunk.
+        
+        Args:
+            chunk_text: The text content of the chunk
+            
+        Returns:
+            A short summary of the chunk content
+        """
+        if not chunk_text or len(chunk_text) < 100:
+            return chunk_text[:self.summary_max_length] if chunk_text else ""
+        
+        try:
+            # Use NLTK to tokenize sentences
+            from nltk.tokenize import sent_tokenize
+            sentences = sent_tokenize(chunk_text)
+            
+            if len(sentences) <= self.summary_sentences:
+                # If we have fewer sentences than requested, use them all
+                return " ".join(sentences)
+            
+            # For extractive summarization, we'll use a simple approach:
+            # 1. First sentence is often important (topic sentence)
+            # 2. For the remaining summary, pick sentences with important keywords
+            
+            summary = [sentences[0]]  # Always include the first sentence
+            
+            # For the rest, let's find sentences with the highest keyword density
+            # This is a simple approach - more sophisticated NLP would be better
+            
+            # Get keyword frequency (excluding stopwords implicitly by min length)
+            word_freq = {}
+            for sentence in sentences:
+                for word in sentence.lower().split():
+                    # Only count words longer than 3 chars (implicit stopword filtering)
+                    if len(word) > 3:
+                        word = word.strip('.,;:!?()[]{}""\'')
+                        if word:
+                            word_freq[word] = word_freq.get(word, 0) + 1
+            
+            # Score sentences based on keyword frequency
+            sentence_scores = {}
+            for i, sentence in enumerate(sentences):
+                if i == 0:  # Skip the first sentence, already included
+                    continue
+                    
+                score = 0
+                for word in sentence.lower().split():
+                    word = word.strip('.,;:!?()[]{}""\'')
+                    if len(word) > 3 and word in word_freq:
+                        score += word_freq[word]
+                
+                # Normalize by sentence length to avoid favoring long sentences
+                sentence_scores[i] = score / max(1, len(sentence.split()))
+            
+            # Get the top scoring sentences
+            top_indices = sorted(sentence_scores.keys(), 
+                                key=lambda i: sentence_scores[i], 
+                                reverse=True)[:self.summary_sentences-1]
+            
+            # Add the top sentences to the summary (in original order)
+            for i in sorted(top_indices):
+                summary.append(sentences[i])
+            
+            # Join the summary sentences and ensure it's not too long
+            full_summary = " ".join(summary)
+            if len(full_summary) > self.summary_max_length:
+                # Truncate to the max length at a word boundary
+                truncated = full_summary[:self.summary_max_length]
+                last_space = truncated.rfind(' ')
+                if last_space > 0:
+                    truncated = truncated[:last_space] + "..."
+                else:
+                    truncated = truncated + "..."
+                return truncated
+            
+            return full_summary
+            
+        except Exception as e:
+            logger.warning(f"Failed to generate summary: {str(e)}", exc_info=True)
+            # Fallback to a simple first N chars approach
+            return chunk_text[:self.summary_max_length] + "..." if len(chunk_text) > self.summary_max_length else chunk_text
+    
     def _create_size_based_chunks(self, segments: List[Dict]) -> List[Dict]:
         """Create chunks based on size limit.
         
@@ -327,7 +433,7 @@ class Segmenter:
                     extraction_method = segment.get("extraction_method")
                     if extraction_method in ["pdf_ocr", "image_ocr"]:
                         is_ocr_document = True
-                        print(f"Detected OCR document with method: {extraction_method}")
+                        logger.info(f"Detected OCR document with method: {extraction_method}")
                         break
         
         # Adjust chunk size target based on document type
@@ -338,7 +444,7 @@ class Segmenter:
             if len(segments) < 5:
                 # Very few segments, use a smaller max size to force more chunks
                 effective_max_size = min(self.max_chunk_size, 800)
-                print(f"OCR document with few segments detected, using reduced max size: {effective_max_size}")
+                logger.info(f"OCR document with few segments detected, using reduced max size: {effective_max_size}")
         
         for segment in segments:
             # Skip extremely short segments (like single words)
@@ -354,11 +460,18 @@ class Segmenter:
             # For sections and paragraphs, check if adding would exceed max size
             if len(current_chunk_text) + segment["length"] > effective_max_size and current_chunk_text:
                 # Save current chunk
-                chunks.append({
-                    "text": current_chunk_text.strip(),
+                chunk_text = current_chunk_text.strip()
+                chunk_dict = {
+                    "text": chunk_text,
                     "segments": current_chunk_segments,
-                    "length": len(current_chunk_text),
-                })
+                    "length": len(chunk_text),
+                }
+                
+                # Generate summary if enabled
+                if self.generate_summaries:
+                    chunk_dict["summary"] = self._generate_chunk_summary(chunk_text)
+                
+                chunks.append(chunk_dict)
                 
                 # Start new chunk with overlap
                 if self.chunk_overlap > 0 and current_chunk_segments:
@@ -390,11 +503,18 @@ class Segmenter:
         
         # Add the last chunk if not empty
         if current_chunk_text:
-            chunks.append({
-                "text": current_chunk_text.strip(),
+            chunk_text = current_chunk_text.strip()
+            chunk_dict = {
+                "text": chunk_text,
                 "segments": current_chunk_segments,
-                "length": len(current_chunk_text),
-            })
+                "length": len(chunk_text),
+            }
+            
+            # Generate summary if enabled
+            if self.generate_summaries:
+                chunk_dict["summary"] = self._generate_chunk_summary(chunk_text)
+            
+            chunks.append(chunk_dict)
         
         # Check if we ended up with too few chunks for the document size
         total_text = sum(len(seg["text"]) for seg in segments)
@@ -402,7 +522,7 @@ class Segmenter:
         
         # If we have fewer chunks than expected for the document size, subdivide the largest chunks
         if len(chunks) < min_expected_chunks and total_text > 2000:
-            print(f"Document produced only {len(chunks)} chunks, expected at least {min_expected_chunks}. Subdividing...")
+            logger.info(f"Document produced only {len(chunks)} chunks, expected at least {min_expected_chunks}. Subdividing...")
             
             # Sort chunks by size to identify the largest ones
             chunks_by_size = sorted(chunks, key=lambda c: c["length"], reverse=True)
@@ -427,29 +547,36 @@ class Segmenter:
                     mid_point = len(sentences) // 2
                     
                     # Create two new chunks
+                    first_half_text = " ".join(sentences[:mid_point])
                     first_half = {
-                        "text": " ".join(sentences[:mid_point]),
+                        "text": first_half_text,
                         "segments": large_chunk["segments"][:len(large_chunk["segments"])//2],
-                        "length": len(" ".join(sentences[:mid_point])),
+                        "length": len(first_half_text),
                     }
                     
+                    second_half_text = " ".join(sentences[mid_point:])
                     second_half = {
-                        "text": " ".join(sentences[mid_point:]),
+                        "text": second_half_text,
                         "segments": large_chunk["segments"][len(large_chunk["segments"])//2:],
-                        "length": len(" ".join(sentences[mid_point:])),
+                        "length": len(second_half_text),
                     }
+                    
+                    # Generate summaries for the new chunks if enabled
+                    if self.generate_summaries:
+                        first_half["summary"] = self._generate_chunk_summary(first_half_text)
+                        second_half["summary"] = self._generate_chunk_summary(second_half_text)
                     
                     # Add the new chunks to the list
                     chunks.append(first_half)
                     chunks.append(second_half)
                     
-                    print(f"Split a large chunk of {large_chunk['length']} chars into two of {first_half['length']} and {second_half['length']} chars")
+                    logger.info(f"Split a large chunk of {large_chunk['length']} chars into two of {first_half['length']} and {second_half['length']} chars")
         
         # Add chunk IDs
         for i, chunk in enumerate(chunks):
             chunk["id"] = f"chunk_{i+1}"
         
-        print(f"Created {len(chunks)} chunks from {len(segments)} segments")
+        logger.info(f"Created {len(chunks)} chunks from {len(segments)} segments")
         return chunks
     
     def _create_semantic_chunks(self, segments: List[Dict]) -> List[Dict]:
@@ -486,7 +613,7 @@ class Segmenter:
         for segment in filtered_segments:
             if segment.get("extraction_method") in ["pdf_ocr", "image_ocr"]:
                 is_ocr_document = True
-                print("Using adjusted semantic similarity for OCR document")
+                logger.info("Using adjusted semantic similarity for OCR document")
                 break
                 
         # Adjust similarity threshold for OCR documents
@@ -520,11 +647,18 @@ class Segmenter:
                             if is_ocr_document and len(chunk_text) > self.max_chunk_size * 0.8:
                                 break
                 
-                chunks.append({
-                    "text": chunk_text.strip(),
+                chunk_text_cleaned = chunk_text.strip()
+                chunk_dict = {
+                    "text": chunk_text_cleaned,
                     "segments": chunk_segments,
-                    "length": len(chunk_text),
-                })
+                    "length": len(chunk_text_cleaned),
+                }
+                
+                # Generate summary if enabled
+                if self.generate_summaries:
+                    chunk_dict["summary"] = self._generate_chunk_summary(chunk_text_cleaned)
+                
+                chunks.append(chunk_dict)
         
         # Process remaining segments
         for i, segment in enumerate(filtered_segments):
@@ -554,11 +688,18 @@ class Segmenter:
                 
                 # Only create the chunk if it has content
                 if chunk_segments:
-                    chunks.append({
-                        "text": chunk_text.strip(),
+                    chunk_text_cleaned = chunk_text.strip()
+                    chunk_dict = {
+                        "text": chunk_text_cleaned,
                         "segments": chunk_segments,
-                        "length": len(chunk_text),
-                    })
+                        "length": len(chunk_text_cleaned),
+                    }
+                    
+                    # Generate summary if enabled
+                    if self.generate_summaries:
+                        chunk_dict["summary"] = self._generate_chunk_summary(chunk_text_cleaned)
+                    
+                    chunks.append(chunk_dict)
         
         # Add chunk IDs
         for i, chunk in enumerate(chunks):
@@ -601,7 +742,7 @@ class Segmenter:
             for segment in chunk.get("segments", []):
                 if segment.get("extraction_method") in ["pdf_ocr", "image_ocr"]:
                     is_ocr_document = True
-                    print("Using adjusted hybrid chunking strategy for OCR document")
+                    logger.info("Using adjusted hybrid chunking strategy for OCR document")
                     break
             if is_ocr_document:
                 break
@@ -613,7 +754,7 @@ class Segmenter:
             # For OCR documents, be more conservative with merging to prevent very large chunks
             similarity_threshold = max(0.5, similarity_threshold - 0.1)
             max_size_multiplier = 1.2
-            print(f"Adjusted OCR similarity threshold: {similarity_threshold}, size multiplier: {max_size_multiplier}")
+            logger.info(f"Adjusted OCR similarity threshold: {similarity_threshold}, size multiplier: {max_size_multiplier}")
         
         # Merge similar chunks that are below the size limit
         final_chunks = []
@@ -656,10 +797,15 @@ class Segmenter:
             # Add semantic flag
             merged_chunk["semantic"] = True
             merged_chunk["hybrid"] = True
+            
+            # Generate summary if enabled
+            if self.generate_summaries and "text" in merged_chunk:
+                merged_chunk["summary"] = self._generate_chunk_summary(merged_chunk["text"])
+                
             final_chunks.append(merged_chunk)
             
         # Log chunking statistics
-        print(f"Hybrid chunking: {len(size_chunks)} size chunks → {len(final_chunks)} final chunks")
+        logger.info(f"Hybrid chunking: {len(size_chunks)} size chunks → {len(final_chunks)} final chunks")
         
         # Add chunk IDs
         for i, chunk in enumerate(final_chunks):
