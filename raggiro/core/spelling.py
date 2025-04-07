@@ -1,8 +1,29 @@
 """Module for spelling correction in extracted texts."""
 
 import re
+import os
+import logging
 from typing import Dict, List, Optional, Set, Union
 import unicodedata
+
+# Configure logger
+logger = logging.getLogger("raggiro.spelling")
+
+# Import technical terms from skipwords module
+try:
+    from ..data.skipwords import SKIP_WORDS
+except ImportError:
+    # Fallback if import fails
+    SKIP_WORDS = set()
+    logger.warning("Could not import SKIP_WORDS from skipwords.py. Creating a basic set of technical terms.")
+    # Basic fallback set of musical/technical terms
+    basic_terms = ["jazz", "blues", "rock", "pop", "funk", "soul", "folk", "rap", "band", 
+                   "piano", "bass", "drum", "sax", "beat", "chord", "tempo", "music", 
+                   "software", "hardware", "app", "file", "web", "email"]
+    for word in basic_terms:
+        SKIP_WORDS.add(word)
+        SKIP_WORDS.add(word.capitalize())
+        SKIP_WORDS.add(word.upper())
 
 class SpellingCorrector:
     """Corrects spelling errors in text, especially OCR-induced errors."""
@@ -55,7 +76,7 @@ class SpellingCorrector:
             if primary_ocr_lang in ocr_to_spell_map:
                 # Use OCR language for spelling correction
                 self.language = ocr_to_spell_map[primary_ocr_lang]
-                print(f"Syncing spelling language with OCR: '{primary_ocr_lang}' → '{self.language}'")
+                logger.info(f"Syncing spelling language with OCR: '{primary_ocr_lang}' → '{self.language}'")
         
         self.backend = spelling_config.get("backend", "standard")  # Changed default to 'standard'
         self.max_edit_distance = spelling_config.get("max_edit_distance", 2)
@@ -67,7 +88,7 @@ class SpellingCorrector:
                 import langdetect
                 self.language_detector = langdetect
             except ImportError:
-                print("Warning: langdetect package not found. Using 'en' as default language.")
+                logger.warning("langdetect package not found. Using 'en' as default language.")
         
         # Initialize spelling backend
         self._initialize_backend()
@@ -161,7 +182,7 @@ class SpellingCorrector:
                     return
                     
         # If we got here, no backend was successful
-        print("WARNING: No spelling correction backend could be initialized. Spelling correction disabled.")
+        logger.warning("No spelling correction backend could be initialized. Spelling correction disabled.")
         
     def _initialize_pyspellchecker(self):
         """Initialize pyspellchecker backend with standard dictionaries."""
@@ -195,7 +216,7 @@ class SpellingCorrector:
                 # Set a reasonable distance - removed fast=True which was causing errors
                 spell = SpellChecker(language=spell_lang, distance=self.max_edit_distance)
                 dict_size = len(spell._words) if hasattr(spell, "_words") else "unknown"
-                print(f"Successfully initialized Standard Spellchecker with {spell_lang} dictionary (size: {dict_size} words)")
+                logger.info(f"Successfully initialized Standard Spellchecker with {spell_lang} dictionary (size: {dict_size} words)")
                 
                 # Store language info
                 self.used_dictionary = f"standard-{spell_lang}"
@@ -204,6 +225,10 @@ class SpellingCorrector:
                 word_cache = {}
                 
                 def correct_word(word):
+                    # Skip technical terms
+                    if word in SKIP_WORDS or word.lower() in SKIP_WORDS:
+                        return word
+                        
                     # Use cache for repeated words
                     if word in word_cache:
                         return word_cache[word]
@@ -253,16 +278,20 @@ class SpellingCorrector:
                 
             except ValueError as e:
                 # This happens when the language is not supported
-                print(f"Language '{spell_lang}' not supported by pyspellchecker: {str(e)}")
+                logger.warning(f"Language '{spell_lang}' not supported by pyspellchecker: {str(e)}")
                 # Try with English as fallback
                 if spell_lang != "en":
                     try:
                         spell = SpellChecker(language="en", distance=self.max_edit_distance)
-                        print(f"Falling back to English dictionary for pyspellchecker")
+                        logger.info(f"Falling back to English dictionary for pyspellchecker")
                         
                         self.used_dictionary = "standard-en"
                         
                         def correct_word(word):
+                            # Skip technical terms 
+                            if word in SKIP_WORDS or word.lower() in SKIP_WORDS:
+                                return word
+                                
                             if len(word) < 3 or not word.isalpha():
                                 return word
                             return spell.correction(word)
@@ -273,15 +302,15 @@ class SpellingCorrector:
                         }
                         return True
                     except Exception as fallback_error:
-                        print(f"Error initializing fallback English dictionary: {str(fallback_error)}")
+                        logger.error(f"Error initializing fallback English dictionary: {str(fallback_error)}")
                         return False
                 return False
             except Exception as e:
-                print(f"Error initializing pyspellchecker: {str(e)}")
+                logger.error(f"Error initializing pyspellchecker: {str(e)}")
                 return False
                 
         except ImportError:
-            print("Warning: pyspellchecker package not found. Trying alternative backends.")
+            logger.warning("pyspellchecker package not found. Trying alternative backends.")
             return False
     
     def _initialize_symspellpy(self):
@@ -319,7 +348,7 @@ class SpellingCorrector:
                             used_dictionary = dict_name
                             break
                 except Exception as dict_err:
-                    print(f"Error with dictionary {dict_name}: {str(dict_err)}")
+                    logger.error(f"Error with dictionary {dict_name}: {str(dict_err)}")
             
             # If standard dictionaries failed, try to look for custom dictionaries
             if not dictionary_loaded:
@@ -346,29 +375,29 @@ class SpellingCorrector:
                             dictionary_loaded = True
                             used_dictionary = os.path.basename(custom_dict_path)
                     except Exception as custom_err:
-                        print(f"Error loading custom dictionary: {str(custom_err)}")
+                        logger.error(f"Error loading custom dictionary: {str(custom_err)}")
             
             # If no dictionary was loaded, return False
             if not dictionary_loaded:
-                print(f"Warning: Failed to load any dictionary for language '{lang_code}'")
-                print("Available dictionaries in symspellpy package:")
+                logger.warning(f"Failed to load any dictionary for language '{lang_code}'")
+                logger.info("Available dictionaries in symspellpy package:")
                 for resource in pkg_resources.resource_listdir("symspellpy", ""):
                     if resource.startswith("frequency_dictionary_"):
-                        print(f"  - {resource}")
+                        logger.info(f"  - {resource}")
                 return False
                 
             self.spellchecker = sym_spell
             self.verbosity = Verbosity.CLOSEST  # Use the closest match
             self.used_dictionary = used_dictionary
-            print(f"Initialized SymSpellPy with dictionary: {used_dictionary} for language '{lang_code}'")
+            logger.info(f"Initialized SymSpellPy with dictionary: {used_dictionary} for language '{lang_code}'")
             return True
             
         except ImportError:
-            print("Warning: symspellpy package not found. Trying alternative backends.")
+            logger.warning("symspellpy package not found. Trying alternative backends.")
             self.spellchecker = None
             return False
         except Exception as e:
-            print(f"Error initializing SymSpellPy: {str(e)}. Trying alternative backends.")
+            logger.error(f"Error initializing SymSpellPy: {str(e)}. Trying alternative backends.")
             self.spellchecker = None
             return False
     
@@ -377,14 +406,14 @@ class SpellingCorrector:
         try:
             from textblob import TextBlob
             self.spellchecker = TextBlob
-            print("Initialized TextBlob spelling correction")
+            logger.info("Initialized TextBlob spelling correction")
             return True
         except ImportError:
-            print("Warning: textblob package not found. Trying alternative backends.")
+            logger.warning("textblob package not found. Trying alternative backends.")
             self.spellchecker = None
             return False
         except Exception as e:
-            print(f"Error initializing TextBlob: {str(e)}. Trying alternative backends.")
+            logger.error(f"Error initializing TextBlob: {str(e)}. Trying alternative backends.")
             self.spellchecker = None
             return False
     
@@ -394,6 +423,10 @@ class SpellingCorrector:
             from wordfreq import word_frequency
             
             def correct_word(word):
+                # Skip technical terms
+                if word in SKIP_WORDS or word.lower() in SKIP_WORDS:
+                    return word
+                    
                 # Only suggest corrections for words that are unlikely
                 if word_frequency(word, self._get_language_code()) > 1e-6:
                     return word
@@ -414,14 +447,14 @@ class SpellingCorrector:
             self.spellchecker = {
                 "correct_word": correct_word
             }
-            print("Initialized wordfreq-based spelling correction")
+            logger.info("Initialized wordfreq-based spelling correction")
             return True
         except ImportError:
-            print("Warning: wordfreq package not found. No spelling correction will be available.")
+            logger.warning("wordfreq package not found. No spelling correction will be available.")
             self.spellchecker = None
             return False
         except Exception as e:
-            print(f"Error initializing wordfreq: {str(e)}. No spelling correction will be available.")
+            logger.error(f"Error initializing wordfreq: {str(e)}. No spelling correction will be available.")
             self.spellchecker = None
             return False
     
@@ -432,7 +465,7 @@ class SpellingCorrector:
             
         # Default to Italian (not English) for an Italian application
         if not self.language_detector:
-            print("Language detector not available, using Italian as default")
+            logger.info("Language detector not available, using Italian as default")
             return "it"
             
         # Use previously detected language if available
@@ -440,7 +473,7 @@ class SpellingCorrector:
             return self.detected_language
             
         # Default to Italian (not English) for Italian application
-        print("No detected language yet, using Italian as default")
+        logger.info("No detected language yet, using Italian as default")
         return "it"
     
     def _detect_language(self, text):
@@ -456,7 +489,7 @@ class SpellingCorrector:
             
             # Skip if sample is too short
             if len(sample.strip()) < 50:
-                print("Text sample too short for reliable language detection")
+                logger.info("Text sample too short for reliable language detection")
                 return self._get_language_code()
             
             # Use langdetect with more reliable detection
@@ -466,21 +499,21 @@ class SpellingCorrector:
                 lang_probs = detect_langs(sample)
                 
                 # Log the detected language probabilities
-                print(f"Language detection results: {lang_probs}")
+                logger.info(f"Language detection results: {lang_probs}")
                 
                 # Use the highest probability language
                 if lang_probs:
                     highest_prob = lang_probs[0]
                     self.detected_language = highest_prob.lang
-                    print(f"Detected language: {self.detected_language} with probability {highest_prob.prob:.2f}")
+                    logger.info(f"Detected language: {self.detected_language} with probability {highest_prob.prob:.2f}")
                 else:
                     # Fallback to simple detection
                     self.detected_language = self.language_detector.detect(sample)
-                    print(f"Detected language (simple method): {self.detected_language}")
+                    logger.info(f"Detected language (simple method): {self.detected_language}")
             except:
                 # Fallback to simple detection if detect_langs fails
                 self.detected_language = self.language_detector.detect(sample)
-                print(f"Detected language (fallback method): {self.detected_language}")
+                logger.info(f"Detected language (fallback method): {self.detected_language}")
             
             # Map to language codes supported by spelling backends
             lang_map = {
@@ -511,17 +544,17 @@ class SpellingCorrector:
                 
                 # Se almeno 3 parole italiane sono presenti, assumiamo sia italiano
                 if italian_word_matches >= 3:
-                    print(f"Detected {italian_word_matches} Italian marker words. Assuming Italian document.")
+                    logger.info(f"Detected {italian_word_matches} Italian marker words. Assuming Italian document.")
                     return "it"
                 else:
-                    print(f"Detected language '{self.detected_language}' not supported for spelling correction. Using English.")
+                    logger.info(f"Detected language '{self.detected_language}' not supported for spelling correction. Using English.")
                     return "en"
                 
             detected_code = lang_map[self.detected_language]
-            print(f"Using language code '{detected_code}' for spelling correction")
+            logger.info(f"Using language code '{detected_code}' for spelling correction")
             return detected_code
         except Exception as e:
-            print(f"Error in language detection: {str(e)}. Trying to detect if it's Italian, otherwise using default.")
+            logger.error(f"Error in language detection: {str(e)}. Trying to detect if it's Italian, otherwise using default.")
             
             # Anche in caso di errore, cerchiamo di capire se è un documento italiano
             try:
@@ -530,7 +563,7 @@ class SpellingCorrector:
                 italian_word_matches = sum(1 for word in italian_markers if word in sample_lowercase)
                 
                 if italian_word_matches >= 3:
-                    print(f"Detected {italian_word_matches} Italian marker words despite error. Assuming Italian document.")
+                    logger.info(f"Detected {italian_word_matches} Italian marker words despite error. Assuming Italian document.")
                     return "it"
             except:
                 # Se tutto fallisce, usiamo l'italiano come default essendo un'app per utenti italiani
@@ -541,6 +574,10 @@ class SpellingCorrector:
     def _generate_candidates(self, word):
         """Generate spelling candidates for a word based on common OCR errors."""
         candidates = set([word])
+        
+        # Skip technical terms
+        if word in SKIP_WORDS or word.lower() in SKIP_WORDS:
+            return candidates
         
         # Skip very short words and non-words
         # Improved pattern for Italian words with accented characters and apostrophes
@@ -576,6 +613,10 @@ class SpellingCorrector:
         # This allows words like "perché", "c'è", "più", etc. to be properly handled
         # Full set of Italian accented characters: àèéìíîòóùú and their capitals
         if len(word) < 3 or not re.match(r'^[a-zA-ZàèéìíîòóùúÀÈÉÌÍÎÒÓÙÚ]+$', word):
+            return word
+            
+        # Skip technical terms and their variants
+        if word in SKIP_WORDS or word.lower() in SKIP_WORDS:
             return word
             
         # Cache for performance - avoid repeatedly correcting the same words
@@ -625,7 +666,7 @@ class SpellingCorrector:
             return correction
                 
         except Exception as e:
-            print(f"Error correcting word '{word}': {str(e)}")
+            logger.error(f"Error correcting word '{word}': {str(e)}")
             self._word_cache[word] = word
             return word
     
@@ -643,15 +684,15 @@ class SpellingCorrector:
         MAX_CHUNK_SIZE = 5000  # Process 5000 characters at a time
         
         if len(text) > MAX_CHUNK_SIZE:
-            print(f"Text is large ({len(text)} chars), processing in chunks of {MAX_CHUNK_SIZE}")
+            logger.info(f"Text is large ({len(text)} chars), processing in chunks of {MAX_CHUNK_SIZE}")
             chunks = [text[i:i + MAX_CHUNK_SIZE] for i in range(0, len(text), MAX_CHUNK_SIZE)]
             corrected_chunks = []
             
             for i, chunk in enumerate(chunks):
-                print(f"Processing chunk {i+1}/{len(chunks)} ({len(chunk)} chars)")
+                logger.info(f"Processing chunk {i+1}/{len(chunks)} ({len(chunk)} chars)")
                 chunk_result = self._correct_text_chunk(chunk)
                 corrected_chunks.append(chunk_result)
-                print(f"Completed chunk {i+1}/{len(chunks)}")
+                logger.info(f"Completed chunk {i+1}/{len(chunks)}")
                 
             return ''.join(corrected_chunks)
         else:
@@ -671,18 +712,21 @@ class SpellingCorrector:
         # Add progress tracking for large texts
         total_tokens = len(tokens)
         if total_tokens > 1000:
-            print(f"Correcting {total_tokens} tokens")
+            logger.info(f"Correcting {total_tokens} tokens")
         
         for i, token in enumerate(tokens):
             # Print progress periodically
             if total_tokens > 1000 and i % 1000 == 0:
-                print(f"Processed {i}/{total_tokens} tokens ({i*100/total_tokens:.1f}%)")
+                logger.info(f"Processed {i}/{total_tokens} tokens ({i*100/total_tokens:.1f}%)")
                 
             # Use improved pattern for Italian words with accented characters and apostrophes
             # Full set of Italian accented characters: àèéìíîòóùú and their capitals
             if re.match(r'^[a-zA-ZàèéìíîòóùúÀÈÉÌÍÎÒÓÙÚ]+$', token):
                 # Don't correct very short words
                 if len(token) < 3:
+                    corrected_tokens.append(token)
+                # Don't correct words in our skip list
+                elif token in SKIP_WORDS or token.lower() in SKIP_WORDS:
                     corrected_tokens.append(token)
                 else:
                     corrected_tokens.append(self.correct_word(token))
@@ -702,7 +746,7 @@ class SpellingCorrector:
             Document with corrected text
         """
         if not self.enabled or not self.spellchecker:
-            print(f"Spelling correction skipped: enabled={self.enabled}, spellchecker={self.spellchecker is not None}")
+            logger.info(f"Spelling correction skipped: enabled={self.enabled}, spellchecker={self.spellchecker is not None}")
             return document
             
         result = document.copy()
@@ -711,15 +755,16 @@ class SpellingCorrector:
         result["original_text"] = document["text"]
         
         # Log spelling correction settings
-        print("-"*80)
-        print(f"SPELLING CORRECTION SETTINGS:")
-        print(f"Language: {self.language}")
-        print(f"Backend: {self.backend}")
-        print(f"Max edit distance: {self.max_edit_distance}")
+        logger.info("-"*80)
+        logger.info(f"SPELLING CORRECTION SETTINGS:")
+        logger.info(f"Language: {self.language}")
+        logger.info(f"Backend: {self.backend}")
+        logger.info(f"Max edit distance: {self.max_edit_distance}")
+        logger.info(f"Technical terms protected: {len(SKIP_WORDS)}")
         
         # Show dictionary details
         if hasattr(self, 'used_dictionary'):
-            print(f"Dictionary: {self.used_dictionary}")
+            logger.info(f"Dictionary: {self.used_dictionary}")
             
         # Show specific backend details
         if self.backend == "standard" and hasattr(self.spellchecker, "instance"):
@@ -727,11 +772,11 @@ class SpellingCorrector:
             try:
                 # Try to print word count to show dictionary size
                 dict_size = len(spell._words)
-                print(f"Standard dictionary loaded with {dict_size} words")
+                logger.info(f"Standard dictionary loaded with {dict_size} words")
                 
                 # Show a sample of dictionary words (first 20)
                 sample_words = list(spell._words.keys())[:20]
-                print(f"Sample dictionary words: {', '.join(sample_words)}")
+                logger.info(f"Sample dictionary words: {', '.join(sample_words)}")
             except:
                 pass
                 
@@ -739,22 +784,22 @@ class SpellingCorrector:
         extraction_config = self.config.get("extraction", {})
         ocr_language = extraction_config.get("ocr_language", "")
         if ocr_language:
-            print(f"OCR language setting: {ocr_language}")
-            print(f"Language sync: {'enabled' if self.language != 'auto' else 'using auto detection'}")
+            logger.info(f"OCR language setting: {ocr_language}")
+            logger.info(f"Language sync: {'enabled' if self.language != 'auto' else 'using auto detection'}")
             
-        print("-"*80)
+        logger.info("-"*80)
         
         # Detect language from the full document text
         if self.language == "auto":
             # Only detect if we have significant text
             if len(document["text"].strip()) > 500:
                 detected_lang = self._detect_language(document["text"])
-                print(f"Detected language for spelling correction: {detected_lang}")
+                logger.info(f"Detected language for spelling correction: {detected_lang}")
             else:
-                print("Document text too short for reliable language detection")
+                logger.info("Document text too short for reliable language detection")
         
         # Correct the full text
-        print(f"Applying spelling correction to document text ({len(document['text'])} chars)...")
+        logger.info(f"Applying spelling correction to document text ({len(document['text'])} chars)...")
         
         # Time the correction process
         import time
@@ -762,21 +807,21 @@ class SpellingCorrector:
         
         # Make sure language is correctly applied before correction
         if hasattr(self, 'detected_language'):
-            print(f"Using detected language: {self.detected_language}")
+            logger.info(f"Using detected language: {self.detected_language}")
             
         result["text"] = self.correct_text(document["text"])
         
         correction_time = time.time() - start_time
-        print(f"Full text corrected in {correction_time:.2f} seconds")
+        logger.info(f"Full text corrected in {correction_time:.2f} seconds")
         
         # Correct each page and preserve original text
         corrected_pages = []
         original_pages = []
         
-        print(f"Correcting {len(document.get('pages', []))} individual pages...")
+        logger.info(f"Correcting {len(document.get('pages', []))} individual pages...")
         
         for i, page in enumerate(document.get("pages", [])):
-            print(f"Applying spelling correction to page {i+1}...")
+            logger.info(f"Applying spelling correction to page {i+1}...")
             
             # Save original page
             original_pages.append(page.copy())
@@ -787,7 +832,7 @@ class SpellingCorrector:
             
             # If the page text is too short, skip correction
             if len(original_text.strip()) < 20:
-                print(f"Page {i+1} has very little text, skipping correction")
+                logger.info(f"Page {i+1} has very little text, skipping correction")
                 corrected_text = original_text
             else:
                 corrected_text = self.correct_text(original_text)
@@ -801,7 +846,7 @@ class SpellingCorrector:
             if len(original_text) > 0:
                 diff_count = sum(1 for a, b in zip(original_text, corrected_text) if a != b)
                 diff_percentage = (diff_count / len(original_text)) * 100
-                print(f"Page {i+1}: {diff_count} characters corrected ({diff_percentage:.2f}%)")
+                logger.info(f"Page {i+1}: {diff_count} characters corrected ({diff_percentage:.2f}%)")
             
             corrected_pages.append(page_copy)
         
@@ -822,9 +867,9 @@ class SpellingCorrector:
             total_diff_percentage = (total_diff_count / len(document["text"])) * 100
             result["metadata"]["spelling_corrections"] = total_diff_count
             result["metadata"]["spelling_correction_percentage"] = round(total_diff_percentage, 2)
-            print(f"Total: {total_diff_count} characters corrected ({total_diff_percentage:.2f}%)")
+            logger.info(f"Total: {total_diff_count} characters corrected ({total_diff_percentage:.2f}%)")
         
-        print(f"Spelling correction completed using {self.backend} backend in {self._get_language_code()} language")
+        logger.info(f"Spelling correction completed using {self.backend} backend in {self._get_language_code()} language")
         if hasattr(self, 'used_dictionary'):
-            print(f"Using dictionary: {self.used_dictionary}")
+            logger.info(f"Using dictionary: {self.used_dictionary}")
         return result
