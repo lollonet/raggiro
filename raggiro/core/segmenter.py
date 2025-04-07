@@ -365,6 +365,62 @@ class Segmenter:
         else:
             return self._create_size_based_chunks(segments)
     
+    def _normalize_text(self, text: str) -> str:
+        """Normalize and clean text, standardizing quotes and special characters.
+        
+        Args:
+            text: Input text with potentially problematic characters
+            
+        Returns:
+            Normalized text with standardized quotes and special characters
+        """
+        if not text:
+            return ""
+            
+        # Define mapping for problematic characters
+        char_map = {
+            # Quotes and apostrophes
+            '"': '"',       # Left double quote
+            '"': '"',       # Right double quote
+            '„': '"',       # Double low-9 quotation mark
+            '″': '"',       # Double prime
+            '‟': '"',       # Double reversed comma quotation mark
+            '«': '"',       # Left-pointing double angle quotation mark
+            '»': '"',       # Right-pointing double angle quotation mark
+            ''': "'",       # Left single quote
+            ''': "'",       # Right single quote
+            '‚': "'",       # Single low-9 quotation mark
+            '‛': "'",       # Single reversed comma quotation mark
+            '′': "'",       # Prime
+            '‹': "'",       # Left-pointing single angle quotation mark
+            '›': "'",       # Right-pointing single angle quotation mark
+            
+            # Dashes and hyphens
+            '—': '-',       # Em dash
+            '–': '-',       # En dash
+            '‒': '-',       # Figure dash
+            '―': '-',       # Horizontal bar
+            
+            # Other problematic characters
+            '…': '...',     # Ellipsis
+            '•': '*',       # Bullet
+            '·': '.',       # Middle dot
+            '®': '(R)',     # Registered trademark
+            '™': '(TM)',    # Trademark
+            '©': '(c)',     # Copyright
+            '†': '+',       # Dagger
+            '‡': '++',      # Double dagger
+            '§': 'Section', # Section sign
+            '¶': 'Paragraph', # Pilcrow sign
+        }
+        
+        # Replace each problematic character
+        normalized_text = text
+        for old_char, new_char in char_map.items():
+            normalized_text = normalized_text.replace(old_char, new_char)
+            
+        return normalized_text
+    
     def _generate_chunk_summary(self, chunk_text: str) -> str:
         """Generate a summary for a chunk of text.
         
@@ -379,6 +435,9 @@ class Segmenter:
         """
         if not chunk_text or len(chunk_text) < 100:
             return chunk_text[:self.summary_max_length] if chunk_text else ""
+            
+        # Normalize text to handle problematic characters
+        normalized_text = self._normalize_text(chunk_text)
         
         try:
             # Use NLTK to tokenize sentences with robust fallback
@@ -386,7 +445,7 @@ class Segmenter:
                 # Try NLTK's sent_tokenize (preferred method)
                 from nltk.tokenize import sent_tokenize
                 try:
-                    sentences = sent_tokenize(chunk_text)
+                    sentences = sent_tokenize(normalized_text)
                 except LookupError as e:
                     # If missing punkt data, try to download it
                     logger.info(f"Downloading NLTK punkt tokenizer due to: {e}")
@@ -398,21 +457,21 @@ class Segmenter:
                     except:
                         logger.warning("Could not download punkt_tab, continuing with punkt only")
                     try:
-                        sentences = sent_tokenize(chunk_text)
+                        sentences = sent_tokenize(normalized_text)
                     except Exception as e2:
                         logger.warning(f"Still could not use sent_tokenize: {e2}")
                         raise e2  # Will be caught by outer try/except
             except Exception as ex:
                 # If any other error occurs, fallback to manual sentence splitting
                 logger.warning(f"Using custom sentence tokenization due to NLTK error: {ex}")
-                sentences = self._custom_sentence_tokenize(chunk_text)
+                sentences = self._custom_sentence_tokenize(normalized_text)
                 
             if not sentences:
                 # Fallback if tokenization returns empty list
-                sentences = [s.strip() + "." for s in chunk_text.split('.') if s.strip()]
+                sentences = [s.strip() + "." for s in normalized_text.split('.') if s.strip()]
                 
             if not sentences:
-                return chunk_text[:self.summary_max_length]
+                return normalized_text[:self.summary_max_length]
                 
             if len(sentences) <= self.summary_sentences:
                 # If we have fewer sentences than requested, use them all
@@ -479,14 +538,17 @@ class Segmenter:
                     truncated = truncated[:last_space] + "..."
                 else:
                     truncated = truncated + "..."
-                return truncated
+                return self._normalize_text(truncated)
             
-            return full_summary
+            # Final normalization to ensure all problematic characters are handled
+            return self._normalize_text(full_summary)
             
         except Exception as e:
             logger.warning(f"Failed to generate summary: {str(e)}", exc_info=True)
             # Fallback to a simple first N chars approach
-            return chunk_text[:self.summary_max_length] + "..." if len(chunk_text) > self.summary_max_length else chunk_text
+            fallback_text = chunk_text[:self.summary_max_length] + "..." if len(chunk_text) > self.summary_max_length else chunk_text
+            # Apply normalization to the fallback text as well
+            return self._normalize_text(fallback_text)
     
     def _create_size_based_chunks(self, segments: List[Dict]) -> List[Dict]:
         """Create chunks based on size limit.
@@ -549,7 +611,9 @@ class Segmenter:
                 
                 # Generate summary if enabled
                 if self.generate_summaries:
-                    chunk_dict["summary"] = self._generate_chunk_summary(chunk_text)
+                    summary = self._generate_chunk_summary(chunk_text)
+                    # Ensure the summary is also normalized
+                    chunk_dict["summary"] = self._normalize_text(summary)
                 
                 chunks.append(chunk_dict)
                 
@@ -592,7 +656,9 @@ class Segmenter:
             
             # Generate summary if enabled
             if self.generate_summaries:
-                chunk_dict["summary"] = self._generate_chunk_summary(chunk_text)
+                summary = self._generate_chunk_summary(chunk_text)
+                # Ensure the summary is also normalized
+                chunk_dict["summary"] = self._normalize_text(summary)
             
             chunks.append(chunk_dict)
         
@@ -643,8 +709,11 @@ class Segmenter:
                     
                     # Generate summaries for the new chunks if enabled
                     if self.generate_summaries:
-                        first_half["summary"] = self._generate_chunk_summary(first_half_text)
-                        second_half["summary"] = self._generate_chunk_summary(second_half_text)
+                        first_summary = self._generate_chunk_summary(first_half_text)
+                        second_summary = self._generate_chunk_summary(second_half_text)
+                        # Ensure the summaries are also normalized
+                        first_half["summary"] = self._normalize_text(first_summary)
+                        second_half["summary"] = self._normalize_text(second_summary)
                     
                     # Add the new chunks to the list
                     chunks.append(first_half)
@@ -736,7 +805,9 @@ class Segmenter:
                 
                 # Generate summary if enabled
                 if self.generate_summaries:
-                    chunk_dict["summary"] = self._generate_chunk_summary(chunk_text_cleaned)
+                    summary = self._generate_chunk_summary(chunk_text_cleaned)
+                    # Ensure the summary is also normalized
+                    chunk_dict["summary"] = self._normalize_text(summary)
                 
                 chunks.append(chunk_dict)
         
@@ -777,7 +848,9 @@ class Segmenter:
                     
                     # Generate summary if enabled
                     if self.generate_summaries:
-                        chunk_dict["summary"] = self._generate_chunk_summary(chunk_text_cleaned)
+                        summary = self._generate_chunk_summary(chunk_text_cleaned)
+                        # Ensure the summary is also normalized
+                        chunk_dict["summary"] = self._normalize_text(summary)
                     
                     chunks.append(chunk_dict)
         
@@ -880,7 +953,9 @@ class Segmenter:
             
             # Generate summary if enabled
             if self.generate_summaries and "text" in merged_chunk:
-                merged_chunk["summary"] = self._generate_chunk_summary(merged_chunk["text"])
+                summary = self._generate_chunk_summary(merged_chunk["text"])
+                # Ensure the summary is also normalized
+                merged_chunk["summary"] = self._normalize_text(summary)
                 
             final_chunks.append(merged_chunk)
             
