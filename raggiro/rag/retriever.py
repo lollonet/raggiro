@@ -8,7 +8,11 @@ from typing import Dict, List, Optional, Set, Tuple, Union
 import numpy as np
 
 # For embeddings
-from sentence_transformers import SentenceTransformer
+try:
+    from sentence_transformers import SentenceTransformer
+    SENTENCE_TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    SENTENCE_TRANSFORMERS_AVAILABLE = False
 
 # For vector search
 try:
@@ -48,34 +52,38 @@ class VectorRetriever:
         self.summary_relevance_threshold = retrieval_config.get("summary_relevance_threshold", 0.4)
         self.summary_boost_factor = retrieval_config.get("summary_boost_factor", 0.2)
         
-        # Initialize embedding model with error handling
+        # Set environment variables before any imports
+        import os
+        os.environ["TOKENIZERS_PARALLELISM"] = "false"
+        
+        # Check if the package is available
+        if not SENTENCE_TRANSFORMERS_AVAILABLE:
+            print("CRITICAL: sentence-transformers package is not available. Vector operations will not work.")
+            self.model = None
+            return
+        
+        # Initialize the model with a very simple approach
+        print(f"Loading sentence transformer model: {self.embedding_model}")
+        
         try:
-            # Set torch config to avoid parallelism warnings
-            import os
-            os.environ["TOKENIZERS_PARALLELISM"] = "false"
-            
-            # Try direct loading first - simplest approach
+            # Use direct loading without any additional config
             self.model = SentenceTransformer(self.embedding_model)
             print(f"Successfully loaded sentence transformer model: {self.embedding_model}")
         except Exception as e:
             error_msg = str(e)
-            print(f"Warning: Failed to load sentence transformer model: {error_msg}")
+            print(f"Warning: Failed to load model {self.embedding_model}: {error_msg}")
             
-            # Try alternative approach with fallback model
+            # Try a known-compatible backup model
             try:
-                # Try with a more compatible model
                 backup_model = "paraphrase-MiniLM-L6-v2"
                 print(f"Trying backup model: {backup_model}")
                 self.model = SentenceTransformer(backup_model)
-                print(f"Successfully loaded backup sentence transformer model: {backup_model}")
-                # Update the model name to reflect what was actually loaded
+                print(f"Successfully loaded backup model: {backup_model}")
                 self.embedding_model = backup_model
             except Exception as e2:
-                print(f"CRITICAL: Also failed to load backup model: {str(e2)}")
-                raise RuntimeError(f"Failed to initialize sentence transformer models: {error_msg} AND {str(e2)}")
-            else:
-                print(f"ERROR: Failed to load sentence transformer model: {error_msg}")
-                raise
+                self.model = None
+                print(f"CRITICAL: All model loading attempts failed. Vector operations will not work.")
+                print(f"Error details: {error_msg} AND {str(e2)}")
         
         # Initialize vector database
         self.index = None
@@ -150,6 +158,14 @@ class VectorRetriever:
                 "query": query,
                 "success": False,
                 "error": "Query is empty",
+            }
+        
+        # Check if model is available
+        if self.model is None:
+            return {
+                "query": query, 
+                "success": False,
+                "error": "Embedding model not available. Vector search cannot be performed.",
             }
         
         # Use provided top_k if given, otherwise use the one from config
@@ -298,6 +314,10 @@ class VectorRetriever:
         
         # If no summaries, return original result
         if not chunks_with_summaries:
+            return result
+            
+        # Check if model is available
+        if self.model is None:
             return result
             
         # Encode query once

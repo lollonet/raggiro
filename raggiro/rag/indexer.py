@@ -9,7 +9,11 @@ import numpy as np
 from tqdm import tqdm
 
 # For embeddings
-from sentence_transformers import SentenceTransformer
+try:
+    from sentence_transformers import SentenceTransformer
+    SENTENCE_TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    SENTENCE_TRANSFORMERS_AVAILABLE = False
 
 # For vector storage
 try:
@@ -48,34 +52,38 @@ class VectorIndexer:
         self.use_dual_embeddings = indexing_config.get("use_dual_embeddings", True)  # Whether to use both text and summary
         self.summary_weight = indexing_config.get("summary_weight", 0.3)  # Weight for summary vs full text
         
-        # Initialize embedding model with error handling
+        # Set environment variables before any imports
+        import os
+        os.environ["TOKENIZERS_PARALLELISM"] = "false"
+        
+        # Check if the package is available
+        if not SENTENCE_TRANSFORMERS_AVAILABLE:
+            print("CRITICAL: sentence-transformers package is not available. Vector operations will not work.")
+            self.model = None
+            return
+        
+        # Initialize the model with a very simple approach
+        print(f"Loading sentence transformer model: {self.embedding_model}")
+        
         try:
-            # Set torch config to avoid parallelism warnings
-            import os
-            os.environ["TOKENIZERS_PARALLELISM"] = "false"
-            
-            # Try direct loading first - simplest approach
+            # Use direct loading without any additional config
             self.model = SentenceTransformer(self.embedding_model)
             print(f"Successfully loaded sentence transformer model: {self.embedding_model}")
         except Exception as e:
             error_msg = str(e)
-            print(f"Warning: Failed to load sentence transformer model: {error_msg}")
+            print(f"Warning: Failed to load model {self.embedding_model}: {error_msg}")
             
-            # Try alternative approach with fallback model
+            # Try a known-compatible backup model
             try:
-                # Try with a more compatible model
                 backup_model = "paraphrase-MiniLM-L6-v2"
                 print(f"Trying backup model: {backup_model}")
                 self.model = SentenceTransformer(backup_model)
-                print(f"Successfully loaded backup sentence transformer model: {backup_model}")
-                # Update the model name to reflect what was actually loaded
+                print(f"Successfully loaded backup model: {backup_model}")
                 self.embedding_model = backup_model
             except Exception as e2:
-                    print(f"CRITICAL: Also failed to load backup model: {str(e2)}")
-                    raise RuntimeError(f"Failed to initialize sentence transformer models: {error_msg} AND {str(e2)}")
-            else:
-                print(f"ERROR: Failed to load sentence transformer model: {error_msg}")
-                raise
+                self.model = None
+                print(f"CRITICAL: All model loading attempts failed. Vector operations will not work.")
+                print(f"Error details: {error_msg} AND {str(e2)}")
         
         # Initialize vector database
         self.index = None
@@ -198,6 +206,14 @@ class VectorIndexer:
         Returns:
             NumPy array of embeddings
         """
+        # Check if model is available
+        if self.model is None:
+            print("WARNING: Embedding model not available. Returning empty embeddings.")
+            # Return empty embeddings of correct shape
+            if chunks:
+                return np.zeros((len(chunks), 384))  # 384 is typical embedding size
+            return np.zeros((0, 384))
+        
         # First, get the regular text embeddings
         texts = [chunk["text"] for chunk in chunks]
         text_embeddings = self.model.encode(texts)
@@ -268,6 +284,15 @@ class VectorIndexer:
                 "error": "No chunks extracted from document",
             }
         
+        # Check if model is available
+        if self.model is None:
+            return {
+                "document_path": str(document_path),
+                "chunks_indexed": 0,
+                "success": False,
+                "error": "Embedding model not available. Cannot create index.",
+            }
+            
         # Compute embeddings with optional summary enhancement
         embeddings = self._compute_enhanced_embeddings(chunks)
         
