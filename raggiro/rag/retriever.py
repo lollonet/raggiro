@@ -50,45 +50,29 @@ class VectorRetriever:
         
         # Initialize embedding model with error handling
         try:
-            # Set torch config to avoid init_empty_weights error
+            # Set torch config to avoid parallelism warnings
             import os
-            os.environ["TOKENIZERS_PARALLELISM"] = "false"  # Avoid parallelism warnings
+            os.environ["TOKENIZERS_PARALLELISM"] = "false"
             
-            # Check for transformer version compatibility issue
-            try:
-                # Try importing transformers to check version
-                import transformers
-                # If TORCH_ENABLE_MPS is set, it can cause issues with init_empty_weights
-                if "TORCH_ENABLE_MPS" in os.environ:
-                    del os.environ["TORCH_ENABLE_MPS"]
-            except ImportError:
-                pass
-            
-            # Try loading with normal method
+            # Try direct loading first - simplest approach
             self.model = SentenceTransformer(self.embedding_model)
             print(f"Successfully loaded sentence transformer model: {self.embedding_model}")
         except Exception as e:
             error_msg = str(e)
             print(f"Warning: Failed to load sentence transformer model: {error_msg}")
             
-            if "init_empty_weights" in error_msg:
-                print("The error is related to 'init_empty_weights' which is a compatibility issue.")
-                print("Trying alternative initialization method...")
-                # Fallback to a more compatible model
-                try:
-                    # Import a simple version without compatibility issues
-                    from sentence_transformers import SentenceTransformer
-                    
-                    # Try with an older stable model
-                    backup_model = "paraphrase-MiniLM-L6-v2"
-                    print(f"Trying backup model: {backup_model}")
-                    self.model = SentenceTransformer(backup_model)
-                    print(f"Successfully loaded backup sentence transformer model: {backup_model}")
-                    # Update the model name to reflect what was actually loaded
-                    self.embedding_model = backup_model
-                except Exception as e2:
-                    print(f"CRITICAL: Also failed to load backup model: {str(e2)}")
-                    raise RuntimeError(f"Failed to initialize sentence transformer models: {error_msg} AND {str(e2)}")
+            # Try alternative approach with fallback model
+            try:
+                # Try with a more compatible model
+                backup_model = "paraphrase-MiniLM-L6-v2"
+                print(f"Trying backup model: {backup_model}")
+                self.model = SentenceTransformer(backup_model)
+                print(f"Successfully loaded backup sentence transformer model: {backup_model}")
+                # Update the model name to reflect what was actually loaded
+                self.embedding_model = backup_model
+            except Exception as e2:
+                print(f"CRITICAL: Also failed to load backup model: {str(e2)}")
+                raise RuntimeError(f"Failed to initialize sentence transformer models: {error_msg} AND {str(e2)}")
             else:
                 print(f"ERROR: Failed to load sentence transformer model: {error_msg}")
                 raise
