@@ -38,6 +38,10 @@ class VectorIndexer:
         Args:
             config: Configuration dictionary
         """
+        # Set environment variables before any imports or model loading
+        import os
+        os.environ["TOKENIZERS_PARALLELISM"] = "false"
+        
         self.config = config or {}
         
         # Configure indexing settings
@@ -52,42 +56,62 @@ class VectorIndexer:
         self.use_dual_embeddings = indexing_config.get("use_dual_embeddings", True)  # Whether to use both text and summary
         self.summary_weight = indexing_config.get("summary_weight", 0.3)  # Weight for summary vs full text
         
-        # Set environment variables before any imports
-        import os
-        os.environ["TOKENIZERS_PARALLELISM"] = "false"
+        # Initialize components
+        self.index = None
+        self.document_lookup = {}
+        self.model = None
         
         # Check if the package is available
         if not SENTENCE_TRANSFORMERS_AVAILABLE:
             print("CRITICAL: sentence-transformers package is not available. Vector operations will not work.")
-            self.model = None
             return
         
-        # Initialize the model with a very simple approach
+        # Initialize sentence transformer model with robust error handling
         print(f"Loading sentence transformer model: {self.embedding_model}")
         
         try:
-            # Use direct loading without any additional config
-            self.model = SentenceTransformer(self.embedding_model)
+            # Fix for 'init_empty_weights' error: Import specific modules before loading the model
+            try:
+                # Make sure to import torch and transformers directly
+                import torch
+                import transformers
+                
+                # Import specific modules that might be needed for initialization
+                from transformers import AutoModel, AutoTokenizer
+                from transformers.modeling_utils import PreTrainedModel
+            except ImportError as import_err:
+                print(f"Warning: Could not import required dependencies: {str(import_err)}")
+                
+            # Use direct loading but with silent flag to reduce console output
+            self.model = SentenceTransformer(self.embedding_model, device='cpu')
             print(f"Successfully loaded sentence transformer model: {self.embedding_model}")
         except Exception as e:
             error_msg = str(e)
             print(f"Warning: Failed to load model {self.embedding_model}: {error_msg}")
             
-            # Try a known-compatible backup model
+            # Try a known-compatible backup model with simplified loading
             try:
                 backup_model = "paraphrase-MiniLM-L6-v2"
                 print(f"Trying backup model: {backup_model}")
-                self.model = SentenceTransformer(backup_model)
+                
+                # More careful loading to avoid issues
+                try:
+                    # Pre-check for torch and related dependencies
+                    import torch
+                    import transformers
+                    
+                    # Try with specific device setting
+                    self.model = SentenceTransformer(backup_model, device='cpu')
+                except ImportError:
+                    # If torch isn't available, try with basic import
+                    self.model = SentenceTransformer(backup_model)
+                    
                 print(f"Successfully loaded backup model: {backup_model}")
                 self.embedding_model = backup_model
             except Exception as e2:
                 self.model = None
                 print(f"CRITICAL: All model loading attempts failed. Vector operations will not work.")
                 print(f"Error details: {error_msg} AND {str(e2)}")
-        
-        # Initialize vector database
-        self.index = None
-        self.document_lookup = {}
         
         if self.vector_db == "qdrant" and QDRANT_AVAILABLE:
             self.client = QdrantClient(url=self.qdrant_url)

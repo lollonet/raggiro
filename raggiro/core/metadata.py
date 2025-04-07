@@ -198,63 +198,138 @@ class MetadataExtractor:
         Returns:
             Extracted title or None
         """
-        # First check existing metadata
+        # First check existing metadata (but validate it's reasonable)
         existing_metadata = document.get("metadata", {})
-        if existing_metadata.get("title"):
-            return existing_metadata["title"]
+        existing_title = existing_metadata.get("title", "")
         
-        # Check for ALL CAPS title at the beginning (common in books)
-        first_lines = text.split("\n")[:10]  # First 10 lines
-        for line in first_lines:
-            line = line.strip()
-            # Look for all caps title of reasonable length
-            if line.isupper() and 10 <= len(line) <= 100 and not any(word in line.lower() for word in ["page", "copyright", "confidential"]):
-                return line
-                
-        # Look for book title with author format: "TITLE by AUTHOR"
-        title_author_match = re.search(r"^\s*([A-Z][A-Za-z0-9\s'\":]+)(?:\n\s*|\s+)(?:by|di|BY|DI)\s+([A-Z][A-Za-z\s.]+)", text, re.MULTILINE)
-        if title_author_match:
-            title = title_author_match.group(1).strip()
-            if len(title) > 5 and len(title) < 200:
-                return title
+        # Only use existing title if it's reasonable quality
+        if existing_title and 3 < len(existing_title) < 200:
+            # Validate that the existing title isn't just a generic placeholder
+            generic_titles = ['untitled', 'document', 'new document', 'microsoft word', 'word document', 
+                            'pdf document', 'text document', 'noname', 'no title']
+            if not any(gt in existing_title.lower() for gt in generic_titles):
+                return existing_title
         
-        # Then try pattern extraction
-        for pattern in self.title_regex:
-            matches = pattern.findall(text)
-            if matches:
-                title = matches[0].strip()
-                if len(title) > 5 and len(title) < 200:  # Reasonable title length
-                    return title
+        # Look for the document title more aggressively
+        # 1. Look for PDF properties title first (often the most accurate)
+        doc_properties = document.get("pdf_properties", {})
+        pdf_title = doc_properties.get("Title", "")
         
-        # If no patterns match, try the first non-empty significant line
-        lines = text.split("\n")
-        for line in lines[:15]:  # Check only first 15 lines
-            line = line.strip()
-            if line and len(line) > 5 and len(line) < 200:
-                if not any(re.search(r"page|copyright|confidential|draft|author|date", line, re.IGNORECASE)):
-                    return line
-        
-        # If html, try to get title from the h1 or header tags
-        if document.get("metadata", {}).get("document_type") == "html":
+        if pdf_title and len(pdf_title) > 3 and not any(word in pdf_title.lower() for word in ["untitled", "microsoft word", "document"]):
+            # PDF title seems valid
+            return pdf_title
+
+        # 2. Check for HTML title tag
+        if document.get("is_html", False) or document.get("extraction_method") == "html" or "html" in text.lower()[:1000]:
             try:
+                # Look for an explicit <title> tag
+                title_match = re.search(r"<title>(.*?)</title>", text, re.IGNORECASE | re.DOTALL)
+                if title_match:
+                    html_title = title_match.group(1).strip()
+                    if len(html_title) > 3 and len(html_title) < 200:
+                        return html_title
+                        
+                # Try with BeautifulSoup
                 soup = BeautifulSoup(text, "html.parser")
+                title_tag = soup.find("title")
+                if title_tag and title_tag.string:
+                    html_title = title_tag.string.strip()
+                    if len(html_title) > 3 and len(html_title) < 200:
+                        return html_title
+                        
+                # If no title tag, try h1
                 h1 = soup.find("h1")
-                if h1:
-                    return h1.get_text().strip()
+                if h1 and h1.text:
+                    return h1.text.strip()
                 
+                # Try header with h tags as fallback
                 header = soup.find("header")
                 if header:
                     h_tags = header.find_all(["h1", "h2", "h3"])
-                    if h_tags:
-                        return h_tags[0].get_text().strip()
-            except:
-                pass
+                    if h_tags and h_tags[0].text:
+                        return h_tags[0].text.strip()
+            except Exception as e:
+                print(f"HTML parsing error during title extraction: {e}")
+            
+        # 3. Check for common book title structures
+        # Look for title displayed prominently at the start, followed by author
+        title_author_patterns = [
+            # "TITLE" by [line break] "AUTHOR"
+            r"^\s*([A-Z][A-Za-z0-9\s'\":,-]+)(?:\n\s*)(?:by|di|BY|DI|by:)\s+([A-Z][A-Za-z\s.,-]+)",
+            # "TITLE" by "AUTHOR" on same line
+            r"^\s*([A-Z][A-Za-z0-9\s'\":,-]+)(?:\s+)(?:by|di|BY|DI|by:)\s+([A-Z][A-Za-z\s.,-]+)",
+            # Two consecutive lines: first is title, second is "by Author"
+            r"^\s*([A-Z][A-Za-z0-9\s'\":,-]+)\n\s*(?:by|di|BY|DI|by:)\s+([A-Z][A-Za-z\s.,-]+)",
+            # Title on first line, Author on second line with no "by"
+            r"^\s*([A-Z][A-Za-z0-9\s'\":,-]{10,100})\n\s*([A-Z][A-Za-z\s.,-]{5,50})$",
+        ]
         
-        # Enhanced filename fallback approach
+        for pattern in title_author_patterns:
+            match = re.search(pattern, text[:2000], re.MULTILINE)
+            if match:
+                title = match.group(1).strip()
+                # Validate it looks like a title (not too short, not too long)
+                if len(title) > 5 and len(title) < 200 and title.strip():
+                    # Clean the title - remove trailing punctuation
+                    title = re.sub(r'[.,;:]+$', '', title).strip()
+                    return title
+        
+        # 4. Look for explicit title labels
+        title_label_patterns = [
+            r"(?:title|subject|headline)[\s:]+([^\n]+)",
+            r"report\s+title[\s:]+([^\n]+)",
+            r"document\s+title[\s:]+([^\n]+)",
+            r"^title:[\s]+([^\n]+)"
+        ]
+        
+        for pattern in title_label_patterns:
+            matches = re.findall(pattern, text[:3000], re.IGNORECASE)
+            if matches:
+                title = matches[0].strip()
+                if len(title) > 5 and len(title) < 200:
+                    return title
+        
+        # 5. Look for prominent capitalized text at the beginning
+        # First scan for all caps lines which are often titles in formal documents
+        first_lines = text.split("\n")[:15]  # First 15 lines
+        for line in first_lines:
+            line = line.strip()
+            # Check for ALL CAPS title (common in formal documents, books)
+            if line.isupper() and 10 <= len(line) <= 100:
+                # Make sure it's not a header or disclaimer
+                if not any(word in line.lower() for word in ["page", "copyright", "confidential", "draft", "chapter"]):
+                    # Convert to title case for readability
+                    return line.title()
+                    
+            # Also check for Title Case prominent lines
+            if (line and len(line) > 10 and len(line) < 150 and 
+                line[0].isupper() and  # First letter capital
+                sum(1 for c in line if c.isupper()) > len(line) / 4):  # Reasonable number of capitals
+                
+                # Exclude common non-title patterns
+                if not any(marker in line.lower() for marker in ["contents", "copyright", "all rights", "page", "chapter"]):
+                    return line
+        
+        # 6. Check for the first significant line in the document
+        significant_first_line = None
+        
+        for line in first_lines:
+            line = line.strip()
+            # Look for a line that appears to be a title (not too short, not too long)
+            if line and 10 <= len(line) <= 150:
+                # Exclude obvious non-title lines
+                if not any(re.search(rf'\b{word}\b', line, re.IGNORECASE) for word in 
+                         ["page", "copyright", "confidential", "draft", "author", "date", "all rights", "reserved"]):
+                    significant_first_line = line
+                    break
+        
+        if significant_first_line:
+            return significant_first_line
+        
+        # 7. Enhanced filename-based title extraction
         file_path = document.get("metadata", {}).get("file", {}).get("path", "")
         filename = document.get("metadata", {}).get("file", {}).get("filename", "")
         
-        # Try to extract a meaningful title from the filename if available
         if filename:
             # Remove file extension
             base_name = re.sub(r'\.[^.]+$', '', filename)
@@ -263,17 +338,18 @@ class MetadataExtractor:
             # Replace underscores, hyphens, dots with spaces
             clean_name = re.sub(r'[_\-.]+', ' ', base_name)
             
-            # Remove common prefixes and dates
+            # Remove common prefixes and date patterns
             clean_name = re.sub(r'^(?:doc|document|report|draft|final|rev\d+|v\d+(\.\d+)*|copy\s+of)\s+', '', clean_name, flags=re.IGNORECASE)
             clean_name = re.sub(r'\d{4}[-_]\d{2}[-_]\d{2}', '', clean_name)  # Remove dates in format YYYY-MM-DD
             
-            # Capitalize properly (title case)
-            # Don't capitalize articles, conjunctions, and prepositions
-            lower_words = {'a', 'an', 'the', 'and', 'but', 'or', 'for', 'nor', 'on', 'at', 
-                          'to', 'from', 'by', 'in', 'of', 'with', 'about'}
-            
+            # Format as proper title (capitalize correctly)
             words = clean_name.split()
             if words:
+                # Capitalize properly (title case)
+                # Don't capitalize articles, conjunctions, and prepositions
+                lower_words = {'a', 'an', 'the', 'and', 'but', 'or', 'for', 'nor', 'on', 'at', 
+                          'to', 'from', 'by', 'in', 'of', 'with', 'about'}
+                
                 # Capitalize first and last word always, and all other words except those in lower_words
                 title_words = []
                 for i, word in enumerate(words):
@@ -283,30 +359,44 @@ class MetadataExtractor:
                         title_words.append(word.lower())
                 
                 clean_name = " ".join(title_words)
-            
-            # Check if the result is a reasonable title
-            if clean_name and len(clean_name) > 3 and len(clean_name) < 200:
-                return clean_name
                 
-        # If no good title found and we have a short basename from the path, use that
+                # Check if the result is a reasonable title
+                if clean_name and len(clean_name) > 3 and len(clean_name) < 200:
+                    return clean_name
+        
+        # 8. Use parent directory name + filename as a last resort
         if file_path:
-            # Extract the parent directory name as a potential title
-            path_parts = Path(file_path).parts
-            if len(path_parts) > 1:
-                parent_dir = path_parts[-2]
-                if parent_dir and parent_dir not in ['docs', 'documents', 'files', 'pdfs', 'downloads', 'tmp']:
-                    # Clean up directory name (similar to filename cleaning)
-                    clean_dir = re.sub(r'[_\-.]+', ' ', parent_dir)
-                    clean_dir = clean_dir.title()  # Simple title case
-                    
-                    if len(clean_dir) > 3 and len(clean_dir) < 100:
-                        return f"{clean_dir} - {Path(file_path).stem.title()}"
+            try:
+                # Extract the parent directory name as a potential title
+                path_parts = Path(file_path).parts
+                if len(path_parts) > 1:
+                    parent_dir = path_parts[-2]
+                    if parent_dir and parent_dir not in ['docs', 'documents', 'files', 'pdfs', 'downloads', 'tmp']:
+                        # Clean up directory name (similar to filename cleaning)
+                        clean_dir = re.sub(r'[_\-.]+', ' ', parent_dir)
+                        clean_dir = clean_dir.title()  # Simple title case
+                        
+                        # Get clean filename
+                        clean_filename = Path(file_path).stem
+                        clean_filename = re.sub(r'[_\-.]+', ' ', clean_filename)
+                        clean_filename = clean_filename.title()
+                        
+                        if len(clean_dir) > 3 and len(clean_dir) < 100:
+                            return f"{clean_dir} - {clean_filename}"
+            except Exception as e:
+                print(f"Error extracting title from path: {e}")
         
-        # As a last resort, just use the cleaned filename
+        # 9. Absolute last resort - just use the cleaned filename
         if filename:
-            return Path(filename).stem.title()
+            try:
+                clean_filename = Path(filename).stem
+                clean_filename = re.sub(r'[_\-.]+', ' ', clean_filename)
+                return clean_filename.title()
+            except:
+                pass
         
-        return None
+        # If we got here, we really couldn't find a good title
+        return "Unnamed Document"
     
     def _extract_author(self, text: str, document: Dict) -> Optional[str]:
         """Extract document author from text or metadata.
@@ -491,10 +581,6 @@ class MetadataExtractor:
                     
             # Scan for standalone years in these first lines (common in books)
             year_match = re.match(r'^\s*(\d{4})\s*$', line)
-            if year_match:
-                year = year_match.group(1)
-                if 1900 < int(year) <= datetime.now().year:
-                    return f"{year}-01-01"  # Default to January 1st$', line)
             if year_match:
                 year = year_match.group(1)
                 if 1900 < int(year) <= datetime.now().year:
