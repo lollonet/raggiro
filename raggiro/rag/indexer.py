@@ -46,22 +46,39 @@ class VectorIndexer:
         
         # Initialize embedding model with error handling
         try:
+            # Set torch config to avoid init_empty_weights error
+            import os
+            os.environ["TOKENIZERS_PARALLELISM"] = "false"  # Avoid parallelism warnings
+            
+            # Check for transformer version compatibility issue
+            try:
+                # Try importing transformers to check version
+                import transformers
+                # If TORCH_ENABLE_MPS is set, it can cause issues with init_empty_weights
+                if "TORCH_ENABLE_MPS" in os.environ:
+                    del os.environ["TORCH_ENABLE_MPS"]
+            except ImportError:
+                pass
+            
+            # Try loading with normal method
             self.model = SentenceTransformer(self.embedding_model)
             print(f"Successfully loaded sentence transformer model: {self.embedding_model}")
         except Exception as e:
             error_msg = str(e)
+            print(f"Warning: Failed to load sentence transformer model: {error_msg}")
+            
             if "init_empty_weights" in error_msg:
-                print(f"WARNING: Error loading model due to 'init_empty_weights' issue: {error_msg}")
+                print("The error is related to 'init_empty_weights' which is a compatibility issue.")
                 print("Trying alternative initialization method...")
                 # Fallback to a more compatible model
                 try:
-                    import os
-                    os.environ["TOKENIZERS_PARALLELISM"] = "false"  # Avoid parallelism warnings
-                    from sentence_transformers import SentenceTransformer as ST
+                    # Import a simple version without compatibility issues
+                    from sentence_transformers import SentenceTransformer
+                    
                     # Try with an older stable model
                     backup_model = "paraphrase-MiniLM-L6-v2"
                     print(f"Trying backup model: {backup_model}")
-                    self.model = ST(backup_model)
+                    self.model = SentenceTransformer(backup_model)
                     print(f"Successfully loaded backup sentence transformer model: {backup_model}")
                     # Update the model name to reflect what was actually loaded
                     self.embedding_model = backup_model

@@ -185,8 +185,8 @@ class SpellingCorrector:
             
             # Create spellchecker with the specific language
             try:
-                # Set a reasonable distance and enable fast mode for performance
-                spell = SpellChecker(language=spell_lang, distance=self.max_edit_distance, fast=True)
+                # Set a reasonable distance - removed fast=True which was causing errors
+                spell = SpellChecker(language=spell_lang, distance=self.max_edit_distance)
                 dict_size = len(spell._words) if hasattr(spell, "_words") else "unknown"
                 print(f"Successfully initialized Standard Spellchecker with {spell_lang} dictionary (size: {dict_size} words)")
                 

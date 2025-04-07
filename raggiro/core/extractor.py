@@ -84,7 +84,8 @@ class Extractor:
         # Tesseract doesn't have an "auto" language pack, so we use a fallback
         if self.ocr_language == "auto":
             # Using auto for language detection, but need a specific language for tesseract
-            self.actual_ocr_language = "eng+ita"  # Default fallback
+            # For an Italian target audience, prioritize Italian but include English
+            self.actual_ocr_language = "ita+eng"  # Default fallback with Italian first
             print(f"WARNING: Using 'auto' for language detection, but Tesseract will use '{self.actual_ocr_language}' until detection")
         else:
             self.actual_ocr_language = self.ocr_language
@@ -302,19 +303,23 @@ class Extractor:
                     }
                     if detected_lang in lang_map:
                         # Set primary language + eng as fallback
-                        self.actual_ocr_language = f"{lang_map[detected_lang]}+eng"
+                        # If Italian is detected, make it the primary language
+                        if detected_lang == "it":
+                            self.actual_ocr_language = "ita+eng"
+                        else:
+                            self.actual_ocr_language = f"{lang_map[detected_lang]}+eng"
                         print(f"Auto-detected document language: {detected_lang}, using OCR language: {self.actual_ocr_language}")
                     else:
-                        # Fallback to multiple common languages
-                        self.actual_ocr_language = "eng+ita+fra+deu+spa"
+                        # Fallback to multiple common languages with Italian prioritized
+                        self.actual_ocr_language = "ita+eng+fra+deu+spa"
                         print(f"Unable to definitively detect language ({detected_lang}), using multiple languages: {self.actual_ocr_language}")
                 else:
-                    # No text detected, use multiple languages
-                    self.actual_ocr_language = "eng+ita+fra+deu+spa"
+                    # No text detected, use multiple languages with Italian prioritized
+                    self.actual_ocr_language = "ita+eng+fra+deu+spa"
                     print(f"No text available for language detection, using multiple languages: {self.actual_ocr_language}")
             except Exception as e:
-                print(f"Error in language detection: {str(e)}. Using default languages.")
-                self.actual_ocr_language = "eng+ita+fra+deu+spa"
+                print(f"Error in language detection: {str(e)}. Using default languages with Italian prioritized.")
+                self.actual_ocr_language = "ita+eng+fra+deu+spa"
         
         try:
             doc = fitz.open(file_path)
