@@ -162,28 +162,62 @@ class SpellingCorrector:
             
             # Create spellchecker with the specific language
             try:
-                spell = SpellChecker(language=spell_lang, distance=self.max_edit_distance)
-                print(f"Successfully initialized Standard Spellchecker with {spell_lang} dictionary")
+                # Set a reasonable distance and enable fast mode for performance
+                spell = SpellChecker(language=spell_lang, distance=self.max_edit_distance, fast=True)
+                dict_size = len(spell._words) if hasattr(spell, "_words") else "unknown"
+                print(f"Successfully initialized Standard Spellchecker with {spell_lang} dictionary (size: {dict_size} words)")
                 
                 # Store language info
                 self.used_dictionary = f"standard-{spell_lang}"
                 
-                # Create wrapper for the API
+                # Create wrapper for the API with a local cache
+                word_cache = {}
+                
                 def correct_word(word):
+                    # Use cache for repeated words
+                    if word in word_cache:
+                        return word_cache[word]
+                        
                     # Skip very short words
                     if len(word) < 3:
+                        word_cache[word] = word
                         return word
                     
                     # For words with numbers or special chars, skip correction
                     if not word.isalpha():
+                        word_cache[word] = word
                         return word
                         
-                    # Get the correction
-                    return spell.correction(word)
+                    # Skip properly capitalized words (likely proper nouns)
+                    if word[0].isupper() and not word.isupper() and not word.islower():
+                        word_cache[word] = word
+                        return word
+                    
+                    # Get the correction and remember original case
+                    is_upper = word.isupper()
+                    is_title = word[0].isupper() and not is_upper
+                    
+                    # Get correction - using lowercase helps for all languages
+                    lower_word = word.lower()
+                    correction = spell.correction(lower_word)
+                    
+                    # Preserve capitalization
+                    if correction and correction != lower_word:
+                        if is_upper:
+                            correction = correction.upper()
+                        elif is_title:
+                            correction = correction.capitalize()
+                    else:
+                        correction = word  # No change or no correction found
+                    
+                    # Cache and return
+                    word_cache[word] = correction
+                    return correction
                 
                 self.spellchecker = {
                     "correct_word": correct_word,
                     "instance": spell,
+                    "cache": word_cache,  # Store cache reference
                 }
                 return True
                 
@@ -481,24 +515,108 @@ class SpellingCorrector:
         # Skip words that are too short, contain numbers, or special characters
         if len(word) < 3 or not re.match(r'^[a-zA-Z]+$', word):
             return word
+            
+        # Cache for performance - avoid repeatedly correcting the same words
+        if not hasattr(self, "_word_cache"):
+            self._word_cache = {}
+            
+        # Check cache first
+        if word in self._word_cache:
+            return self._word_cache[word]
+        
+        # Don't correct properly capitalized words (likely proper nouns)
+        # but still correct ALL CAPS or all lowercase
+        if word[0].isupper() and not word.isupper() and not word.islower():
+            self._word_cache[word] = word
+            return word
         
         try:
-            if self.backend == "symspellpy":
+            correction = word
+            
+            if self.backend == "standard":
+                # Standard spellchecker has optimized word correction
+                correction = self.spellchecker["correct_word"](word)
+                
+            elif self.backend == "symspellpy":
                 suggestions = self.spellchecker.lookup(word.lower(), self.verbosity, 
                                                  max_edit_distance=self.max_edit_distance)
                 if suggestions:
-                    return suggestions[0].term
-                return word
+                    correction = suggestions[0].term
                 
             elif self.backend == "textblob":
                 blob = self.spellchecker(word)
-                return str(blob.correct())
+                correction = str(blob.correct())
                 
             else:  # wordfreq or custom backend
-                return self.spellchecker["correct_word"](word)
+                correction = self.spellchecker["correct_word"](word)
+                
+            # Check if the word changed
+            if correction != word.lower():
+                # Preserve original capitalization
+                if word.isupper():
+                    correction = correction.upper()
+                elif word[0].isupper():
+                    correction = correction.capitalize()
+                    
+            # Add to cache and return
+            self._word_cache[word] = correction
+            return correction
                 
         except Exception as e:
             print(f"Error correcting word '{word}': {str(e)}")
+            self._word_cache[word] = word
+            return word$', word):
+            return word
+            
+        # Cache for performance - avoid repeatedly correcting the same words
+        if not hasattr(self, "_word_cache"):
+            self._word_cache = {}
+            
+        # Check cache first
+        if word in self._word_cache:
+            return self._word_cache[word]
+        
+        # Don't correct properly capitalized words (likely proper nouns)
+        # but still correct ALL CAPS or all lowercase
+        if word[0].isupper() and not word.isupper() and not word.islower():
+            self._word_cache[word] = word
+            return word
+        
+        try:
+            correction = word
+            
+            if self.backend == "standard":
+                # Standard spellchecker has optimized word correction
+                correction = self.spellchecker["correct_word"](word)
+                
+            elif self.backend == "symspellpy":
+                suggestions = self.spellchecker.lookup(word.lower(), self.verbosity, 
+                                                 max_edit_distance=self.max_edit_distance)
+                if suggestions:
+                    correction = suggestions[0].term
+                
+            elif self.backend == "textblob":
+                blob = self.spellchecker(word)
+                correction = str(blob.correct())
+                
+            else:  # wordfreq or custom backend
+                correction = self.spellchecker["correct_word"](word)
+                
+            # Check if the word changed
+            if correction != word.lower():
+                # Preserve original capitalization
+                if word.isupper():
+                    correction = correction.upper()
+                elif word[0].isupper():
+                    correction = correction.capitalize()
+                    
+            # Add to cache and return
+            self._word_cache[word] = correction
+            return correction
+                
+        except Exception as e:
+            print(f"Error correcting word '{word}': {str(e)}")
+            self._word_cache[word] = word
             return word
     
     def correct_text(self, text):
@@ -510,14 +628,50 @@ class SpellingCorrector:
         if self.language == "auto":
             self._detect_language(text)
         
+        # Performance optimization: process text in chunks to avoid very long operations
+        # This helps prevent UI hangs for large documents
+        MAX_CHUNK_SIZE = 5000  # Process 5000 characters at a time
+        
+        if len(text) > MAX_CHUNK_SIZE:
+            print(f"Text is large ({len(text)} chars), processing in chunks of {MAX_CHUNK_SIZE}")
+            chunks = [text[i:i + MAX_CHUNK_SIZE] for i in range(0, len(text), MAX_CHUNK_SIZE)]
+            corrected_chunks = []
+            
+            for i, chunk in enumerate(chunks):
+                print(f"Processing chunk {i+1}/{len(chunks)} ({len(chunk)} chars)")
+                chunk_result = self._correct_text_chunk(chunk)
+                corrected_chunks.append(chunk_result)
+                print(f"Completed chunk {i+1}/{len(chunks)}")
+                
+            return ''.join(corrected_chunks)
+        else:
+            # Small text, process directly
+            return self._correct_text_chunk(text)
+    
+    def _correct_text_chunk(self, text):
+        """Process a chunk of text for spelling correction"""
         # Split text into words and non-words
         tokens = re.findall(r'[a-zA-Z]+|[^a-zA-Z]+', text)
         
         # Correct only words
         corrected_tokens = []
-        for token in tokens:
+        
+        # Add progress tracking for large texts
+        total_tokens = len(tokens)
+        if total_tokens > 1000:
+            print(f"Correcting {total_tokens} tokens")
+        
+        for i, token in enumerate(tokens):
+            # Print progress periodically
+            if total_tokens > 1000 and i % 1000 == 0:
+                print(f"Processed {i}/{total_tokens} tokens ({i*100/total_tokens:.1f}%)")
+                
             if re.match(r'^[a-zA-Z]+$', token):
-                corrected_tokens.append(self.correct_word(token))
+                # Don't correct very short words
+                if len(token) < 3:
+                    corrected_tokens.append(token)
+                else:
+                    corrected_tokens.append(self.correct_word(token))
             else:
                 corrected_tokens.append(token)
         
