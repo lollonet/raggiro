@@ -1,4 +1,5 @@
 ```mermaid
+%%{init: { 'theme': 'base', 'themeVariables': { 'primaryColor': '#f0f0f0', 'primaryTextColor': '#000', 'primaryBorderColor': '#333', 'lineColor': '#666', 'secondaryColor': '#fafafa', 'tertiaryColor': '#fff' } } }%%
 flowchart TD
     subgraph "Documento di Input"
         A[File Documento]
@@ -64,12 +65,12 @@ flowchart TD
         Q[DocumentProcessor] -.-> |orchestra| B
     end
 
-    classDef generic fill:#f9f9f9,stroke:#333,stroke-width:1px;
-    classDef technical fill:#d1e7dd,stroke:#0f5132,stroke-width:1px;
-    classDef legal fill:#d1ecf1,stroke:#0c5460,stroke-width:1px;
-    classDef academic fill:#d7d8f8,stroke:#2a2a72,stroke-width:1px;
-    classDef business fill:#fff3cd,stroke:#856404,stroke-width:1px;
-    classDef narrative fill:#f8d7da,stroke:#721c24,stroke-width:1px;
+    classDef generic fill:#f0f0f0,stroke:#333,stroke-width:2px;
+    classDef technical fill:#c2f0c2,stroke:#006400,stroke-width:2px;
+    classDef legal fill:#c6e2ff,stroke:#00008b,stroke-width:2px;
+    classDef academic fill:#e6ccff,stroke:#4b0082,stroke-width:2px;
+    classDef business fill:#ffd700,stroke:#b8860b,stroke-width:2px;
+    classDef narrative fill:#ffb6c1,stroke:#8b0000,stroke-width:2px;
     
     class A,B,C,D,K,L,M,Q generic;
     class E1,F1,G1,H1,I1,J1,N technical;
