@@ -12,6 +12,8 @@ from raggiro.core.segmenter import Segmenter
 from raggiro.core.metadata import MetadataExtractor
 from raggiro.core.exporter import Exporter
 from raggiro.core.logger import DocumentLogger
+from raggiro.models.classifier import DocumentClassifier
+from raggiro.pipelines import get_pipeline_for_category
 from raggiro.utils.config import load_config
 
 class DocumentProcessor:
@@ -32,6 +34,7 @@ class DocumentProcessor:
         
         # Initialize components
         self.file_handler = FileHandler(self.config)
+        self.classifier = DocumentClassifier(self.config)
         self.extractor = Extractor(self.config)
         self.cleaner = Cleaner(self.config)
         self.spelling_corrector = SpellingCorrector(self.config)
@@ -39,6 +42,11 @@ class DocumentProcessor:
         self.metadata_extractor = MetadataExtractor(self.config)
         self.exporter = Exporter(self.config)
         self.logger = None  # Initialize later when we know the output directory
+        
+        # Configure document classification
+        self.use_document_classification = self.config.get("classifier", {}).get("enabled", False)
+        self.pipeline_config = self.config.get("pipeline", {})
+        self.use_specialized_pipelines = self.pipeline_config.get("use_specialized_pipelines", False)
     
     def process_file(self, file_path: Union[str, Path], output_dir: Union[str, Path]) -> Dict:
         """Process a single file.
@@ -56,7 +64,7 @@ class DocumentProcessor:
         output_dir = Path(output_dir)
         
         # Total processing phases
-        TOTAL_PHASES = 5  # Validation, Extraction, Cleaning, Segmentation, Export
+        TOTAL_PHASES = 6  # Validation, Classification, Extraction, Cleaning, Segmentation, Export
         
         # Ensure the file exists
         if not file_path.exists():
@@ -79,8 +87,27 @@ class DocumentProcessor:
             log_dir = output_dir / "logs"
             log_dir.mkdir(parents=True, exist_ok=True)
             self.logger = DocumentLogger(self.config, log_dir)
+            
+        # Step 0: Check if we should use specialized pipeline
+        if self.use_document_classification and self.use_specialized_pipelines:
+            # Initialize basic validation
+            file_metadata = self.file_handler.get_file_metadata(file_path)
+            file_type_info = self.file_handler.detect_file_type(file_path)
+            
+            # Perform initial classification based on file metadata
+            classification_result = self.classifier.classify_from_metadata(file_metadata, file_type_info)
+            
+            if classification_result["success"] and classification_result["category"] != "unknown":
+                document_category = classification_result["category"]
+                # Try to get specialized pipeline
+                specialized_pipeline = get_pipeline_for_category(document_category, self.config)
+                
+                if specialized_pipeline:
+                    self.logger.log_info(f"Using specialized pipeline for {document_category} document: {file_path}")
+                    # Use specialized pipeline for this document type
+                    return specialized_pipeline.process(file_path, output_dir)
         
-        # Process the file
+        # Process the file with standard pipeline
         start_time = time.time()
         processing_times = {}
         
@@ -111,10 +138,63 @@ class DocumentProcessor:
                     total_phases=TOTAL_PHASES,
                     processing_time_ms=phase_time
                 )
+                
+            # PHASE 1.5: Document Classification (if enabled)
+            document_category = None
+            if self.use_document_classification:
+                phase_start = time.time()
+                
+                # Perform initial classification based on file metadata
+                classification_result = self.classifier.classify_from_metadata(file_metadata, file_type_info)
+                
+                if classification_result["success"]:
+                    document_category = classification_result["category"]
+                    document["classification"] = classification_result
+                    
+                    phase_time = int((time.time() - phase_start) * 1000)
+                    processing_times["classification"] = phase_time
+                    
+                    if self.logger:
+                        self.logger.log_file_processing(
+                            document, "success", 
+                            component="classifier", 
+                            phase=f"Document classification: {document_category}", 
+                            phase_number=1.5, 
+                            total_phases=TOTAL_PHASES,
+                            processing_time_ms=phase_time
+                        )
+                else:
+                    # Classification failed, log but continue processing
+                    if self.logger:
+                        self.logger.log_file_processing(
+                            document, "warning", 
+                            component="classifier", 
+                            phase="Document classification failed", 
+                            phase_number=1.5, 
+                            total_phases=TOTAL_PHASES,
+                            processing_time_ms=int((time.time() - phase_start) * 1000),
+                            error=classification_result.get("error", "Unknown classification error")
+                        )
             
             # PHASE 2: Text Extraction
             phase_start = time.time()
-            document = self.extractor.extract(file_path, file_type_info)
+            
+            # Use specialized extraction based on document category if available
+            if self.use_specialized_pipelines and document_category:
+                extraction_config = self.config.get("extraction", {}).get(document_category, {})
+                if extraction_config:
+                    # Merge specialized extraction config with general config
+                    specialized_config = self.config.copy()
+                    specialized_config["extraction"] = {**self.config.get("extraction", {}), **extraction_config}
+                    specialized_extractor = Extractor(specialized_config)
+                    document = specialized_extractor.extract(file_path, file_type_info)
+                else:
+                    # Use default extractor if no specialized config exists
+                    document = self.extractor.extract(file_path, file_type_info)
+            else:
+                # Use default extractor
+                document = self.extractor.extract(file_path, file_type_info)
+                
             phase_time = int((time.time() - phase_start) * 1000)
             processing_times["extraction"] = phase_time
             
@@ -195,10 +275,61 @@ class DocumentProcessor:
             
             # PHASE 4: Text Segmentation
             phase_start = time.time()
-            document = self.segmenter.segment(document)
+            
+            # Refine document classification based on content if available
+            if self.use_document_classification and "text" in document:
+                content_classification = self.classifier.classify(document["text"])
+                
+                # Update classification if content-based is successful
+                if content_classification["success"]:
+                    # If we already have a classification, use a weighted approach
+                    if "classification" in document and document["classification"]["success"]:
+                        metadata_class = document["classification"]["category"]
+                        metadata_conf = document["classification"]["confidence"]
+                        content_class = content_classification["category"]
+                        content_conf = content_classification["confidence"]
+                        
+                        # Keep the higher confidence classification or combine them
+                        if content_class == metadata_class:
+                            # Same category, average confidence
+                            document["classification"]["confidence"] = (metadata_conf + content_conf) / 2
+                            document["classification"]["method"] = "combined"
+                        elif content_conf > metadata_conf:
+                            # Content-based has higher confidence
+                            document["classification"] = content_classification
+                        # Otherwise keep the metadata classification
+                    else:
+                        # No existing classification, use the content-based one
+                        document["classification"] = content_classification
+                        
+                # Update document category for specialized processing
+                if "classification" in document and document["classification"]["success"]:
+                    document_category = document["classification"]["category"]
+            
+            # Use specialized segmentation based on document category if available
+            if self.use_specialized_pipelines and document_category and document_category != "unknown":
+                segmentation_config = self.config.get("segmentation", {}).get(document_category, {})
+                if segmentation_config:
+                    # Merge specialized segmentation config with general config
+                    specialized_config = self.config.copy()
+                    specialized_config["segmentation"] = {**self.config.get("segmentation", {}), **segmentation_config}
+                    specialized_segmenter = Segmenter(specialized_config)
+                    document = specialized_segmenter.segment(document)
+                else:
+                    # Use default segmenter if no specialized config exists
+                    document = self.segmenter.segment(document)
+            else:
+                # Use default segmenter
+                document = self.segmenter.segment(document)
             
             # Update with metadata
             document["metadata"] = self.metadata_extractor.extract(document, file_metadata)
+            
+            # Add classification information to metadata
+            if "classification" in document and document["classification"]["success"]:
+                document["metadata"]["document_category"] = document["classification"]["category"]
+                document["metadata"]["classification_confidence"] = document["classification"]["confidence"]
+                document["metadata"]["classification_method"] = document["classification"]["method"]
             
             phase_time = int((time.time() - phase_start) * 1000)
             processing_times["segmentation"] = phase_time

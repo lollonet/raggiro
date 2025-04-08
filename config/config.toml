@@ -4,6 +4,23 @@
 [processing]
 dry_run = false
 recursive = true
+batch_size = 10
+parallel = true
+max_workers = 4
+
+# Classifier settings
+[classifier]
+enabled = true
+model_type = "ensemble"  # "rules", "tfidf_svm", "embedding", "ensemble"
+use_rules = true
+use_content = true
+confidence_threshold = 0.6
+model_path = "models/document_classifier"
+
+# Pipeline settings
+[pipeline]
+use_specialized_pipelines = true
+default_pipeline = "general"
 
 # Logging settings
 [logging]
@@ -19,6 +36,42 @@ ocr_language = "auto"  # Auto-detect language (uses langdetect) and select appro
 ocr_dpi = 300  # DPI for image conversion, between 150-600 (higher = better quality but more memory)
 ocr_max_image_size = 4000  # Maximum dimension (width or height) in pixels for OCR processing
 ocr_batch_size = 10  # Process this many pages in each batch to avoid memory issues
+extract_tables = true
+extract_images = false
+extract_metadata = true
+
+# Specialized extraction settings for different document types
+[extraction.technical]
+extract_tables = true
+extract_images = true
+extract_captions = true
+extract_equations = true
+extract_code_blocks = true
+
+[extraction.legal]
+extract_tables = true
+extract_header_footer = true
+extract_annotations = true
+preserve_formatting = true
+
+[extraction.academic]
+extract_tables = true
+extract_images = true
+extract_equations = true
+extract_references = true
+extract_citations = true
+
+[extraction.business]
+extract_tables = true
+extract_charts = true
+extract_financial_data = true
+extract_kpis = true
+
+[extraction.structured]
+extract_tables = true
+extract_form_fields = true
+detect_sections = true
+preserve_layout = true
 
 # Cleaning settings
 [cleaning]
@@ -53,6 +106,61 @@ chunk_overlap = 200   # Adjusted for the new chunk size
 semantic_chunking = true  # Enable semantic-based chunking
 chunking_strategy = "hybrid"  # Options: "size", "semantic", "hybrid"
 semantic_similarity_threshold = 0.55  # Reduced threshold to allow more content in each chunk
+detect_titles = true
+detect_lists = true
+detect_tables = true
+detect_headings = true
+detect_toc = true
+multilingual = true
+
+# Specialized segmentation settings for different document types
+[segmentation.technical]
+detect_code_blocks = true
+detect_equations = true
+detect_diagrams = true
+preserve_tables = true
+keep_tables_together = true
+max_chunk_size = 2000
+
+[segmentation.legal]
+detect_sections = true
+detect_clauses = true
+detect_definitions = true
+detect_references = true
+respect_paragraphs = true
+min_section_length = 200
+
+[segmentation.academic]
+detect_equations = true
+detect_citations = true
+detect_references = true
+preserve_tables = true
+detect_section_hierarchy = true
+max_chunk_size = 1800
+
+[segmentation.business]
+detect_tables = true
+detect_charts = true
+detect_financial_data = true
+detect_kpis = true
+preserve_tables = true
+max_chunk_size = 1200
+
+[segmentation.structured]
+preserve_layout = true
+detect_form_fields = true
+detect_tables = true
+detect_sections = true
+min_section_length = 50
+max_chunk_size = 1000
+
+[segmentation.narrative]
+respect_paragraphs = true
+detect_dialogue = true
+detect_chapters = true
+detect_sections = true
+semantic_similarity_threshold = 0.7
+max_chunk_size = 1200
 
 # Export settings
 [export]

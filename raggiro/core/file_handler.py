@@ -178,4 +178,30 @@ class FileHandler:
         else:
             result["document_type"] = "unknown"
             
+        # Detect format hints from filename and extension
+        filename_lower = file_path.name.lower()
+        
+        # Format hints help with document classification
+        result["format_hints"] = []
+        
+        # Document format hints based on filename
+        format_keywords = {
+            "technical": ["manual", "guide", "documentation", "specification", "technical", "manuale", "guida"],
+            "legal": ["contract", "agreement", "legal", "law", "regulation", "policy", "contratto", "legale"],
+            "academic": ["paper", "thesis", "dissertation", "research", "journal", "tesi", "ricerca"],
+            "business": ["report", "presentation", "financial", "business", "corporate", "rapporto", "presentazione"],
+            "structured": ["form", "invoice", "cv", "resume", "application", "modulo", "fattura", "curriculum"],
+            "narrative": ["article", "story", "book", "novel", "blog", "articolo", "libro", "storia"]
+        }
+        
+        # Check filename for format hints
+        for format_type, keywords in format_keywords.items():
+            for keyword in keywords:
+                if keyword in filename_lower:
+                    result["format_hints"].append(format_type)
+                    break
+                    
+        # Remove duplicates while preserving order
+        result["format_hints"] = list(dict.fromkeys(result["format_hints"]))
+            
         return result
