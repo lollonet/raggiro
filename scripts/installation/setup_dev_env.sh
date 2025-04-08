@@ -1,25 +1,26 @@
 #!/bin/bash
-# Script per configurare l'ambiente di sviluppo per Raggiro
+# Script per configurare l'ambiente di sviluppo per Raggiro usando esclusivamente uv
 
 set -e  # Esci immediatamente se un comando termina con uno stato diverso da zero
 
 echo "==== Installazione ambiente di sviluppo Raggiro ===="
 
-# Verifica se l'ambiente virtuale esiste
-if [ ! -d "venv" ]; then
-    echo "Creazione ambiente virtuale Python..."
-    python3 -m venv venv
+# Installa uv se non è già installato
+if ! command -v uv &> /dev/null; then
+    echo "Installazione di uv (gestore pacchetti e ambiente virtuale ultra-veloce)..."
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    
+    # Aggiorna PATH per il processo corrente
+    export PATH="$HOME/.cargo/bin:$PATH"
+    
+    echo "uv installato correttamente."
+else
+    echo "uv è già installato: $(uv --version)"
 fi
 
-# Attiva l'ambiente virtuale
-source venv/bin/activate
-
-echo "Ambiente virtuale attivato."
-
-# Installa uv
-echo "Installazione di uv (gestore pacchetti ultra-veloce)..."
-pip install --upgrade pip
-pip install uv
+# Crea e attiva un ambiente virtuale con uv
+echo "Creazione ambiente virtuale con uv..."
+uv venv
 
 # Installa dipendenze del progetto
 echo "Installazione delle dipendenze di sviluppo con uv..."

@@ -11,14 +11,11 @@ Grazie per il tuo interesse a contribuire a Raggiro! Questo documento fornisce l
 git clone https://github.com/lollonet/raggiro.git
 cd raggiro
 
-# Crea e attiva un ambiente virtuale (raccomandato)
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# oppure
-# venv\Scripts\activate  # Windows
+# Installa uv (gestisce sia gli ambienti virtuali che i pacchetti)
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Installa uv (gestore pacchetti ultra-veloce)
-pip install uv
+# Crea un ambiente virtuale con uv (sostituisce completamente venv/virtualenv)
+uv venv
 
 # Installa il pacchetto in modalità sviluppo con le dipendenze dev
 uv pip install -e ".[dev]"

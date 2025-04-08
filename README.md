@@ -111,16 +111,14 @@ cd raggiro
 ./scripts/installation/setup_dev_env.sh
 
 # Metodo 2: Installazione manuale
-# Creare e attivare un ambiente virtuale (raccomandato)
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# oppure
-# venv\Scripts\activate  # Windows
 
-# Installare uv (gestore pacchetti ultra-veloce, molto più veloce di pip)
-pip install uv
+# Installare uv (gestore pacchetti e ambiente virtuale ultra-veloce)
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Installare dipendenze Python con uv (metodo raccomandato)
+# Creare un ambiente virtuale con uv (sostituisce python -m venv + pip)
+uv venv
+
+# Installare dipendenze Python (estremamente più veloce di pip)
 uv pip install -e .
 # Per installare anche le dipendenze di sviluppo
 uv pip install -e ".[dev]"
