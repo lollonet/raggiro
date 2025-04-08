@@ -107,31 +107,37 @@ brew install tesseract tesseract-lang poppler libmagic
 git clone https://github.com/lollonet/raggiro.git
 cd raggiro
 
-# Installare dipendenze Python
-pip install -e .
+# Metodo 1: Installazione rapida (raccomandato per sviluppatori)
+./scripts/installation/setup_dev_env.sh
+
+# Metodo 2: Installazione manuale
+# Creare e attivare un ambiente virtuale (raccomandato)
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# oppure
+# venv\Scripts\activate  # Windows
+
+# Installare uv (gestore pacchetti ultra-veloce, molto più veloce di pip)
+pip install uv
+
+# Installare dipendenze Python con uv (metodo raccomandato)
+uv pip install -e .
 # Per installare anche le dipendenze di sviluppo
-pip install -e ".[dev]"
+uv pip install -e ".[dev]"
 # Per installare le dipendenze per la documentazione
-pip install -e ".[docs]"
+uv pip install -e ".[docs]"
 
 # Installare i modelli linguistici richiesti
-# Modello multilingue base (raccomandato per supporto multi-lingua)
-python -m spacy download xx_sent_ud_sm
-
-# Per prestazioni migliori con lingue specifiche, installiamo anche i modelli dedicati
+python -m spacy download xx_sent_ud_sm  # Modello multilingue base
 python -m spacy download it_core_news_sm  # Italiano
 python -m spacy download en_core_web_sm  # Inglese
 # Altri modelli linguistici opzionali:
 # python -m spacy download fr_core_news_sm  # Francese
 # python -m spacy download de_core_news_sm  # Tedesco
 # python -m spacy download es_core_news_sm  # Spagnolo
-# python -m spacy download pt_core_news_sm  # Portoghese
-# python -m spacy download nl_core_news_sm  # Olandese
 
 # Installare le risorse NLTK necessarie per la generazione dei sommari
 bash scripts/installation/install_nltk.sh
-# Oppure manualmente:
-# python -m nltk.downloader punkt stopwords averaged_perceptron_tagger
 ```
 
 ### 3. Configurare pre-commit hooks (per sviluppatori)

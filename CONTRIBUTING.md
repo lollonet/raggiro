@@ -11,14 +11,22 @@ Grazie per il tuo interesse a contribuire a Raggiro! Questo documento fornisce l
 git clone https://github.com/lollonet/raggiro.git
 cd raggiro
 
-# Crea e attiva un ambiente virtuale (opzionale ma raccomandato)
+# Crea e attiva un ambiente virtuale (raccomandato)
 python -m venv venv
 source venv/bin/activate  # Linux/Mac
 # oppure
 # venv\Scripts\activate  # Windows
 
+# Installa uv (gestore pacchetti ultra-veloce)
+pip install uv
+
 # Installa il pacchetto in modalità sviluppo con le dipendenze dev
-pip install -e ".[dev]"
+uv pip install -e ".[dev]"
+
+# Installa anche i modelli spaCy necessari
+python -m spacy download xx_sent_ud_sm
+python -m spacy download it_core_news_sm
+python -m spacy download en_core_web_sm
 ```
 
 2. **Configura pre-commit hooks**
