@@ -30,9 +30,9 @@ uv pip install -e ".[dev]"
 
 # Installa i modelli spacy
 echo "Installazione dei modelli spaCy..."
-python -m spacy download xx_sent_ud_sm
-python -m spacy download it_core_news_sm
-python -m spacy download en_core_web_sm
+python3 -m spacy download xx_sent_ud_sm
+python3 -m spacy download it_core_news_sm
+python3 -m spacy download en_core_web_sm
 
 # Configura pre-commit
 echo "Configurazione pre-commit hooks..."
