@@ -130,19 +130,48 @@ Estendere supporto oltre l'attuale "all-MiniLM-L6-v2":
   - Quantizzazione modelli per ridurre memoria
   - Bilanciamento qualità/performance
 
+## Piano di implementazione delle pipeline specializzate
+
+Per implementare le pipeline specializzate, seguire questi step:
+
+1. **Refactoring dell'architettura esistente**:
+   - Creare una classe base astratta `BasePipeline` che definisca l'interfaccia comune
+   - Estrarre logica comune dalla `TechnicalPipeline` esistente
+   - Definire metodi astratti per comportamenti specifici delle categorie
+   - Aggiungere supporto per configurazioni TOML specifiche per categoria
+
+2. **Implementazione LegalPipeline**:
+   - Studiare la struttura di documenti legali rappresentativi
+   - Adattare algoritmi di chunking per riconoscere struttura articoli/sezioni
+   - Implementare riconoscimento citazioni legali
+   - Creare configurazione TOML specifica per documenti legali
+
+3. **Factory pattern per la selezione della pipeline**:
+   - Implementare una factory class che selezioni automaticamente la pipeline più appropriata
+   - Integrare con il sistema di classificazione esistente
+   - Aggiungere override manuale nella GUI
+
+4. **Testing e validazione**:
+   - Creare suite di test con documenti legali rappresentativi
+   - Misurare qualità del chunking e dell'elaborazione
+   - Confrontare risultati con la pipeline generica
+
 ## Priorità implementazione
 
 1. **Alta priorità**:
-   - Pipeline specializzate per categorie rimanenti
+   - Refactoring e creazione BasePipeline
+   - Implementazione LegalPipeline
    - Miglioramento OCR multilingua (focus italiano)
    - Completamento GUI per classificazione documento
 
 2. **Media priorità**:
+   - Implementazione AcademicPipeline e BusinessPipeline
    - Sistema valutazione RAG
    - Gestione persistente indici
    - Vista comparativa testo originale/corretto
 
 3. **Futura implementazione**:
+   - Implementazione NarrativePipeline
    - Integrazione modelli avanzati embedding
    - Dashboard statistiche avanzate
    - Sistema miglioramento continuo basato su feedback
