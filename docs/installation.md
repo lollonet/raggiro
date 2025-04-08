@@ -2,38 +2,56 @@
 
 ## Installazione di base
 
+Raggiro utilizza [uv](https://github.com/astral-sh/uv) come gestore di pacchetti e ambienti virtuali ultra-veloce al posto di pip e virtualenv. uv offre prestazioni 10-100 volte superiori e una gestione più coerente delle dipendenze.
+
+### Metodo 1: Installazione automatica (raccomandato)
+
 ```bash
-# Da PyPI (non ancora disponibile)
-pip install raggiro
-
-# Dal repository con pip
+# Clona il repository
 git clone https://github.com/lollonet/raggiro.git
 cd raggiro
-pip install -e .
 
-# Dal repository con requirements.txt
+# Esegui lo script di setup che configura tutto automaticamente
+./scripts/installation/setup_dev_env.sh
+```
+
+### Metodo 2: Installazione manuale
+
+```bash
+# Clona il repository
 git clone https://github.com/lollonet/raggiro.git
 cd raggiro
-pip install -r requirements.txt
-python -m spacy download xx_sent_ud_sm  # Download modello linguistico multilingue
+
+# Installa uv (ultra-veloce gestore pacchetti e ambiente virtuale)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Crea un ambiente virtuale con uv
+uv venv
+
+# Installa il pacchetto in modalità sviluppo
+uv pip install -e .
+
+# Download del modello linguistico multilingue
+python -m spacy download xx_sent_ud_sm
 ```
 
 ## Installazione con dipendenze opzionali
 
 ```bash
-# Per strumenti di sviluppo
-pip install -e ".[dev]"
-# oppure
-pip install -r requirements-dev.txt
+# Per strumenti di sviluppo (ruff, black, isort, mypy, pre-commit...)
+uv pip install -e ".[dev]"
 
 # Per supporto database vettoriale
-pip install -e ".[qdrant]"
+uv pip install -e ".[qdrant]"
 
-# Per capacità di testing (compreso PromptFoo)
-pip install -e ".[test]"
+# Per capacità di testing
+uv pip install -e ".[test]"
+
+# Per documentazione
+uv pip install -e ".[docs]"
 
 # Per tutte le dipendenze opzionali
-pip install -e ".[dev,qdrant,test]"
+uv pip install -e ".[dev,qdrant,test,docs]"
 ```
 
 ## Requisiti di sistema
