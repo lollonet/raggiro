@@ -1,13 +1,11 @@
 #!/bin/bash
 # Run the semantic chunking test script with proper environment setup
 
-# Check if virtual environment exists and activate it
-if [ -d "venv" ]; then
-    echo "Activating virtual environment..."
-    source venv/bin/activate
-elif [ -d "env" ]; then
-    echo "Activating virtual environment..."
-    source env/bin/activate
+# Note: We're using uv for environment management instead of traditional venv
+# No manual activation is needed when using uv run
+if ! command -v uv &> /dev/null; then
+    echo "WARNING: uv is not installed. It's recommended to use uv for this project."
+    echo "You can install it with: curl -LsSf https://astral.sh/uv/install.sh | sh"
 fi
 
 # Parse arguments
@@ -55,16 +53,21 @@ fi
 
 # Run the script directly
 echo "Running test_semantic_chunking.py script..."
-echo "Command: python3 examples/scripts/test_semantic_chunking.py ${POSITIONAL_ARGS[*]}"
-python3 examples/scripts/test_semantic_chunking.py "${POSITIONAL_ARGS[@]}"
+echo "Command: uv run python examples/scripts/test_semantic_chunking.py ${POSITIONAL_ARGS[*]}"
+if command -v uv &> /dev/null; then
+    uv run python examples/scripts/test_semantic_chunking.py "${POSITIONAL_ARGS[@]}"
+else
+    # Fallback to regular python if uv is not available
+    python3 examples/scripts/test_semantic_chunking.py "${POSITIONAL_ARGS[@]}"
+fi
 
 # Check if the script executed successfully
 if [ $? -ne 0 ]; then
     echo ""
     echo "The script failed. This may be due to missing dependencies."
-    echo "Make sure you have installed all requirements:"
-    echo "pip install -e ."
-    echo "pip install -r requirements.txt"
+    echo "Make sure you have installed all dependencies:"
+    echo "uv pip install -e ."
+    echo "or for development: uv pip install -e \".[dev]\""
     echo ""
-    echo "If you're using a virtual environment, make sure it's activated."
+    echo "If you're using uv, make sure commands are run with 'uv run'."
 fi

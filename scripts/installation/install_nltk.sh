@@ -16,7 +16,7 @@ try:
     project_root = current_dir
     
     # Look for typical project markers to find root
-    markers = ['raggiro', 'requirements.txt', 'setup.py', 'pyproject.toml']
+    markers = ['raggiro', 'pyproject.toml', 'setup.py']
     while project_root != '/' and not any(os.path.exists(os.path.join(project_root, m)) for m in markers):
         project_root = os.path.dirname(project_root)
     
@@ -49,7 +49,11 @@ print("All NLTK packages installed successfully!")
 EOL
 
 # Run the Python script
-python /tmp/download_nltk.py
+if command -v uv &> /dev/null; then
+    uv run python /tmp/download_nltk.py
+else
+    python /tmp/download_nltk.py
+fi
 
 # Check if download was successful
 if [ $? -ne 0 ]; then
