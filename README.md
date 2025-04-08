@@ -20,8 +20,9 @@ Raggiro è un framework completo per l'elaborazione di documenti progettato per 
 - **Metadati arricchiti per i chunk**: Sommari automatici generati per ogni chunk che ne sintetizzano il contenuto in modo estrattivo
 - **Estrazione metadata**: Titolo, autore, data, lingua, tipo di documento, rilevamento categoria, tabella dei contenuti
 - **Output strutturato**: Formati Markdown e JSON con tutti i metadata
+- **Classificazione intelligente dei documenti**: Sistema che rileva automaticamente la categoria del documento (tecnico, legale, accademico, ecc.) e applica pipeline specializzate
 - **Rilevamento avanzato della tabella dei contenuti**: Supporto per tutte le lingue europee e estrazione da PDF nativo
-- **Interfaccia GUI dedicata**: Sezioni specializzate per OCR e correzione ortografica/semantica
+- **Interfaccia GUI dedicata**: Sezioni specializzate per OCR, classificazione documenti e correzione ortografica/semantica
 - **Funzionamento completamente offline**: Funziona senza dipendenze API esterne
 - **Pipeline RAG completa**: Indicizzazione vettoriale, recupero e generazione di risposte integrati
 - **Utilità di testing**: Strumenti per il benchmarking e confronto tra strategie di chunking
@@ -79,6 +80,7 @@ Raggiro include una documentazione completa divisa nelle seguenti sezioni:
 - [Configurazione](docs/configuration.md) - Configurazione TOML e opzioni personalizzabili
 - [Riferimento CLI](docs/commands.md) - Comandi e opzioni della riga di comando
 - [Interfacce GUI](docs/gui.md) - Utilizzo delle interfacce Streamlit e Textual
+- [Classificazione Documenti](docs/document_classification.md) - Sistema di classificazione intelligente dei documenti
 - [Pipeline RAG](docs/rag.md) - Componenti e utilizzo della pipeline RAG
 - [Testing e valutazione](docs/testing.md) - Strumenti per testare e valutare il sistema RAG
 - [Riferimento API](docs/api.md) - Documentazione dell'API Python per sviluppatori
@@ -161,9 +163,12 @@ L'interfaccia utente Streamlit offre diverse schede funzionali:
 1. **Process Documents**: Elaborazione base dei documenti
 2. **OCR & Correction**: OCR e correzione ortografica avanzata 
 3. **Document Structure**: Visualizzazione della struttura e tabella dei contenuti
-4. **Test RAG**: Test e valutazione di query RAG
-5. **View Results**: Visualizzazione dei risultati dell'elaborazione
-6. **Configuration**: Configurazione del sistema
+4. **Document Classification**: Classificazione intelligente dei documenti
+5. **Test RAG**: Test e valutazione di query RAG
+6. **View Results**: Visualizzazione dei risultati dell'elaborazione
+7. **Configuration**: Configurazione del sistema
+
+![Diagramma del flusso di classificazione](docs/images/document_classification_flow.md)
 
 ### Analisi della Tabella dei Contenuti
 
@@ -182,6 +187,12 @@ Per elaborare correttamente documenti PDF con molte pagine:
 3. Il parametro "Process Every N Pages" può essere usato per elaborare solo alcune pagine (1 = tutte le pagine)
 
 ### Novità
+
+- **Classificazione intelligente dei documenti**: Sistema avanzato per categorizzare automaticamente i documenti:
+  1. **Rilevamento automatico categoria**: Classifica documenti in tecnici, legali, accademici, aziendali, strutturati o narrativi
+  2. **Pipeline specializzate**: Applica strategie di elaborazione ottimizzate per ogni categoria di documento
+  3. **Configurazione flessibile**: Parametri personalizzabili per ciascuna fase dell'elaborazione in base al tipo di documento
+  4. **Interfaccia di classificazione**: Dashboard dedicata per testare e visualizzare i risultati della classificazione
 
 - **Rilevamento tabella dei contenuti multilingua**: Supporto per identificazione e estrazione della tabella dei contenuti in tutte le lingue europee:
   1. **Riconoscimento automatico**: Identifica le tabelle dei contenuti basate su pattern specifici per lingua
