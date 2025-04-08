@@ -28,11 +28,17 @@ uv venv
 echo "Installazione delle dipendenze di sviluppo con uv..."
 uv pip install -e ".[dev]"
 
+# Assicurati che spacy sia correttamente installato
+echo "Verifico installazione di spaCy..."
+uv pip install spacy
+
 # Installa i modelli spacy
 echo "Installazione dei modelli spaCy..."
-python3 -m spacy download xx_sent_ud_sm
-python3 -m spacy download it_core_news_sm
-python3 -m spacy download en_core_web_sm
+
+# Usa uv run per assicurarsi che i comandi vengano eseguiti nell'ambiente virtuale creato da uv
+uv run python -m spacy download xx_sent_ud_sm
+uv run python -m spacy download it_core_news_sm
+uv run python -m spacy download en_core_web_sm
 
 # Configura pre-commit
 echo "Configurazione pre-commit hooks..."
