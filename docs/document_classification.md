@@ -22,6 +22,14 @@ La classificazione dei documenti è una fase preliminare fondamentale nel sistem
 4. **Elaborazione specializzata**: Applicazione di algoritmi specifici per il tipo di documento
 5. **Post-elaborazione**: Raffinamento dei risultati in base alla categoria del documento
 
+### Diagramma del Flusso di Elaborazione
+
+Il seguente diagramma illustra il flusso di elaborazione per i diversi tipi di documenti:
+
+![Diagramma del flusso di classificazione dei documenti](images/document_classification_flow.md)
+
+Il diagramma mostra come il documento di input venga prima classificato e poi indirizzato alla pipeline di elaborazione specializzata appropriata in base alla sua categoria. Ogni pipeline applica tecniche ottimizzate per il tipo specifico di documento.
+
 ### Categorie di Documenti
 
 Il sistema classifica i documenti in diverse categorie principali:
