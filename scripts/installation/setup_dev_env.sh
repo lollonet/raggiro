@@ -18,6 +18,8 @@ else
     echo "uv è già installato: $(uv --version)"
 fi
 
+source $HOME/.local/bin/env
+
 # Crea e attiva un ambiente virtuale con uv
 echo "Creazione ambiente virtuale con uv..."
 uv venv
