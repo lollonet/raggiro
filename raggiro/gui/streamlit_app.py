@@ -2,7 +2,7 @@
 """Streamlit-based GUI for Raggiro document processing."""
 
 from raggiro.gui.imports_for_streamlit import *
-from raggiro.gui.imports_for_streamlit import import_all
+from raggiro.gui.imports_for_streamlit import import_all, get_processed_files
 
 # Ensure all imports are available
 import_all()
@@ -1294,3 +1294,7 @@ def classify_document(file_path, enable_classification, methods, confidence_thre
             "success": False,
             "error": str(e)
         }
+
+# Entry point for streamlit app when run directly
+if __name__ == "__main__":
+    run_app()
