@@ -38,7 +38,7 @@ def run_app():
     st.write("Process documents for Retrieval-Augmented Generation (RAG) systems")
     
     # Create tabs for different functionality
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["Process Documents", "OCR & Correction", "Test RAG", "View Results", "Configuration"])
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Process Documents", "OCR & Correction", "Document Structure", "Test RAG", "View Results", "Configuration"])
     
     with tab1:
         process_documents_ui()
@@ -47,12 +47,15 @@ def run_app():
         ocr_correction_ui()
     
     with tab3:
-        test_rag_ui()
+        document_structure_ui()
     
     with tab4:
-        view_results_ui()
+        test_rag_ui()
     
     with tab5:
+        view_results_ui()
+    
+    with tab6:
         configuration_ui()
 
 def process_documents_ui():
@@ -1300,6 +1303,313 @@ def get_ollama_models(base_url="http://ollama:11434"):
     except Exception as e:
         st.warning(f"Could not connect to Ollama server at {base_url}: {str(e)}")
         return []
+
+def document_structure_ui():
+    """UI for viewing document structure, table of contents and summaries."""
+    st.header("Document Structure Analysis")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("Input")
+        
+        # File input
+        input_type = st.radio(
+            "Input Type",
+            options=["Upload File", "Local Path", "Select Processed File"],
+            index=0,
+            key="structure_input_type"
+        )
+        
+        if input_type == "Upload File":
+            uploaded_file = st.file_uploader(
+                "Upload document to analyze",
+                type=["pdf", "docx", "txt", "html", "rtf"],
+                key="structure_upload"
+            )
+            file_path = None
+            
+        elif input_type == "Local Path":
+            file_path = st.text_input(
+                "File Path",
+                placeholder="/path/to/document.pdf",
+                key="structure_path"
+            )
+            uploaded_file = None
+            
+        else:  # Select Processed File
+            # Try to find the output directory
+            output_dir = os.path.join(os.getcwd(), "output")
+            if not os.path.exists(output_dir):
+                # Try alternative locations
+                alt_dirs = [
+                    os.path.join(os.getcwd(), "test_output"),
+                    os.path.join(os.path.dirname(os.getcwd()), "output"),
+                    os.path.join(os.path.dirname(os.path.dirname(os.getcwd())), "output")
+                ]
+                for alt_dir in alt_dirs:
+                    if os.path.exists(alt_dir):
+                        output_dir = alt_dir
+                        break
+            
+            # Find JSON files
+            json_files = []
+            if os.path.exists(output_dir):
+                for root, _, files in os.walk(output_dir):
+                    for file in files:
+                        if file.endswith(".json"):
+                            json_files.append(os.path.join(root, file))
+            
+            if json_files:
+                # Use the file basename for display
+                file_options = [os.path.basename(f) for f in json_files]
+                file_index = st.selectbox(
+                    "Select Processed File",
+                    options=file_options,
+                    index=0,
+                    key="structure_select_file"
+                )
+                
+                # Map the selected name back to the full path
+                selected_index = file_options.index(file_index)
+                file_path = json_files[selected_index]
+                uploaded_file = None
+            else:
+                st.warning("No processed JSON files found. Please upload a file or provide a path.")
+                file_path = None
+                uploaded_file = None
+    
+    with col2:
+        st.subheader("Analysis Options")
+        
+        # Display options
+        show_toc = st.checkbox("Show Table of Contents", value=True, key="show_toc")
+        show_metadata = st.checkbox("Show Document Metadata", value=True, key="show_metadata")
+        show_summaries = st.checkbox("Show Chunk Summaries", value=True, key="show_summaries")
+        show_chunks = st.checkbox("Show Document Chunks", value=False, key="show_chunks")
+        
+        # Advanced options
+        with st.expander("Advanced Options"):
+            process_options = st.multiselect(
+                "Processing Options",
+                options=["Extract TOC from PDF Outline", "Auto-detect Language", "Generate Summaries"],
+                default=["Extract TOC from PDF Outline", "Auto-detect Language", "Generate Summaries"],
+                key="structure_processing_options"
+            )
+            
+            # Language selection for TOC detection
+            toc_language = st.selectbox(
+                "TOC Language",
+                options=["auto", "en", "it", "fr", "es", "de", "pt", "nl", "pl", "sv", "da", "el", "fi", "ro", "hu", "cs"],
+                index=0,
+                help="Language for table of contents detection (auto=detect automatically)",
+                key="toc_language"
+            )
+            
+            # TOC detection aggressiveness
+            toc_aggressiveness = st.slider(
+                "TOC Detection Aggressiveness",
+                min_value=1,
+                max_value=3,
+                value=2,
+                help="1=conservative, 2=normal, 3=aggressive",
+                key="toc_aggressiveness"
+            )
+    
+    # Analyze button
+    analyze_button = st.button("Analyze Document Structure", type="primary")
+    
+    if analyze_button:
+        if (uploaded_file is None and file_path is None) or (input_type == "Local Path" and not file_path):
+            st.error("Please upload a file or provide a valid path")
+            return
+            
+        with st.spinner("Analyzing document structure..."):
+            # If uploaded file, save to temp location
+            if uploaded_file is not None:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=f".{uploaded_file.name.split('.')[-1]}") as tmp_file:
+                    tmp_file.write(uploaded_file.getvalue())
+                    file_path = tmp_file.name
+            
+            # Process the document
+            try:
+                # Create configuration
+                config = {
+                    "segmentation": {
+                        "toc_detection": {
+                            "enabled": True,
+                            "min_entries": 3,
+                            "max_entries": 150,
+                            "aggressiveness": toc_aggressiveness
+                        }
+                    }
+                }
+                
+                # Initialize processor
+                processor = DocumentProcessor(config)
+                
+                # Process the file
+                result = processor.process_file(file_path)
+                
+                # Display the results
+                display_document_structure(result, show_toc, show_metadata, show_summaries, show_chunks)
+                
+                # Clean up temporary file if we created one
+                if uploaded_file is not None:
+                    try:
+                        os.unlink(file_path)
+                    except:
+                        pass
+                        
+            except Exception as e:
+                st.error(f"Error analyzing document: {str(e)}")
+                import traceback
+                st.code(traceback.format_exc())
+
+def display_document_structure(document, show_toc=True, show_metadata=True, show_summaries=True, show_chunks=False):
+    """Display the document structure with table of contents and summaries.
+    
+    Args:
+        document: Processed document data
+        show_toc: Whether to show table of contents
+        show_metadata: Whether to show document metadata
+        show_summaries: Whether to show chunk summaries
+        show_chunks: Whether to show full document chunks
+    """
+    # Document basic info
+    st.subheader(f"Document: {document.get('metadata', {}).get('title', 'Untitled Document')}")
+    
+    # Create tabs for different views
+    structure_tabs = st.tabs(["Table of Contents", "Metadata", "Chunks", "Visual Structure"])
+    
+    with structure_tabs[0]:  # Table of Contents
+        if show_toc and "table_of_contents" in document:
+            toc = document["table_of_contents"]
+            st.subheader(f"Table of Contents: {toc.get('title', 'Contents')}")
+            
+            # Show TOC language if detected
+            if "language" in toc and toc["language"] != "unknown":
+                st.info(f"Detected language: {toc['language']}")
+            
+            # Show TOC entries with indentation based on level
+            st.markdown("### Entries")
+            
+            for entry in toc.get("entries", []):
+                # Get entry level for indentation
+                level = entry.get("level", 0)
+                indent = "&nbsp;" * (level * 4)
+                
+                # Format entry
+                title = entry.get("title", entry.get("text", ""))
+                page = entry.get("page", "")
+                
+                # Display with proper indentation
+                if page:
+                    st.markdown(f"{indent}• {title} — page {page}", unsafe_allow_html=True)
+                else:
+                    st.markdown(f"{indent}• {title}", unsafe_allow_html=True)
+                    
+            # Show source of TOC
+            if "source" in toc:
+                st.info(f"TOC Source: {toc['source']}")
+        else:
+            st.info("No table of contents found in the document")
+            
+            # Show TOC detection options
+            st.markdown("### TOC Detection Options")
+            st.markdown("""
+            To improve table of contents detection:
+            1. Try different aggressiveness levels (1=conservative, 3=aggressive)
+            2. Specify the document language if auto-detection is not working
+            3. For PDFs, enable "Extract TOC from PDF Outline" to use embedded bookmarks
+            """)
+    
+    with structure_tabs[1]:  # Metadata
+        if show_metadata and "metadata" in document:
+            metadata = document["metadata"]
+            st.subheader("Document Metadata")
+            
+            # Format metadata for display
+            metadata_df = pd.DataFrame({
+                "Property": list(metadata.keys()),
+                "Value": [str(v) for v in metadata.values()]
+            })
+            st.table(metadata_df)
+            
+            # Show extraction method
+            if "extraction_method" in document:
+                st.info(f"Extraction Method: {document['extraction_method']}")
+        else:
+            st.info("No metadata available for this document")
+    
+    with structure_tabs[2]:  # Chunks
+        if "chunks" in document:
+            chunks = document["chunks"]
+            st.subheader(f"Document Chunks ({len(chunks)})")
+            
+            # Display chunk summary or full text
+            for i, chunk in enumerate(chunks[:20]):  # Limit to first 20 chunks
+                with st.expander(f"Chunk {i+1} ({chunk.get('length', 0)} chars)"):
+                    # Show summary if available and requested
+                    if show_summaries and "summary" in chunk:
+                        st.markdown("**Summary:**")
+                        st.markdown(chunk["summary"])
+                        
+                        if show_chunks:  # Show full content too if requested
+                            st.markdown("**Full Content:**")
+                            st.markdown(chunk["text"][:1000] + "..." if len(chunk["text"]) > 1000 else chunk["text"])
+                    else:
+                        # Show just the beginning of the chunk
+                        preview = chunk["text"][:500] + "..." if len(chunk["text"]) > 500 else chunk["text"]
+                        st.markdown(preview)
+            
+            if len(chunks) > 20:
+                st.info(f"Showing first 20 of {len(chunks)} chunks. Enable 'Show Document Chunks' to see more content.")
+        else:
+            st.info("No chunks available for this document")
+    
+    with structure_tabs[3]:  # Visual Structure
+        st.subheader("Document Visual Structure")
+        
+        # Create a hierarchical visualization of the document
+        try:
+            # Count segments by type
+            segment_types = {}
+            if "segments" in document:
+                for segment in document["segments"]:
+                    seg_type = segment.get("type", "unknown")
+                    segment_types[seg_type] = segment_types.get(seg_type, 0) + 1
+                
+                # Create chart for segment distribution
+                st.markdown("### Segment Types")
+                segment_df = pd.DataFrame({
+                    "Type": list(segment_types.keys()),
+                    "Count": list(segment_types.values())
+                })
+                st.bar_chart(segment_df.set_index("Type"))
+                
+                # Show TOC in document context
+                st.markdown("### Document Structure")
+                structure_text = ""
+                
+                # Check for header hierarchy
+                headers = [s for s in document["segments"] if s.get("type") == "header"]
+                if headers:
+                    # Headers with their levels
+                    for header in headers[:20]:  # Limit to first 20 headers
+                        level = header.get("level", 1)
+                        indent = "&nbsp;" * ((level-1) * 4)
+                        structure_text += f"{indent}• **{header.get('text', '')}**<br>"
+                        
+                    if len(headers) > 20:
+                        structure_text += "... (more headers) ...<br>"
+                
+                st.markdown(structure_text, unsafe_allow_html=True)
+            else:
+                st.info("No detailed segment information available")
+                
+        except Exception as e:
+            st.error(f"Error generating visual structure: {str(e)}")
 
 def configuration_ui():
     """UI for configuration."""
