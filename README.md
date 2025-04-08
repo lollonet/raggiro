@@ -61,16 +61,16 @@ Il progetto richiede Python 3.8 o superiore con le seguenti librerie principali:
 
 4. **Modelli linguistici Spacy e pacchetti di correzione ortografica**:
    - Modello multilingue (supporta più lingue contemporaneamente):
-     - `python -m spacy download xx_sent_ud_sm`
+     - `uv run python -m spacy download xx_sent_ud_sm`
    - Modelli linguistici specifici per singole lingue:
-     - `python -m spacy download it_core_news_sm` (italiano)
-     - `python -m spacy download en_core_web_sm` (inglese)
-     - `python -m spacy download fr_core_news_sm` (francese)
-     - `python -m spacy download de_core_news_sm` (tedesco)
-     - `python -m spacy download es_core_news_sm` (spagnolo)
-     - `python -m spacy download pt_core_news_sm` (portoghese)
-     - `python -m spacy download nl_core_news_sm` (olandese)
-   - `pip install pyspellchecker` (per dizionari di correzione ortografica standard)
+     - `uv run python -m spacy download it_core_news_sm` (italiano)
+     - `uv run python -m spacy download en_core_web_sm` (inglese)
+     - `uv run python -m spacy download fr_core_news_sm` (francese)
+     - `uv run python -m spacy download de_core_news_sm` (tedesco)
+     - `uv run python -m spacy download es_core_news_sm` (spagnolo)
+     - `uv run python -m spacy download pt_core_news_sm` (portoghese)
+     - `uv run python -m spacy download nl_core_news_sm` (olandese)
+   - `uv pip install pyspellchecker` (per dizionari di correzione ortografica standard)
 
 ## Documentazione
 
@@ -115,7 +115,7 @@ cd raggiro
 # Installare uv (gestore pacchetti e ambiente virtuale ultra-veloce)
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Creare un ambiente virtuale con uv (sostituisce python -m venv + pip)
+# Creare un ambiente virtuale con uv
 uv venv
 
 # Installare dipendenze Python (estremamente più veloce di pip)
@@ -126,13 +126,13 @@ uv pip install -e ".[dev]"
 uv pip install -e ".[docs]"
 
 # Installare i modelli linguistici richiesti
-python -m spacy download xx_sent_ud_sm  # Modello multilingue base
-python -m spacy download it_core_news_sm  # Italiano
-python -m spacy download en_core_web_sm  # Inglese
+uv run python -m spacy download xx_sent_ud_sm  # Modello multilingue base
+uv run python -m spacy download it_core_news_sm  # Italiano
+uv run python -m spacy download en_core_web_sm  # Inglese
 # Altri modelli linguistici opzionali:
-# python -m spacy download fr_core_news_sm  # Francese
-# python -m spacy download de_core_news_sm  # Tedesco
-# python -m spacy download es_core_news_sm  # Spagnolo
+# uv run python -m spacy download fr_core_news_sm  # Francese
+# uv run python -m spacy download de_core_news_sm  # Tedesco
+# uv run python -m spacy download es_core_news_sm  # Spagnolo
 
 # Installare le risorse NLTK necessarie per la generazione dei sommari
 bash scripts/installation/install_nltk.sh
@@ -144,7 +144,7 @@ Per garantire la qualità del codice, il progetto utilizza pre-commit hooks:
 
 ```bash
 # Installa pre-commit se non è già installato
-pip install pre-commit
+uv pip install pre-commit
 
 # Configura i pre-commit hooks
 pre-commit install

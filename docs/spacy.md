@@ -9,7 +9,7 @@ Raggiro utilizza [spaCy](https://spacy.io/) come motore linguistico principale p
 Il modello multilingue `xx_sent_ud_sm` è consigliato per la maggior parte degli utenti in quanto supporta contemporaneamente tutte le principali lingue europee:
 
 ```bash
-python -m spacy download xx_sent_ud_sm
+uv run python -m spacy download xx_sent_ud_sm
 ```
 
 ### Modelli specifici per lingua
@@ -18,41 +18,41 @@ Per prestazioni ottimali con singole lingue, è possibile installare modelli lin
 
 ```bash
 # Italiano (consigliato per documenti italiani)
-python -m spacy download it_core_news_sm
+uv run python -m spacy download it_core_news_sm
 
 # Inglese
-python -m spacy download en_core_web_sm
+uv run python -m spacy download en_core_web_sm
 
 # Francese
-python -m spacy download fr_core_news_sm
+uv run python -m spacy download fr_core_news_sm
 
 # Tedesco
-python -m spacy download de_core_news_sm
+uv run python -m spacy download de_core_news_sm
 
 # Spagnolo
-python -m spacy download es_core_news_sm
+uv run python -m spacy download es_core_news_sm
 
 # Portoghese
-python -m spacy download pt_core_news_sm
+uv run python -m spacy download pt_core_news_sm
 
 # Olandese
-python -m spacy download nl_core_news_sm
+uv run python -m spacy download nl_core_news_sm
 ```
 
 ### Comandi utili per la gestione dei modelli
 
 ```bash
 # Elencare tutti i modelli spaCy installati
-python -m spacy info --all
+uv run python -m spacy info --all
 
 # Verificare se un modello è installato
-python -m spacy validate
+uv run python -m spacy validate
 
 # Verificare le informazioni su un modello specifico
-python -m spacy info it_core_news_sm
+uv run python -m spacy info it_core_news_sm
 
 # Aggiornare un modello esistente
-python -m spacy download it_core_news_sm --force
+uv run python -m spacy download it_core_news_sm --force
 ```
 
 ## Configurazione spaCy in Raggiro
@@ -155,7 +155,7 @@ Per maggiori informazioni sulla personalizzazione avanzata, consultare la [docum
 
 1. **Errore "Model not found"**:
    ```
-   Soluzione: python -m spacy download <nome_modello>
+   Soluzione: uv run python -m spacy download <nome_modello>
    ```
 
 2. **Prestazioni lente con documenti lunghi**:
@@ -177,8 +177,8 @@ Per maggiori informazioni sulla personalizzazione avanzata, consultare la [docum
 
 Se riscontri problemi persistenti con spaCy in Raggiro, controlla:
 
-1. Versione di spaCy installata (`pip show spacy`)
-2. Modelli installati (`python -m spacy info --all`)
+1. Versione di spaCy installata (`uv pip show spacy`)
+2. Modelli installati (`uv run python -m spacy info --all`)
 3. Log dettagliati di errore
 4. Dimensioni e tipo di documento che causa il problema
 

@@ -150,6 +150,7 @@ if not results["success"]:
     error = results.get("error", "Errore sconosciuto")
     if "promptfoo not installed" in error:
         print("PromptFoo non è installato. Installa con: npm install -g promptfoo")
+        print("Poi assicurati di avviarlo con comando 'uv run' se in ambiente virtuale uv")
     else:
         print(f"Test fallito: {error}")
 else:

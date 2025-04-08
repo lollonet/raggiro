@@ -86,7 +86,7 @@ aggressiveness = 2  # Livello di aggressività nella ricerca (1=conservativo, 2=
 ```
 
 Per documenti multilingua, è consigliabile:
-1. Installare il modello spaCy multilingua: `python -m spacy download xx_sent_ud_sm`
+1. Installare il modello spaCy multilingua: `uv run python -m spacy download xx_sent_ud_sm`
 2. Aggiornare la configurazione per utilizzare questo modello
 3. Assicurarsi che le lingue appropriate siano installate per Tesseract OCR
 

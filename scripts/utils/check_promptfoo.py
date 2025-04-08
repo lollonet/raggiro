@@ -6,7 +6,7 @@ import importlib.util
 import sys
 
 def is_package_installed(package_name):
-    """Check if a package is installed via pip."""
+    """Check if a package is installed via package manager."""
     try:
         # Try to import the package
         spec = importlib.util.find_spec(package_name)

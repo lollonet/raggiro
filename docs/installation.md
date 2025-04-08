@@ -32,7 +32,7 @@ uv venv
 uv pip install -e .
 
 # Download del modello linguistico multilingue
-python -m spacy download xx_sent_ud_sm
+uv run python -m spacy download xx_sent_ud_sm
 ```
 
 ## Installazione con dipendenze opzionali
@@ -81,17 +81,17 @@ Alcune funzionalità richiedono dipendenze di sistema aggiuntive:
 - **Modelli linguistici spaCy**: Richiede modelli specifici per l'elaborazione linguistica
   ```bash
   # Modello multilingue (raccomandato, supporta tutte le principali lingue europee)
-  python -m spacy download xx_sent_ud_sm
+  uv run python -m spacy download xx_sent_ud_sm
   
   # Modelli specifici per lingua (opzionali, per prestazioni migliori)
-  python -m spacy download it_core_news_sm  # Italiano
-  python -m spacy download en_core_web_sm  # Inglese
-  python -m spacy download fr_core_news_sm  # Francese
-  python -m spacy download de_core_news_sm  # Tedesco
-  python -m spacy download es_core_news_sm  # Spagnolo
+  uv run python -m spacy download it_core_news_sm  # Italiano
+  uv run python -m spacy download en_core_web_sm  # Inglese
+  uv run python -m spacy download fr_core_news_sm  # Francese
+  uv run python -m spacy download de_core_news_sm  # Tedesco
+  uv run python -m spacy download es_core_news_sm  # Spagnolo
   
   # Verifica modelli installati
-  python -m spacy info --all
+  uv run python -m spacy info --all
   ```
   
   Per maggiori dettagli sull'utilizzo di spaCy, consulta la [documentazione specifica](spacy.md).

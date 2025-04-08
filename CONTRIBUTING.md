@@ -21,9 +21,9 @@ uv venv
 uv pip install -e ".[dev]"
 
 # Installa anche i modelli spaCy necessari
-python -m spacy download xx_sent_ud_sm
-python -m spacy download it_core_news_sm
-python -m spacy download en_core_web_sm
+uv run python -m spacy download xx_sent_ud_sm
+uv run python -m spacy download it_core_news_sm
+uv run python -m spacy download en_core_web_sm
 ```
 
 2. **Configura pre-commit hooks**

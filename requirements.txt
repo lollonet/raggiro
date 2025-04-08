@@ -38,5 +38,5 @@ numpy>=1.20.0
 # Testing
 promptfoo>=0.1.0
 
-# Optional: language model
-# python -m spacy download en_core_web_sm
+# Optional: language model (use uv run when installing)
+# uv run python -m spacy download en_core_web_sm
