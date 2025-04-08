@@ -76,6 +76,13 @@ spacy_model = "xx_sent_ud_sm"  # Modello multilingue per supporto a più lingue
 # - "es_core_news_sm" per spagnolo
 # - "pt_core_news_sm" per portoghese
 # - "nl_core_news_sm" per olandese
+
+# Impostazioni per la rilevazione della tabella dei contenuti
+[segmentation.toc_detection]
+enabled = true
+min_entries = 3  # Numero minimo di voci richieste per considerare valida una TOC
+max_entries = 150  # Numero massimo di voci da estrarre
+aggressiveness = 2  # Livello di aggressività nella ricerca (1=conservativo, 2=normale, 3=aggressivo)
 ```
 
 Per documenti multilingua, è consigliabile:
@@ -84,6 +91,27 @@ Per documenti multilingua, è consigliabile:
 3. Assicurarsi che le lingue appropriate siano installate per Tesseract OCR
 
 Per informazioni più dettagliate sull'uso di spaCy e sui relativi comandi, vedere la [documentazione spaCy](spacy.md).
+
+## Rilevamento della tabella dei contenuti
+
+Raggiro include funzionalità avanzate per rilevare e estrarre la tabella dei contenuti (indice) dai documenti:
+
+```toml
+# Impostazioni per la rilevazione della tabella dei contenuti
+[segmentation.toc_detection]
+enabled = true
+min_entries = 3  # Numero minimo di voci richieste per considerare valida una TOC
+max_entries = 150  # Numero massimo di voci da estrarre
+aggressiveness = 2  # Livello di aggressività nella ricerca (1=conservativo, 2=normale, 3=aggressivo)
+```
+
+Caratteristiche principali del rilevamento tabella dei contenuti:
+
+- **Supporto multilingua**: Rileva automaticamente tabelle dei contenuti in tutte le lingue europee
+- **Estrazione da PDF nativi**: Utilizza l'outline/bookmarks dei PDF quando disponibili
+- **Rilevamento pattern**: Identifica le tabelle dei contenuti anche quando non sono esplicitamente marcate
+- **Analisi strutturale**: Estrae i livelli gerarchici e la struttura della tabella dei contenuti
+- **Supporto numeri di pagina**: Mappa correttamente le voci dell'indice alle pagine corrispondenti
 
 ## Esempio di configurazione completa
 
@@ -100,6 +128,20 @@ ocr_language = "eng+ita+spa+fra+deu"  # Supporto multilingua
 ocr_dpi = 300
 ocr_max_image_size = 4000
 ocr_batch_size = 10
+
+# Impostazioni di segmentazione
+[segmentation]
+use_spacy = true
+spacy_model = "xx_sent_ud_sm"
+semantic_chunking = true
+chunking_strategy = "hybrid"
+
+# Rilevamento tabella dei contenuti
+[segmentation.toc_detection]
+enabled = true
+min_entries = 3
+max_entries = 150
+aggressiveness = 2
 
 # Impostazioni LLM condivise
 [llm]

@@ -18,8 +18,9 @@ Raggiro è un framework completo per l'elaborazione di documenti progettato per 
 - **Correzione ortografica intelligente**: Miglioramento automatico della qualità del testo OCR con dizionari standard multilingua (italiano, inglese, francese, tedesco, spagnolo)
 - **Chunking semantico adattivo**: Divisione intelligente del contenuto basata sul significato con ottimizzazioni per documenti OCR
 - **Metadati arricchiti per i chunk**: Sommari automatici generati per ogni chunk che ne sintetizzano il contenuto in modo estrattivo
-- **Estrazione metadata**: Titolo, autore, data, lingua, tipo di documento, rilevamento categoria
+- **Estrazione metadata**: Titolo, autore, data, lingua, tipo di documento, rilevamento categoria, tabella dei contenuti
 - **Output strutturato**: Formati Markdown e JSON con tutti i metadata
+- **Rilevamento avanzato della tabella dei contenuti**: Supporto per tutte le lingue europee e estrazione da PDF nativo
 - **Interfaccia GUI dedicata**: Sezioni specializzate per OCR e correzione ortografica/semantica
 - **Funzionamento completamente offline**: Funziona senza dipendenze API esterne
 - **Pipeline RAG completa**: Indicizzazione vettoriale, recupero e generazione di risposte integrati
@@ -165,6 +166,10 @@ Per elaborare correttamente documenti PDF con molte pagine:
 
 ### Novità
 
+- **Rilevamento tabella dei contenuti multilingua**: Supporto per identificazione e estrazione della tabella dei contenuti in tutte le lingue europee:
+  1. **Riconoscimento automatico**: Identifica le tabelle dei contenuti basate su pattern specifici per lingua
+  2. **Estrazione da outline PDF**: Supporto per estrarre indici direttamente dai bookmark nativi del PDF
+  3. **Rilevamento struttura gerarchica**: Identifica i livelli di annidamento nelle tabelle dei contenuti
 - **Ricerca avanzata con sommari**: Tre nuove strategie per migliorare la precisione della ricerca:
   1. **Embedding duali (testo + sommario)**: Indicizzazione vettoriale che combina il testo completo con il suo sommario estrattivo
   2. **Filtri di rilevanza basati su sommari**: Boosting dei risultati di ricerca quando il sommario è particolarmente rilevante
