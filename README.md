@@ -152,10 +152,27 @@ raggiro process document.pdf --ocr --output output_dir
 python launch_gui.py
 # oppure
 bash run_streamlit.sh
-
-# Usa l'interfaccia OCR specializzata
-# Seleziona la scheda "OCR & Correction" nell'interfaccia GUI
 ```
+
+### Interfaccia Grafica (GUI)
+
+L'interfaccia utente Streamlit offre diverse schede funzionali:
+
+1. **Process Documents**: Elaborazione base dei documenti
+2. **OCR & Correction**: OCR e correzione ortografica avanzata 
+3. **Document Structure**: Visualizzazione della struttura e tabella dei contenuti
+4. **Test RAG**: Test e valutazione di query RAG
+5. **View Results**: Visualizzazione dei risultati dell'elaborazione
+6. **Configuration**: Configurazione del sistema
+
+### Analisi della Tabella dei Contenuti
+
+La scheda "Document Structure" consente di visualizzare e analizzare la struttura del documento:
+
+1. Carica un documento PDF o seleziona un file già elaborato
+2. Visualizza la tabella dei contenuti con supporto multilingua
+3. Esplora i metadati del documento e i riepiloghi dei chunk
+4. Analizza la struttura gerarchica del documento con visualizzazioni
 
 ### Nota importante per l'OCR di documenti multi-pagina
 
