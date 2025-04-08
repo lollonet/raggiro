@@ -109,8 +109,10 @@ cd raggiro
 
 # Installare dipendenze Python
 pip install -e .
-# Oppure specificamente con tutte le dipendenze
-pip install -r requirements.txt
+# Per installare anche le dipendenze di sviluppo
+pip install -e ".[dev]"
+# Per installare le dipendenze per la documentazione
+pip install -e ".[docs]"
 
 # Installare i modelli linguistici richiesti
 # Modello multilingue base (raccomandato per supporto multi-lingua)
@@ -132,7 +134,22 @@ bash scripts/installation/install_nltk.sh
 # python -m nltk.downloader punkt stopwords averaged_perceptron_tagger
 ```
 
-### 3. Verifica installazione Tesseract
+### 3. Configurare pre-commit hooks (per sviluppatori)
+
+Per garantire la qualità del codice, il progetto utilizza pre-commit hooks:
+
+```bash
+# Installa pre-commit se non è già installato
+pip install pre-commit
+
+# Configura i pre-commit hooks
+pre-commit install
+
+# Verifica l'installazione
+pre-commit run --all-files
+```
+
+### 4. Verifica installazione Tesseract
 
 Raggiro usa Tesseract per OCR. Verifica che sia installato correttamente:
 

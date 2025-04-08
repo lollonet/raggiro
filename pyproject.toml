@@ -7,36 +7,141 @@ name = "raggiro"
 version = "0.1.0"
 description = "Advanced document processing pipeline for RAG applications"
 requires-python = ">=3.8"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Raggiro Team", email = "info@raggiro.com"}
+]
+keywords = ["rag", "nlp", "document-processing", "ocr", "semantic-search"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Text Processing :: Linguistic",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
 dependencies = [
-    "pymupdf",
-    "pdfminer.six",
-    "python-docx",
-    "pytesseract",
-    "openpyxl",
-    "pandas",
-    "beautifulsoup4",
-    "langdetect",
-    "spacy",
-    "dateparser",
-    "click",
-    "streamlit", 
-    "textual",
-    "chardet",
-    "faiss-cpu",  # For vector search
-    "sentence-transformers", # For embeddings
-    "qdrant-client", # Vector database
-    "promptfoo", # For testing
-    "tqdm"  # Progress bars
+    # Core dependencies
+    "pymupdf>=1.25.0",
+    "pdfminer.six>=20250327",
+    "python-docx>=0.8.11",
+    "pytesseract>=0.3.10",
+    "openpyxl>=3.1.0",
+    "pandas>=2.0.0",
+    "beautifulsoup4>=4.10.0",
+    "langdetect>=1.0.9",
+    "spacy>=3.7.0",
+    "dateparser>=1.1.0",
+    "click>=8.1.0",
+    "chardet>=5.0.0",
+    "tqdm>=4.64.0",
+    "requests>=2.31.0",
+    "python-magic>=0.4.27",
+    "python-magic-bin>=0.4.14; platform_system == 'Windows'",
+    
+    # Spelling correction
+    "symspellpy>=6.7.6",
+    "textblob>=0.17.1",
+    "wordfreq>=3.0.3",
+    "pyspellchecker>=0.8.0",
+    
+    # GUI dependencies
+    "streamlit>=1.30.0",
+    "textual>=0.50.0",
+    
+    # RAG dependencies
+    "faiss-cpu>=1.7.0",
+    "sentence-transformers>=2.5.0",
+    "qdrant-client>=1.11.0",
+    "openai>=1.0.0",
+    "scikit-learn>=1.0.0",
+    "transformers>=4.20.0",
+    "numpy>=1.20.0",
+    
+    # Testing
+    "promptfoo>=0.1.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest",
-    "black",
-    "isort",
-    "mypy",
-    "ruff"
+    "pytest>=7.0.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "mypy>=1.0.0",
+    "ruff>=0.0.292",
+    "pre-commit>=3.5.0",
+    "types-requests>=2.31.0"
+]
+
+docs = [
+    "sphinx>=7.0.0",
+    "sphinx-rtd-theme>=1.3.0",
+    "myst-parser>=2.0.0"
+]
+
+spacy = [
+    "it_core_news_sm",
+    "en_core_web_sm",
+    "xx_sent_ud_sm",
+    "fr_core_news_sm",
+    "de_core_news_sm",
+    "es_core_news_sm",
+    "pt_core_news_sm",
+    "nl_core_news_sm"
 ]
 
 [project.scripts]
 raggiro = "raggiro.cli.main:main"
+
+[project.urls]
+"Homepage" = "https://github.com/lollonet/raggiro"
+"Bug Tracker" = "https://github.com/lollonet/raggiro/issues"
+"Documentation" = "https://github.com/lollonet/raggiro/docs"
+
+[tool.ruff]
+select = ["E", "F", "W", "I", "N", "UP", "B", "A"]
+ignore = ["E203"]
+line-length = 100
+target-version = "py38"
+
+[tool.black]
+line-length = 100
+target-version = ["py38", "py39", "py310", "py311"]
+include = '\.pyi?$'
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+[[tool.mypy.overrides]]
+module = [
+    "pymupdf.*",
+    "pdfminer.*",
+    "pytesseract.*",
+    "langdetect.*",
+    "spacy.*",
+    "dateparser.*",
+    "symspellpy.*",
+    "textblob.*",
+    "wordfreq.*",
+    "faiss.*",
+    "sentence_transformers.*",
+    "qdrant_client.*",
+    "openai.*",
+    "transformers.*",
+    "promptfoo.*"
+]
+ignore_missing_imports = true
