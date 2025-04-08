@@ -203,6 +203,23 @@ class Extractor:
                 "total_pages": len(doc),
             }
             
+            # Extract document outline/bookmarks if available
+            try:
+                toc = doc.get_toc()
+                if toc and len(toc) > 0:
+                    result["pdf_outline"] = []
+                    for item in toc:
+                        if len(item) >= 3:  # [level, title, page]
+                            outline_item = {
+                                "level": item[0],
+                                "title": item[1],
+                                "page": item[2]
+                            }
+                            result["pdf_outline"].append(outline_item)
+                    logger.info(f"Extracted {len(result['pdf_outline'])} items from PDF outline/bookmarks")
+            except Exception as e:
+                logger.warning(f"Failed to extract PDF outline: {e}")
+            
             # Extract text from each page
             full_text = []
             pages = []
@@ -230,11 +247,18 @@ class Extractor:
                 logger.info("Forcing OCR processing even if PDF has text layer")
                 ocr_result = self._extract_pdf_with_ocr(file_path)
                 if ocr_result["success"]:
+                    # Save the PDF outline/bookmarks if we have them
+                    pdf_outline = result.get("pdf_outline")
+                    
                     # If OCR was successful, use its results
                     result = ocr_result
                     result["extraction_method"] = "pdf_ocr"
                     # Preserve the information about text layer
                     result["has_text_layer"] = has_text
+                    
+                    # Restore the PDF outline/bookmarks
+                    if pdf_outline:
+                        result["pdf_outline"] = pdf_outline
             
             # If still no text, try pdfminer as a fallback
             if not result["text"].strip() and not result["error"]:
