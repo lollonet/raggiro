@@ -86,14 +86,9 @@ docs = [
 ]
 
 spacy = [
-    "it_core_news_sm",
-    "en_core_web_sm",
-    "xx_sent_ud_sm",
-    "fr_core_news_sm",
-    "de_core_news_sm",
-    "es_core_news_sm",
-    "pt_core_news_sm",
-    "nl_core_news_sm"
+    # I modelli linguistici di spaCy devono essere installati manualmente
+    # con: python -m spacy download <modello>
+    # Vedi scripts/installation/setup_dev_env.sh per esempi
 ]
 
 [project.scripts]

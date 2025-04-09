@@ -301,12 +301,31 @@ class Segmenter:
         if self.use_spacy:
             try:
                 self.nlp = spacy.load(self.spacy_model, disable=["ner", "parser"])
+                logger.info(f"Caricato modello spaCy: {self.spacy_model}")
+            except OSError as e:
+                logger.warning(f"Modello spaCy {self.spacy_model} non trovato. Errore: {e}")
+                # Prova a caricare altri modelli in ordine di preferenza
+                alternative_models = ["xx_sent_ud_sm", "it_core_news_sm", "en_core_web_sm"]
+                for model in alternative_models:
+                    if model != self.spacy_model:  # Non provare di nuovo lo stesso modello
+                        try:
+                            self.nlp = spacy.load(model, disable=["ner", "parser"])
+                            logger.info(f"Caricato modello spaCy alternativo: {model}")
+                            break
+                        except OSError:
+                            continue
+                
+                # Se ancora nessun modello è stato caricato, prova con blank
+                if self.nlp is None:
+                    try:
+                        logger.warning("Utilizzo modello spaCy blank come fallback")
+                        self.nlp = spacy.blank("en")
+                    except Exception as e:
+                        logger.error(f"Impossibile caricare modello spaCy blank: {e}")
+                        self.use_spacy = False
             except Exception as e:
-                # Fallback to a smaller model or disable spaCy
-                try:
-                    self.nlp = spacy.blank("en")
-                except:
-                    self.use_spacy = False
+                logger.error(f"Errore non previsto nel caricamento di spaCy: {e}")
+                self.use_spacy = False
         
         # Precompile regex patterns
         self.section_header_regex = [re.compile(pattern) for pattern in self.section_header_patterns]

@@ -35,10 +35,57 @@ uv pip install spacy
 # Installa i modelli spacy
 echo "Installazione dei modelli spaCy..."
 
-# Usa uv run per assicurarsi che i comandi vengano eseguiti nell'ambiente virtuale creato da uv
-uv run python -m spacy download xx_sent_ud_sm
-uv run python -m spacy download it_core_news_sm
-uv run python -m spacy download en_core_web_sm
+# Crea uno script temporaneo per installare i modelli spaCy
+cat > /tmp/spacy_model_download.py << 'EOF'
+import spacy
+import subprocess
+import sys
+import os
+
+def download_model(model_name):
+    print(f"Tentativo di installare modello {model_name}...")
+    try:
+        # Prova a scaricare direttamente con subprocess
+        subprocess.run([sys.executable, "-m", "spacy", "download", model_name], check=True)
+        print(f"Modello {model_name} installato correttamente.")
+        return True
+    except subprocess.CalledProcessError:
+        print(f"Errore nell'installazione di {model_name} con spacy download.")
+        try:
+            # Prova con pip come fallback
+            subprocess.run([sys.executable, "-m", "pip", "install", model_name], check=True)
+            # Verifica se il modello è stato effettivamente installato
+            try:
+                spacy.load(model_name)
+                print(f"Modello {model_name} installato correttamente con pip.")
+                return True
+            except OSError:
+                print(f"Installazione di {model_name} fallita anche con pip.")
+                return False
+        except subprocess.CalledProcessError:
+            print(f"Fallimento completo nell'installazione di {model_name}.")
+            return False
+
+# Lista dei modelli da installare in ordine di priorità
+models = [
+    "xx_sent_ud_sm",  # Multilingua (priorità)
+    "it_core_news_sm",  # Italiano
+    "en_core_web_sm",  # Inglese
+    # Gli altri modelli possono essere installati manualmente se necessario
+]
+
+# Installa i modelli prioritari
+for model in models:
+    success = download_model(model)
+    if not model.startswith("xx_") and not success:
+        print(f"ATTENZIONE: Impossibile installare {model}, ma il progetto potrà funzionare con funzionalità ridotte.")
+EOF
+
+# Esegui lo script di installazione dei modelli
+uv run python /tmp/spacy_model_download.py
+
+# Pulisci
+rm /tmp/spacy_model_download.py
 
 # Configura pre-commit
 echo "Configurazione pre-commit hooks..."

@@ -4,6 +4,8 @@ Raggiro utilizza [spaCy](https://spacy.io/) come motore linguistico principale p
 
 ## Installazione dei modelli linguistici
 
+> **NOTA IMPORTANTE**: I modelli linguistici di spaCy non possono essere installati direttamente come dipendenze in `pyproject.toml` quando si usa `uv`. È necessario installarli manualmente come mostrato di seguito.
+
 ### Modello multilingue (raccomandato)
 
 Il modello multilingue `xx_sent_ud_sm` è consigliato per la maggior parte degli utenti in quanto supporta contemporaneamente tutte le principali lingue europee:
@@ -38,6 +40,14 @@ uv run python -m spacy download pt_core_news_sm
 # Olandese
 uv run python -m spacy download nl_core_news_sm
 ```
+
+### Fallback automatico
+
+Il sistema è progettato per funzionare anche se non tutti i modelli sono installati:
+
+1. Tenterà di caricare il modello specificato in config.toml
+2. Se non disponibile, proverà a caricare modelli alternativi nell'ordine: `xx_sent_ud_sm`, `it_core_news_sm`, `en_core_web_sm`
+3. Come ultima risorsa, utilizzerà un modello blank che offre funzionalità limitate
 
 ### Comandi utili per la gestione dei modelli
 
@@ -153,9 +163,15 @@ Per maggiori informazioni sulla personalizzazione avanzata, consultare la [docum
 
 ### Problemi comuni
 
-1. **Errore "Model not found"**:
+1. **Errore "Model not found" o "Can't find model"**:
    ```
    Soluzione: uv run python -m spacy download <nome_modello>
+   ```
+   
+   Se il comando precedente fallisce con errori di installazione quando si usa `uv`:
+   ```
+   # Soluzione alternativa con script Python
+   uv run python -c "import subprocess, sys; subprocess.run([sys.executable, '-m', 'pip', 'install', '<nome_modello>'])"
    ```
 
 2. **Prestazioni lente con documenti lunghi**:
@@ -171,6 +187,15 @@ Per maggiori informazioni sulla personalizzazione avanzata, consultare la [docum
 4. **Errori di memoria**:
    ```
    Soluzione: Ridurre batch_size o utilizzare modelli più piccoli
+   ```
+   
+5. **Modelli non disponibili con uv**:
+   ```
+   # Se con uv i modelli non sono installabili, puoi passare a un ambiente virtuale standard
+   python -m venv venv
+   source venv/bin/activate  # o venv\Scripts\activate su Windows
+   pip install spacy
+   python -m spacy download xx_sent_ud_sm
    ```
 
 ### Quando contattare il supporto
